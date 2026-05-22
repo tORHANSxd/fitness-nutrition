@@ -88,9 +88,11 @@ export interface NutritionResult {
   carbDayType: CarbDayType;
   dailyTarget: MacroTotals;
   actualTotals: MacroTotals;
+  recommendedTotals: MacroTotals;
   targetRatio: MacroRatio;
   actualRatio: MacroRatio;
   remaining: MacroTotals;
+  recommendedRemaining: MacroTotals;
   mealRecommendations: MealRecommendation[];
   conflicts: string[];
 }

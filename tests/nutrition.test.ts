@@ -99,7 +99,7 @@ describe("meal solving", () => {
         ]
       }
     ];
-    const result = buildNutritionResult(profile, meals, builtinFoods);
+    const result = buildNutritionResult({ ...profile, goalType: "maintain", weeklyWeightChangePct: 0 }, meals, builtinFoods);
     const recommendation = result.mealRecommendations[0];
 
     expect(recommendation.recommendedEntries.rice).toBe(200);
@@ -142,7 +142,7 @@ describe("meal solving", () => {
         ]
       }
     ];
-    const result = buildNutritionResult(profile, meals, builtinFoods);
+    const result = buildNutritionResult({ ...profile, goalType: "maintain", weeklyWeightChangePct: 0 }, meals, builtinFoods);
     expect(result.mealRecommendations[0].recommendedEntries.oats).toBe(40);
   });
 
@@ -182,6 +182,37 @@ describe("meal solving", () => {
     expect(result.conflicts.some((item) => item.includes("实际热量缺口过大"))).toBe(true);
   });
 
+  it("tracks recommended daily totals and remaining macro balance", () => {
+    const meals: MealPlan[] = [
+      {
+        id: "lunch",
+        name: "午餐",
+        ratio: 0.5,
+        locked: false,
+        entries: [
+          { id: "rice", foodId: "public-rice-cooked", grams: 100, locked: false },
+          { id: "chicken", foodId: "public-chicken-breast-cooked", grams: 100, locked: false }
+        ]
+      },
+      {
+        id: "dinner",
+        name: "晚餐",
+        ratio: 0.5,
+        locked: false,
+        entries: [
+          { id: "potato", foodId: "public-sweet-potato-cooked", grams: 120, locked: false },
+          { id: "salmon", foodId: "public-salmon-cooked", grams: 120, locked: false }
+        ]
+      }
+    ];
+    const result = buildNutritionResult(profile, meals, builtinFoods);
+    const actualKcalGap = Math.abs(result.remaining.kcal);
+    const recommendedKcalGap = Math.abs(result.recommendedRemaining.kcal);
+
+    expect(result.recommendedTotals.kcal).toBeGreaterThan(result.actualTotals.kcal);
+    expect(recommendedKcalGap).toBeLessThan(actualKcalGap);
+  });
+
   it("calculates totals for current meal entries", () => {
     const meals: MealPlan[] = [
       {
@@ -215,7 +246,7 @@ describe("meal solving", () => {
     );
   });
 
-  it("lets an explicit user max override the category default max", () => {
+  it("respects an explicit user max instead of the category default max", () => {
     const meals: MealPlan[] = [
       {
         id: "single",
@@ -228,14 +259,17 @@ describe("meal solving", () => {
             foodId: "public-rice-cooked",
             grams: 100,
             locked: false,
-            maxGrams: 500
+            maxGrams: 200
           }
         ]
       }
     ];
+    const rice = builtinFoods.find((food) => food.id === "public-rice-cooked");
+    expect(rice).toBeDefined();
+    expect(getDefaultMealEntrySettings(rice!).maxGrams).toBe(360);
+
     const result = buildNutritionResult(profile, meals, builtinFoods);
-    expect(result.mealRecommendations[0].recommendedEntries.rice).toBeGreaterThan(360);
-    expect(result.mealRecommendations[0].recommendedEntries.rice).toBeLessThanOrEqual(500);
+    expect(result.mealRecommendations[0].recommendedEntries.rice).toBeLessThanOrEqual(200);
   });
 
   it("keeps supplements and nuts inside useful single-serving ranges", () => {

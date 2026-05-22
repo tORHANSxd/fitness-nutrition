@@ -207,6 +207,11 @@ export function NutritionPlanner({ foods, user }: NutritionPlannerProps) {
                 tone={result.remaining.kcal < 0 ? "danger" : "normal"}
               />
             </div>
+            <DailyBalancePanel
+              actual={result.actualTotals}
+              recommended={result.recommendedTotals}
+              target={result.dailyTarget}
+            />
             <MacroRatioPanel
               actualRatio={result.actualRatio}
               carbDayLabel={carbDayLabels[result.carbDayType]}
@@ -243,6 +248,92 @@ export function NutritionPlanner({ foods, user }: NutritionPlannerProps) {
         ))}
       </div>
     </section>
+  );
+}
+
+interface DailyBalancePanelProps {
+  target: MacroTotals;
+  actual: MacroTotals;
+  recommended: MacroTotals;
+}
+
+function DailyBalancePanel({ actual, recommended, target }: DailyBalancePanelProps) {
+  return (
+    <div className="mt-3 rounded-md border border-line bg-panel p-3">
+      <div className="mb-3 flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-ink">当日热量与三大营养素盈亏</h3>
+          <p className="text-xs text-muted">当前摄入和应用推荐后的全天总量都会与目标对比。</p>
+        </div>
+        <span className="text-xs text-muted">柱状比例 = 摄入量 / 目标量</span>
+      </div>
+      <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+        <DailyBalanceCard actual={actual.kcal} label="热量" recommended={recommended.kcal} target={target.kcal} unit="kcal" />
+        <DailyBalanceCard actual={actual.carbs} label="碳水" recommended={recommended.carbs} target={target.carbs} unit="g" />
+        <DailyBalanceCard actual={actual.protein} label="蛋白" recommended={recommended.protein} target={target.protein} unit="g" />
+        <DailyBalanceCard actual={actual.fat} label="脂肪" recommended={recommended.fat} target={target.fat} unit="g" />
+      </div>
+    </div>
+  );
+}
+
+function DailyBalanceCard({
+  actual,
+  label,
+  recommended,
+  target,
+  unit
+}: {
+  actual: number;
+  label: string;
+  recommended: number;
+  target: number;
+  unit: string;
+}) {
+  return (
+    <div className="rounded-md border border-line bg-white p-3">
+      <div className="flex items-center justify-between gap-2">
+        <span className="metric-label">{label}</span>
+        <span className="text-xs text-muted">目标 {round(target, unit === "kcal" ? 0 : 1)}{unit}</span>
+      </div>
+      <DailyBalanceBar label="当前" target={target} unit={unit} value={actual} />
+      <DailyBalanceBar label="推荐后" target={target} unit={unit} value={recommended} />
+    </div>
+  );
+}
+
+function DailyBalanceBar({
+  label,
+  target,
+  unit,
+  value
+}: {
+  label: string;
+  target: number;
+  unit: string;
+  value: number;
+}) {
+  const balance = target - value;
+  const ratio = target > 0 ? (value / target) * 100 : 0;
+  const isSurplus = balance < 0;
+  const roundedDigits = unit === "kcal" ? 0 : 1;
+  const balanceLabel = isSurplus ? "盈" : "亏";
+  const barColor = isSurplus ? "bg-rose" : "bg-accent";
+
+  return (
+    <div className="mt-3">
+      <div className="mb-1 flex items-center justify-between gap-2 text-xs">
+        <span className="text-muted">
+          {label} {round(value, roundedDigits)}{unit} / {round(ratio, 0)}%
+        </span>
+        <span className={isSurplus ? "font-semibold text-rose" : "font-semibold text-accent"}>
+          {balanceLabel} {round(Math.abs(balance), roundedDigits)}{unit}
+        </span>
+      </div>
+      <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+        <div className={`h-full rounded-full ${barColor}`} style={{ width: `${Math.min(Math.max(ratio, 0), 100)}%` }} />
+      </div>
+    </div>
   );
 }
 

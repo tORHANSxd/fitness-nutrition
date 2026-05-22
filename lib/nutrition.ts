@@ -407,6 +407,84 @@ function calculateTotalsFromEntries(
   }, zeroTotals);
 }
 
+function hasAdjustableEntries(meal: MealPlan, foodsById: Map<string, FoodItem>) {
+  return !meal.locked && meal.entries.some((entry) => !entry.locked && foodsById.has(entry.foodId));
+}
+
+function solveAllMealRecommendations(
+  meals: MealPlan[],
+  dailyTarget: MacroTotals,
+  remainingAfterLockedMeals: MacroTotals,
+  unlockedRatioSum: number,
+  foodsById: Map<string, FoodItem>
+) {
+  const targetsByMealId = new Map<string, MacroTotals>();
+  for (const meal of meals) {
+    const mealActual = calculateMealTotals(meal, foodsById);
+    targetsByMealId.set(
+      meal.id,
+      meal.locked
+        ? mealActual
+        : scaleTotals(
+            {
+              kcal: Math.max(remainingAfterLockedMeals.kcal, 0),
+              carbs: Math.max(remainingAfterLockedMeals.carbs, 0),
+              protein: Math.max(remainingAfterLockedMeals.protein, 0),
+              fat: Math.max(remainingAfterLockedMeals.fat, 0)
+            },
+            unlockedRatioSum > 0 ? meal.ratio / unlockedRatioSum : 0
+          )
+    );
+  }
+
+  let solvedEntriesByMealId = new Map<string, Record<string, number>>();
+  let recommendedTotals = zeroTotals;
+
+  for (let pass = 0; pass < 5; pass += 1) {
+    solvedEntriesByMealId = new Map();
+    recommendedTotals = zeroTotals;
+
+    for (const meal of meals) {
+      const target = targetsByMealId.get(meal.id) ?? zeroTotals;
+      const solvedEntries = solveMealEntries(meal, target, foodsById);
+      solvedEntriesByMealId.set(meal.id, solvedEntries);
+      recommendedTotals = addTotals(
+        recommendedTotals,
+        calculateTotalsFromEntries(meal.entries, solvedEntries, foodsById)
+      );
+    }
+
+    const remaining = subtractTotals(dailyTarget, recommendedTotals);
+    const shouldStop =
+      Math.abs(remaining.kcal) < 20 &&
+      Math.abs(remaining.carbs) < 4 &&
+      Math.abs(remaining.protein) < 4 &&
+      Math.abs(remaining.fat) < 3;
+    if (shouldStop) {
+      break;
+    }
+
+    const redistributableMeals = meals.filter((meal) => hasAdjustableEntries(meal, foodsById));
+    const redistributableRatioSum = redistributableMeals.reduce((sum, meal) => sum + meal.ratio, 0);
+    if (redistributableRatioSum <= 0) {
+      break;
+    }
+
+    for (const meal of redistributableMeals) {
+      const currentTarget = targetsByMealId.get(meal.id) ?? zeroTotals;
+      const adjustment = scaleTotals(remaining, meal.ratio / redistributableRatioSum);
+      targetsByMealId.set(meal.id, {
+        kcal: Math.max(currentTarget.kcal + adjustment.kcal, 0),
+        carbs: Math.max(currentTarget.carbs + adjustment.carbs, 0),
+        protein: Math.max(currentTarget.protein + adjustment.protein, 0),
+        fat: Math.max(currentTarget.fat + adjustment.fat, 0)
+      });
+    }
+  }
+
+  return { targetsByMealId, solvedEntriesByMealId, recommendedTotals };
+}
+
 function deficitMessage(label: string, deficit: MacroTotals) {
   const parts = [
     `${round(deficit.kcal, 0)} kcal`,
@@ -443,20 +521,18 @@ export function buildNutritionResult(profile: UserProfile, meals: MealPlan[], fo
     );
   }
 
+  const { targetsByMealId, solvedEntriesByMealId, recommendedTotals } = solveAllMealRecommendations(
+    meals,
+    dailyTarget,
+    remainingAfterLockedMeals,
+    unlockedRatioSum,
+    foodsById
+  );
+
   const mealRecommendations = meals.map((meal) => {
     const mealActual = calculateMealTotals(meal, foodsById);
-    const mealTarget = meal.locked
-      ? mealActual
-      : scaleTotals(
-          {
-            kcal: Math.max(remainingAfterLockedMeals.kcal, 0),
-            carbs: Math.max(remainingAfterLockedMeals.carbs, 0),
-            protein: Math.max(remainingAfterLockedMeals.protein, 0),
-            fat: Math.max(remainingAfterLockedMeals.fat, 0)
-          },
-          unlockedRatioSum > 0 ? meal.ratio / unlockedRatioSum : 0
-        );
-    const recommendedEntries = solveMealEntries(meal, mealTarget, foodsById);
+    const mealTarget = targetsByMealId.get(meal.id) ?? mealActual;
+    const recommendedEntries = solvedEntriesByMealId.get(meal.id) ?? Object.fromEntries(meal.entries.map((entry) => [entry.id, entry.grams]));
     const recommendedTotals = calculateTotalsFromEntries(meal.entries, recommendedEntries, foodsById);
     const deficit = subtractTotals(mealTarget, recommendedTotals);
     const actualDeficit = subtractTotals(mealTarget, mealActual);
@@ -491,9 +567,11 @@ export function buildNutritionResult(profile: UserProfile, meals: MealPlan[], fo
     carbDayType: getCarbDayType(profile.workoutType),
     dailyTarget,
     actualTotals,
+    recommendedTotals,
     targetRatio: calculateMacroRatio(dailyTarget),
     actualRatio: calculateMacroRatio(actualTotals),
     remaining: subtractTotals(dailyTarget, actualTotals),
+    recommendedRemaining: subtractTotals(dailyTarget, recommendedTotals),
     mealRecommendations,
     conflicts: Array.from(new Set(conflicts))
   };

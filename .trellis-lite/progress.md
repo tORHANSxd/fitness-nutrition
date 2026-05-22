@@ -1,5 +1,6 @@
 # Progress
 
+- 2026-05-22 16:55:00 优化当日营养盈亏显示和推荐贴合：首屏新增热量、碳水、蛋白、脂肪的当前/推荐后全天盈亏柱状图；求解先按餐次计算，再把推荐总量与日目标差额重新分配到可调整餐次。验证 npm run test、npm run lint、npm run build、npm audit --json 通过，浏览器首屏显示四项盈亏柱状图且控制台 error=0。
 - 2026-05-22 14:15:00 优化热量目标逻辑：维持热量与目标热量分离，新增目标类型和每周体重变化率；默认减脂按 0.5% 体重/周计算缺口，并增加实际缺口过大提醒。验证 npm run lint、npm run test、npm run build 通过，浏览器首屏新字段渲染正常且控制台 error=0。
 - 2026-05-22 11:29:00 食物库支持网页端编辑公共食物和本人自定义食物：公共食物保存为当前用户覆盖值，可重置；本人食物可更新原记录。验证 npm run lint、npm run test、npm run build、npm audit --json 通过，浏览器公共食物编辑/重置控制台 error=0。
 - 2026-05-22 11:10:00 复核 FatSecret.cn 直接条目后再次校准白米饭、鸡胸肉、杏仁的每 100g 数据；验证 npm run lint、npm run test、npm run build 通过，浏览器控制台 error=0。

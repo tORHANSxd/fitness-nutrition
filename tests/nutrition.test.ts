@@ -7,6 +7,7 @@ import {
   calculateMacroRatio,
   calculateMealsTotals,
   createDefaultMeals,
+  getDefaultMealEntrySettings,
   getCarbDayType,
   round
 } from "@/lib/nutrition";
@@ -168,5 +169,64 @@ describe("meal solving", () => {
     const total = calculateMealsTotals(meals, builtinFoods);
     expect(total.kcal).toBe(130);
     expect(round(total.carbs, 2)).toBe(28.59);
+  });
+
+  it("uses category default max when user does not set max grams", () => {
+    const meals: MealPlan[] = [
+      {
+        id: "single",
+        name: "单餐",
+        ratio: 1,
+        locked: false,
+        entries: [{ id: "rice", foodId: "public-rice-cooked", grams: 100, locked: false }]
+      }
+    ];
+    const result = buildNutritionResult(profile, meals, builtinFoods);
+    const rice = builtinFoods.find((food) => food.id === "public-rice-cooked");
+    expect(rice).toBeDefined();
+    expect(result.mealRecommendations[0].recommendedEntries.rice).toBeLessThanOrEqual(
+      getDefaultMealEntrySettings(rice!).maxGrams
+    );
+  });
+
+  it("lets an explicit user max override the category default max", () => {
+    const meals: MealPlan[] = [
+      {
+        id: "single",
+        name: "单餐",
+        ratio: 1,
+        locked: false,
+        entries: [
+          {
+            id: "rice",
+            foodId: "public-rice-cooked",
+            grams: 100,
+            locked: false,
+            maxGrams: 500
+          }
+        ]
+      }
+    ];
+    const result = buildNutritionResult(profile, meals, builtinFoods);
+    expect(result.mealRecommendations[0].recommendedEntries.rice).toBeGreaterThan(360);
+    expect(result.mealRecommendations[0].recommendedEntries.rice).toBeLessThanOrEqual(500);
+  });
+
+  it("keeps supplements and nuts inside useful single-serving ranges", () => {
+    const meals: MealPlan[] = [
+      {
+        id: "single",
+        name: "单餐",
+        ratio: 1,
+        locked: false,
+        entries: [
+          { id: "fish-oil", foodId: "public-fish-oil", grams: 2, locked: false },
+          { id: "almond", foodId: "public-almond", grams: 20, locked: false }
+        ]
+      }
+    ];
+    const result = buildNutritionResult(profile, meals, builtinFoods);
+    expect(result.mealRecommendations[0].recommendedEntries["fish-oil"]).toBeLessThanOrEqual(5);
+    expect(result.mealRecommendations[0].recommendedEntries.almond).toBeLessThanOrEqual(35);
   });
 });

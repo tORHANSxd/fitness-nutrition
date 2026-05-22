@@ -1,5 +1,8 @@
 # Progress
 
+- 2026-05-22 11:07:00 npm audit --json 通过：0 个漏洞。
+- 2026-05-22 11:05:00 优化公共食物库和求解约束：按 FatSecret.cn 常见每 100g 条目校准主食/蔬菜/水果/肉类/坚果数据，新增分类默认克重、默认最大克重和份量软约束；验证 npm run lint、npm run test、npm run build 通过，桌面与 390px 移动浏览器控制台 error=0。
+
 - 2026-05-22 09:37:47 Initialized Trellis Lite at D:\Workspace\Windows\fitness_page\.trellis-lite
 - 2026-05-22 09:40:00 初始化 Git 仓库和本地远端 fitness_nutrition。
 - 2026-05-22 09:45:00 写入 Next.js 项目骨架、Supabase schema、营养计算核心、食物库、计划编辑界面和测试。

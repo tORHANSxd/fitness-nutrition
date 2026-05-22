@@ -21,6 +21,7 @@ import {
   carbCycleMacroSource,
   convertWeightLabel,
   createDefaultMeals,
+  getDefaultMealEntrySettings,
   normalizeMealRatios,
   round,
   trainingTimeLabels,
@@ -80,6 +81,8 @@ export function NutritionPlanner({ foods, user }: NutritionPlannerProps) {
     if (!firstFood) {
       return;
     }
+    const meal = meals.find((item) => item.id === mealId);
+    const defaults = getDefaultMealEntrySettings(firstFood, meal);
     updateMeal(mealId, (meal) => ({
       ...meal,
       entries: [
@@ -87,10 +90,10 @@ export function NutritionPlanner({ foods, user }: NutritionPlannerProps) {
         {
           id: crypto.randomUUID(),
           foodId: firstFood.id,
-          grams: 100,
+          grams: defaults.grams,
           locked: false,
-          minGrams: 0,
-          maxGrams: null
+          minGrams: defaults.minGrams,
+          maxGrams: defaults.maxGrams
         }
       ]
     }));
@@ -468,6 +471,7 @@ function MealEditor({
               meal.entries.map((entry) => {
                 const food = foodsById.get(entry.foodId);
                 const recommendedGrams = recommendation?.recommendedEntries[entry.id] ?? entry.grams;
+                const defaultBounds = food ? getDefaultMealEntrySettings(food, meal) : null;
                 const totals = food
                   ? {
                       kcal: (food.kcalPer100g * entry.grams) / 100,
@@ -486,7 +490,11 @@ function MealEditor({
                         onChange={(event) =>
                           onUpdateEntry(entry.id, (current) => ({
                             ...current,
-                            foodId: event.target.value
+                            foodId: event.target.value,
+                            ...(() => {
+                              const nextFood = foodsById.get(event.target.value);
+                              return nextFood ? getDefaultMealEntrySettings(nextFood, meal) : {};
+                            })()
                           }))
                         }
                       >
@@ -531,6 +539,7 @@ function MealEditor({
                         className="field h-9 w-24"
                         type="number"
                         value={entry.maxGrams ?? ""}
+                        placeholder={defaultBounds ? `${defaultBounds.maxGrams}` : ""}
                         onChange={(event) =>
                           onUpdateEntry(entry.id, (current) => ({
                             ...current,

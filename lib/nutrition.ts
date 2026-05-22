@@ -1,5 +1,6 @@
 import type {
   CarbDayType,
+  FoodCategory,
   FoodItem,
   MacroRatio,
   MacroTotals,
@@ -37,8 +38,29 @@ const fatRatios: Record<CarbDayType, number> = {
   low: 0.5 / 2
 };
 
+interface FoodPortionRule {
+  defaultGrams: number;
+  maxGrams: number;
+  softTargetWeight: number;
+}
+
+const cookedMainMax = 360;
+const rawMainMax = 120;
+
+const defaultPortionRules: Record<FoodCategory, FoodPortionRule> = {
+  主食: { defaultGrams: 180, maxGrams: cookedMainMax, softTargetWeight: 0.28 },
+  蔬菜: { defaultGrams: 200, maxGrams: 420, softTargetWeight: 0.34 },
+  水果: { defaultGrams: 120, maxGrams: 250, softTargetWeight: 0.34 },
+  肉类: { defaultGrams: 150, maxGrams: 260, softTargetWeight: 0.26 },
+  补剂: { defaultGrams: 30, maxGrams: 40, softTargetWeight: 1.3 },
+  坚果: { defaultGrams: 20, maxGrams: 35, softTargetWeight: 1.1 }
+};
+
 export const carbCycleMacroSource =
   "凯圣王碳循环：周碳水高/中/低分配为50%/35%/15%，周脂肪高/中/低分配为15%/35%/50%，蛋白每日稳定。";
+
+export const foodPortionSource =
+  "分类份量参考中国居民平衡膳食餐盘：蔬菜约34%-36%、谷薯类约26%-28%、水果约20%-25%、动物性食物约13%-17%；补剂和坚果按健身常用单次份量设上限。";
 
 export const workoutLabels: Record<WorkoutType, string> = {
   legs: "腿部",
@@ -116,6 +138,44 @@ export function calculateMacroRatio(total: MacroTotals): MacroRatio {
 
 export function clamp(value: number, min = 0, max = Number.POSITIVE_INFINITY) {
   return Math.min(Math.max(value, min), max);
+}
+
+function isSupplementNamed(food: FoodItem, keyword: string) {
+  return food.name.toLowerCase().includes(keyword.toLowerCase());
+}
+
+export function getFoodPortionRule(food: FoodItem, meal?: Pick<MealPlan, "id" | "name">): FoodPortionRule {
+  const base = defaultPortionRules[food.category];
+  if (food.category === "主食" && food.weightBasis === "raw") {
+    return { ...base, defaultGrams: 60, maxGrams: rawMainMax };
+  }
+  if (food.category === "水果" && meal?.id === "pre-workout") {
+    return { ...base, defaultGrams: 120, maxGrams: 220 };
+  }
+  if (food.category === "肉类" && food.weightBasis === "raw") {
+    return { ...base, defaultGrams: 160, maxGrams: 280 };
+  }
+  if (food.category === "补剂") {
+    if (isSupplementNamed(food, "肌酸") || isSupplementNamed(food, "creatine")) {
+      return { defaultGrams: 5, maxGrams: 5, softTargetWeight: 2.4 };
+    }
+    if (isSupplementNamed(food, "鱼油") || isSupplementNamed(food, "fish oil")) {
+      return { defaultGrams: 2, maxGrams: 5, softTargetWeight: 2.4 };
+    }
+    if (isSupplementNamed(food, "电解质") || isSupplementNamed(food, "electrolyte")) {
+      return { defaultGrams: 8, maxGrams: 20, softTargetWeight: 1.8 };
+    }
+  }
+  return base;
+}
+
+export function getDefaultMealEntrySettings(food: FoodItem, meal?: Pick<MealPlan, "id" | "name">) {
+  const rule = getFoodPortionRule(food, meal);
+  return {
+    grams: rule.defaultGrams,
+    minGrams: 0,
+    maxGrams: rule.maxGrams
+  };
 }
 
 export function calculateBmr(profile: Pick<UserProfile, "sex" | "age" | "heightCm" | "weightKg">) {
@@ -207,9 +267,11 @@ export function createDefaultMeals(profile: UserProfile): MealPlan[] {
   ];
 }
 
-function entryBounds(entry: MealFoodEntry) {
+function entryBounds(entry: MealFoodEntry, food?: FoodItem, meal?: Pick<MealPlan, "id" | "name">) {
   const min = Math.max(entry.minGrams ?? 0, 0);
-  const max = entry.maxGrams == null ? Number.POSITIVE_INFINITY : Math.max(entry.maxGrams, min);
+  const defaultMax = food ? getFoodPortionRule(food, meal).maxGrams : Number.POSITIVE_INFINITY;
+  const requestedMax = entry.maxGrams == null ? defaultMax : entry.maxGrams;
+  const max = Math.max(requestedMax, min);
   return { min, max };
 }
 
@@ -226,7 +288,8 @@ function solveMealEntries(
   }
 
   for (const entry of adjustable) {
-    const { min, max } = entryBounds(entry);
+    const food = foodsById.get(entry.foodId);
+    const { min, max } = entryBounds(entry, food, meal);
     recommended[entry.id] = clamp(recommended[entry.id] ?? entry.grams, min, max);
   }
 
@@ -255,7 +318,12 @@ function solveMealEntries(
       if (denominator === 0) {
         continue;
       }
-      const { min, max } = entryBounds(entry);
+      const { min, max } = entryBounds(entry, food, meal);
+      const portionRule = getFoodPortionRule(food, meal);
+      const portionTarget = clamp(portionRule.defaultGrams, min, max);
+      const portionScale = Math.max(portionTarget, 25);
+      numerator += portionRule.softTargetWeight * (currentGrams - portionTarget) / (portionScale * portionScale);
+      denominator += portionRule.softTargetWeight / (portionScale * portionScale);
       recommended[entry.id] = round(clamp(currentGrams - numerator / denominator, min, max), 1);
     }
   }

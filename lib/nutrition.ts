@@ -242,6 +242,9 @@ export function getFoodPortionRule(food: FoodItem, meal?: Pick<MealPlan, "id" | 
     if (isSupplementNamed(food, "鱼油") || isSupplementNamed(food, "fish oil")) {
       return { defaultGrams: 2, maxGrams: 5, softTargetWeight: 2.4 };
     }
+    if (isSupplementNamed(food, "食用油") || isSupplementNamed(food, "cooking oil") || isSupplementNamed(food, "vegetable oil")) {
+      return { defaultGrams: 10, maxGrams: 20, softTargetWeight: 2.4 };
+    }
     if (isSupplementNamed(food, "电解质") || isSupplementNamed(food, "electrolyte")) {
       return { defaultGrams: 8, maxGrams: 20, softTargetWeight: 1.8 };
     }

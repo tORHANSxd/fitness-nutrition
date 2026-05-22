@@ -315,6 +315,18 @@ export const builtinFoods: FoodItem[] = [
     source: "public"
   },
   {
+    id: "public-cooking-oil",
+    name: "食用油",
+    category: "补剂",
+    kcalPer100g: 884,
+    fatPer100g: 100,
+    carbsPer100g: 0,
+    proteinPer100g: 0,
+    weightBasis: "raw",
+    cookedRawRatio: null,
+    source: "public"
+  },
+  {
     id: "public-almond",
     name: "杏仁",
     category: "坚果",

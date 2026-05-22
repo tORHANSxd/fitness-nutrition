@@ -369,4 +369,26 @@ describe("meal solving", () => {
     expect(result.mealRecommendations[0].recommendedEntries["fish-oil"]).toBeLessThanOrEqual(5);
     expect(result.mealRecommendations[0].recommendedEntries.almond).toBeLessThanOrEqual(35);
   });
+
+  it("uses a small serving range for cooking oil", () => {
+    const oil = builtinFoods.find((food) => food.id === "public-cooking-oil");
+    expect(oil).toBeDefined();
+    expect(getDefaultMealEntrySettings(oil!)).toEqual({
+      grams: 10,
+      minGrams: 0,
+      maxGrams: 20
+    });
+
+    const meals: MealPlan[] = [
+      {
+        id: "single",
+        name: "单餐",
+        ratio: 1,
+        locked: false,
+        entries: [{ id: "oil", foodId: "public-cooking-oil", grams: 10, locked: false }]
+      }
+    ];
+    const result = buildNutritionResult(profile, meals, builtinFoods);
+    expect(result.mealRecommendations[0].recommendedEntries.oil).toBeLessThanOrEqual(20);
+  });
 });

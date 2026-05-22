@@ -138,7 +138,7 @@ const categoryGramWeights: Record<FoodCategory, number> = {
 };
 
 export const carbCycleMacroSource =
-  "凯圣王碳循环：高碳日碳水/蛋白/脂肪为66%/17%/17%，中碳日为45%/17%/38%，低碳日为22%/17%/61%。";
+  "凯圣王碳循环：目标严格按固定供能比例换算克数，高碳日碳水/蛋白/脂肪为66%/17%/17%，中碳日为45%/17%/38%，低碳日为22%/17%/61%。";
 
 export const foodPortionSource =
   "分类份量参考中国居民平衡膳食餐盘和健康餐盘法：主餐保留可见蛋白份量，主食、蔬果、蛋白按餐盘结构评分；补剂和坚果按健身常用单次份量设上限。";

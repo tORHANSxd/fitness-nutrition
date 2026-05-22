@@ -97,13 +97,25 @@ describe("nutrition formulas", () => {
     expect(round(calculateCalorieTarget({ ...profile, goalType: "bulk", weeklyWeightChangePct: 0.25 }), 0)).toBe(3101);
   });
 
-  it("keeps daily macro calories aligned with target calories", () => {
-    const target = calculateDailyTarget(profile);
-    const macroCalories = target.carbs * 4 + target.protein * 4 + target.fat * 9;
-    expect(round(macroCalories, 0)).toBe(round(target.kcal, 0));
-    expect(round(calculateMacroRatio(target).carbs, 0)).toBe(66);
-    expect(round(calculateMacroRatio(target).protein, 0)).toBe(17);
-    expect(round(calculateMacroRatio(target).fat, 0)).toBe(17);
+  it("keeps daily macro calories strictly aligned with Kaisheng carb-cycle ratios", () => {
+    const expectedByWorkout = [
+      { workoutType: "legs", expected: { carbs: 66, protein: 17, fat: 17 } },
+      { workoutType: "back", expected: { carbs: 66, protein: 17, fat: 17 } },
+      { workoutType: "chest", expected: { carbs: 45, protein: 17, fat: 38 } },
+      { workoutType: "rest", expected: { carbs: 22, protein: 17, fat: 61 } }
+    ] as const;
+
+    for (const { workoutType, expected } of expectedByWorkout) {
+      const target = calculateDailyTarget({ ...profile, workoutType });
+      const macroCalories = target.carbs * 4 + target.protein * 4 + target.fat * 9;
+      const targetRatio = calculateMacroRatio(target);
+
+      expect(round(macroCalories, 0)).toBe(round(target.kcal, 0));
+      expect(round(targetRatio.carbs, 0)).toBe(expected.carbs);
+      expect(round(targetRatio.protein, 0)).toBe(expected.protein);
+      expect(round(targetRatio.fat, 0)).toBe(expected.fat);
+      expect(round(target.protein, 1)).toBe(round((target.kcal * expected.protein) / 100 / 4, 1));
+    }
   });
 
   it("calculates macro calorie ratios from grams", () => {

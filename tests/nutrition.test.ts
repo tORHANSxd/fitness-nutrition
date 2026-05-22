@@ -213,6 +213,77 @@ describe("meal solving", () => {
     expect(recommendedKcalGap).toBeLessThan(actualKcalGap);
   });
 
+  it("keeps displayed meal targets proportional to the daily standard after solver redistribution", () => {
+    const userProfile: UserProfile = {
+      ...profile,
+      age: 28,
+      heightCm: 175,
+      weightKg: 75,
+      exerciseKcal: 350,
+      proteinPerKg: 1.4,
+      goalType: "cut",
+      weeklyWeightChangePct: 0.5
+    };
+    const meals: MealPlan[] = [
+      {
+        id: "breakfast",
+        name: "早餐",
+        ratio: 0.25,
+        locked: false,
+        entries: [
+          { id: "oats", foodId: "public-oats-raw", grams: 60, locked: false, minGrams: 40, maxGrams: 100 },
+          { id: "whey", foodId: "public-whey", grams: 25, locked: false, minGrams: 20, maxGrams: 40 }
+        ]
+      },
+      {
+        id: "lunch",
+        name: "午餐",
+        ratio: 0.35,
+        locked: false,
+        entries: [
+          { id: "rice", foodId: "public-rice-cooked", grams: 200, locked: false, minGrams: 100, maxGrams: 400 },
+          { id: "chicken", foodId: "public-chicken-breast-cooked", grams: 160, locked: false, minGrams: 100, maxGrams: 260 },
+          { id: "broccoli", foodId: "public-broccoli-cooked", grams: 180, locked: false, minGrams: 100, maxGrams: 350 }
+        ]
+      },
+      {
+        id: "pre-workout",
+        name: "训练前加餐",
+        ratio: 0.1,
+        locked: false,
+        entries: [{ id: "banana", foodId: "public-banana-raw", grams: 120, locked: false, minGrams: 80, maxGrams: 180 }]
+      },
+      {
+        id: "dinner",
+        name: "晚餐",
+        ratio: 0.3,
+        locked: false,
+        entries: [
+          { id: "salmon", foodId: "public-salmon-cooked", grams: 150, locked: false, minGrams: 100, maxGrams: 240 },
+          { id: "potato", foodId: "public-sweet-potato-cooked", grams: 220, locked: false, minGrams: 120, maxGrams: 380 }
+        ]
+      }
+    ];
+    const result = buildNutritionResult(userProfile, meals, builtinFoods);
+    const targetTotals = result.mealRecommendations.reduce(
+      (total, recommendation) => ({
+        kcal: total.kcal + recommendation.target.kcal,
+        carbs: total.carbs + recommendation.target.carbs,
+        protein: total.protein + recommendation.target.protein,
+        fat: total.fat + recommendation.target.fat
+      }),
+      { kcal: 0, carbs: 0, protein: 0, fat: 0 }
+    );
+
+    expect(round(result.dailyTarget.protein, 1)).toBe(105);
+    expect(round(result.mealRecommendations[0].target.protein, 1)).toBe(26.3);
+    expect(round(result.mealRecommendations[1].target.carbs, 1)).toBe(round(result.dailyTarget.carbs * 0.35, 1));
+    expect(round(targetTotals.kcal, 0)).toBe(round(result.dailyTarget.kcal, 0));
+    expect(round(targetTotals.carbs, 1)).toBe(round(result.dailyTarget.carbs, 1));
+    expect(round(targetTotals.protein, 1)).toBe(round(result.dailyTarget.protein, 1));
+    expect(round(targetTotals.fat, 1)).toBe(round(result.dailyTarget.fat, 1));
+  });
+
   it("calculates totals for current meal entries", () => {
     const meals: MealPlan[] = [
       {

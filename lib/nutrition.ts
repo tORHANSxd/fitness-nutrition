@@ -411,9 +411,8 @@ function hasAdjustableEntries(meal: MealPlan, foodsById: Map<string, FoodItem>) 
   return !meal.locked && meal.entries.some((entry) => !entry.locked && foodsById.has(entry.foodId));
 }
 
-function solveAllMealRecommendations(
+function buildMealTargets(
   meals: MealPlan[],
-  dailyTarget: MacroTotals,
   remainingAfterLockedMeals: MacroTotals,
   unlockedRatioSum: number,
   foodsById: Map<string, FoodItem>
@@ -436,6 +435,16 @@ function solveAllMealRecommendations(
           )
     );
   }
+  return targetsByMealId;
+}
+
+function solveAllMealRecommendations(
+  meals: MealPlan[],
+  dailyTarget: MacroTotals,
+  mealTargetsById: Map<string, MacroTotals>,
+  foodsById: Map<string, FoodItem>
+) {
+  const solverTargetsByMealId = new Map(mealTargetsById);
 
   let solvedEntriesByMealId = new Map<string, Record<string, number>>();
   let recommendedTotals = zeroTotals;
@@ -445,7 +454,7 @@ function solveAllMealRecommendations(
     recommendedTotals = zeroTotals;
 
     for (const meal of meals) {
-      const target = targetsByMealId.get(meal.id) ?? zeroTotals;
+      const target = solverTargetsByMealId.get(meal.id) ?? zeroTotals;
       const solvedEntries = solveMealEntries(meal, target, foodsById);
       solvedEntriesByMealId.set(meal.id, solvedEntries);
       recommendedTotals = addTotals(
@@ -471,9 +480,9 @@ function solveAllMealRecommendations(
     }
 
     for (const meal of redistributableMeals) {
-      const currentTarget = targetsByMealId.get(meal.id) ?? zeroTotals;
+      const currentTarget = solverTargetsByMealId.get(meal.id) ?? zeroTotals;
       const adjustment = scaleTotals(remaining, meal.ratio / redistributableRatioSum);
-      targetsByMealId.set(meal.id, {
+      solverTargetsByMealId.set(meal.id, {
         kcal: Math.max(currentTarget.kcal + adjustment.kcal, 0),
         carbs: Math.max(currentTarget.carbs + adjustment.carbs, 0),
         protein: Math.max(currentTarget.protein + adjustment.protein, 0),
@@ -482,7 +491,7 @@ function solveAllMealRecommendations(
     }
   }
 
-  return { targetsByMealId, solvedEntriesByMealId, recommendedTotals };
+  return { solvedEntriesByMealId, recommendedTotals };
 }
 
 function deficitMessage(label: string, deficit: MacroTotals) {
@@ -521,17 +530,17 @@ export function buildNutritionResult(profile: UserProfile, meals: MealPlan[], fo
     );
   }
 
-  const { targetsByMealId, solvedEntriesByMealId, recommendedTotals } = solveAllMealRecommendations(
+  const mealTargetsById = buildMealTargets(meals, remainingAfterLockedMeals, unlockedRatioSum, foodsById);
+  const { solvedEntriesByMealId, recommendedTotals } = solveAllMealRecommendations(
     meals,
     dailyTarget,
-    remainingAfterLockedMeals,
-    unlockedRatioSum,
+    mealTargetsById,
     foodsById
   );
 
   const mealRecommendations = meals.map((meal) => {
     const mealActual = calculateMealTotals(meal, foodsById);
-    const mealTarget = targetsByMealId.get(meal.id) ?? mealActual;
+    const mealTarget = mealTargetsById.get(meal.id) ?? mealActual;
     const recommendedEntries = solvedEntriesByMealId.get(meal.id) ?? Object.fromEntries(meal.entries.map((entry) => [entry.id, entry.grams]));
     const recommendedTotals = calculateTotalsFromEntries(meal.entries, recommendedEntries, foodsById);
     const deficit = subtractTotals(mealTarget, recommendedTotals);

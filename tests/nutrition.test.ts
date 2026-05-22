@@ -26,8 +26,6 @@ const profile: UserProfile = {
   weightKg: 80,
   activityFactor: 1.45,
   exerciseKcal: 300,
-  proteinPerKg: 1.2,
-  bodyTypeFactor: 2.5,
   workoutType: "legs",
   trainingTime: "afternoon",
   planDate: "2026-05-22"
@@ -103,6 +101,9 @@ describe("nutrition formulas", () => {
     const target = calculateDailyTarget(profile);
     const macroCalories = target.carbs * 4 + target.protein * 4 + target.fat * 9;
     expect(round(macroCalories, 0)).toBe(round(target.kcal, 0));
+    expect(round(calculateMacroRatio(target).carbs, 0)).toBe(66);
+    expect(round(calculateMacroRatio(target).protein, 0)).toBe(17);
+    expect(round(calculateMacroRatio(target).fat, 0)).toBe(17);
   });
 
   it("calculates macro calorie ratios from grams", () => {
@@ -542,8 +543,8 @@ describe("meal solving", () => {
       { kcal: 0, carbs: 0, protein: 0, fat: 0 }
     );
 
-    expect(round(result.dailyTarget.protein, 1)).toBe(105);
-    expect(round(result.mealRecommendations[0].target.protein, 1)).toBe(26.3);
+    expect(round(result.dailyTarget.protein, 1)).toBe(round((result.dailyTarget.kcal * 0.17) / 4, 1));
+    expect(round(result.mealRecommendations[0].target.protein, 1)).toBe(round(result.dailyTarget.protein * meals[0].ratio, 1));
     expect(round(result.mealRecommendations[1].target.carbs, 1)).toBe(round(result.dailyTarget.carbs * 0.35, 1));
     expect(round(targetTotals.kcal, 0)).toBe(round(result.dailyTarget.kcal, 0));
     expect(round(targetTotals.carbs, 1)).toBe(round(result.dailyTarget.carbs, 1));

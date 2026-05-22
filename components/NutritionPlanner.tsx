@@ -520,14 +520,6 @@ function ProfilePanel({ profile, updateProfile }: ProfilePanelProps) {
             <span className="metric-label mb-1 block">运动消耗 kcal</span>
             <input className="field w-full" type="number" value={profile.exerciseKcal} onChange={(event) => numberInput("exerciseKcal", event.target.value)} />
           </label>
-          <label>
-            <span className="metric-label mb-1 block">蛋白 g/kg</span>
-            <input className="field w-full" min="0.8" max="1.5" step="0.1" type="number" value={profile.proteinPerKg} onChange={(event) => numberInput("proteinPerKg", event.target.value)} />
-          </label>
-          <label>
-            <span className="metric-label mb-1 block">碳水系数 g/kg</span>
-            <input className="field w-full" min="2" max="3" step="0.1" type="number" value={profile.bodyTypeFactor} onChange={(event) => numberInput("bodyTypeFactor", event.target.value)} />
-          </label>
         </div>
         <label>
           <span className="metric-label mb-1 block">训练部位</span>

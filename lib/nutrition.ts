@@ -37,16 +37,10 @@ const dailyFitWeights: Record<keyof MacroTotals, number> = {
 const macroKeys: Array<keyof MacroTotals> = ["kcal", "carbs", "protein", "fat"];
 const macroRatioKeys: Array<keyof MacroRatio> = ["carbs", "protein", "fat"];
 
-const carbRatios: Record<CarbDayType, number> = {
-  high: 0.5 / 2,
-  mid: 0.35 / 3,
-  low: 0.15 / 2
-};
-
-const fatRatios: Record<CarbDayType, number> = {
-  high: 0.15 / 2,
-  mid: 0.35 / 3,
-  low: 0.5 / 2
+const carbCycleEnergyRatios: Record<CarbDayType, MacroRatio> = {
+  high: { carbs: 66, protein: 17, fat: 17 },
+  mid: { carbs: 45, protein: 17, fat: 38 },
+  low: { carbs: 22, protein: 17, fat: 61 }
 };
 
 const kcalPerKgWeight = 7700;
@@ -144,7 +138,7 @@ const categoryGramWeights: Record<FoodCategory, number> = {
 };
 
 export const carbCycleMacroSource =
-  "凯圣王碳循环：周碳水高/中/低分配为50%/35%/15%，周脂肪高/中/低分配为15%/35%/50%，蛋白每日稳定。";
+  "凯圣王碳循环：高碳日碳水/蛋白/脂肪为66%/17%/17%，中碳日为45%/17%/38%，低碳日为22%/17%/61%。";
 
 export const foodPortionSource =
   "分类份量参考中国居民平衡膳食餐盘和健康餐盘法：主餐保留可见蛋白份量，主食、蔬果、蛋白按餐盘结构评分；补剂和坚果按健身常用单次份量设上限。";
@@ -481,21 +475,13 @@ export function getCarbDayType(workoutType: WorkoutType): CarbDayType {
 export function calculateDailyTarget(profile: UserProfile): MacroTotals {
   const carbDayType = getCarbDayType(profile.workoutType);
   const targetCalories = calculateCalorieTarget(profile);
-  const protein = profile.weightKg * profile.proteinPerKg;
-  const weeklyCarbs = profile.weightKg * profile.bodyTypeFactor * 7;
-  const fatParameter = 0.8 + (profile.bodyTypeFactor - 2) * 0.3;
-  const weeklyFat = profile.weightKg * fatParameter * 7;
-  const rawCarbs = weeklyCarbs * carbRatios[carbDayType];
-  const rawFat = weeklyFat * fatRatios[carbDayType];
-  const caloriesAfterProtein = Math.max(targetCalories - protein * 4, 0);
-  const rawCarbFatCalories = rawCarbs * 4 + rawFat * 9;
-  const scale = rawCarbFatCalories > 0 ? caloriesAfterProtein / rawCarbFatCalories : 1;
+  const ratio = carbCycleEnergyRatios[carbDayType];
 
   return {
     kcal: targetCalories,
-    protein,
-    carbs: rawCarbs * scale,
-    fat: rawFat * scale
+    carbs: (targetCalories * ratio.carbs) / 100 / 4,
+    protein: (targetCalories * ratio.protein) / 100 / 4,
+    fat: (targetCalories * ratio.fat) / 100 / 9
   };
 }
 

@@ -11,8 +11,6 @@ export const defaultProfile: UserProfile = {
   exerciseKcal: 350,
   goalType: "cut",
   weeklyWeightChangePct: 0.5,
-  proteinPerKg: 1.4,
-  bodyTypeFactor: 2.5,
   workoutType: "legs",
   trainingTime: "afternoon",
   planDate: new Date().toISOString().slice(0, 10)

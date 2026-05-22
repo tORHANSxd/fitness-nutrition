@@ -31,8 +31,6 @@ export interface UserProfile {
   exerciseKcal: number;
   goalType?: NutritionGoal;
   weeklyWeightChangePct?: number;
-  proteinPerKg: number;
-  bodyTypeFactor: number;
   workoutType: WorkoutType;
   trainingTime: TrainingTime;
   planDate: string;

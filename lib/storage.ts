@@ -2,6 +2,7 @@
 
 import type { User } from "@supabase/supabase-js";
 import { builtinFoods } from "@/lib/foods";
+import { calculateFoodKcalPer100g } from "@/lib/nutrition";
 import { foodToOverrideRow, foodToRow, getSupabaseClient, mapFoodOverrideRow, mapFoodRow, mapPlanRow } from "@/lib/supabase";
 import type { FoodItem, MealPlan, NutritionResult, SavedPlan, UserProfile } from "@/lib/types";
 
@@ -38,7 +39,7 @@ function applyPublicOverrides(baseFoods: FoodItem[], overrides: FoodItem[]) {
   const overridesById = new Map(overrides.map((food) => [food.id, food]));
   return baseFoods.map((food) => {
     const override = overridesById.get(food.id);
-    return override
+    const mergedFood = override
       ? {
           ...food,
           ...override,
@@ -47,14 +48,22 @@ function applyPublicOverrides(baseFoods: FoodItem[], overrides: FoodItem[]) {
           isUserOverride: true
         }
       : food;
+    return withDerivedFoodEnergy(mergedFood);
   });
+}
+
+function withDerivedFoodEnergy(food: FoodItem): FoodItem {
+  return {
+    ...food,
+    kcalPer100g: calculateFoodKcalPer100g(food)
+  };
 }
 
 export async function loadFoods(user: User | null): Promise<FoodItem[]> {
   const supabase = getSupabaseClient();
   if (!supabase || !user) {
     const publicOverrides = readLocal<FoodItem[]>(publicFoodOverridesKey, []);
-    return [...applyPublicOverrides(builtinFoods, publicOverrides), ...readLocal<FoodItem[]>(privateFoodsKey, [])];
+    return [...applyPublicOverrides(builtinFoods, publicOverrides), ...readLocal<FoodItem[]>(privateFoodsKey, []).map(withDerivedFoodEnergy)];
   }
 
   const [foodsResult, overridesResult] = await Promise.all([
@@ -81,25 +90,26 @@ export async function loadFoods(user: User | null): Promise<FoodItem[]> {
     [...builtinFoods.filter((food) => !remoteIds.has(food.id)), ...remoteFoods.filter((food) => food.source === "public")],
     publicOverrides
   );
-  return [...mergedPublicFoods, ...remoteFoods.filter((food) => food.source === "user")];
+  return [...mergedPublicFoods, ...remoteFoods.filter((food) => food.source === "user").map(withDerivedFoodEnergy)];
 }
 
 export async function saveFood(food: FoodItem, user: User | null): Promise<FoodItem> {
+  const normalizedFood = withDerivedFoodEnergy(food);
   const supabase = getSupabaseClient();
   if (!supabase || !user) {
-    const storageKey = isPublicFood(food) ? publicFoodOverridesKey : privateFoodsKey;
+    const storageKey = isPublicFood(normalizedFood) ? publicFoodOverridesKey : privateFoodsKey;
     const localFoods = readLocal<FoodItem[]>(storageKey, []);
-    const savedFood: FoodItem = isPublicFood(food)
-      ? { ...food, source: "public", isUserOverride: true }
-      : { ...food, id: food.id || crypto.randomUUID(), source: "user" };
+    const savedFood: FoodItem = isPublicFood(normalizedFood)
+      ? { ...normalizedFood, source: "public", isUserOverride: true }
+      : { ...normalizedFood, id: normalizedFood.id || crypto.randomUUID(), source: "user" };
     writeLocal(storageKey, [...localFoods.filter((item) => item.id !== savedFood.id), savedFood]);
     return savedFood;
   }
 
-  if (isPublicFood(food)) {
+  if (isPublicFood(normalizedFood)) {
     const { data, error } = await supabase
       .from("food_overrides")
-      .upsert(foodToOverrideRow(food, user), { onConflict: "user_id,base_food_id" })
+      .upsert(foodToOverrideRow(normalizedFood, user), { onConflict: "user_id,base_food_id" })
       .select("*")
       .single();
 
@@ -107,18 +117,18 @@ export async function saveFood(food: FoodItem, user: User | null): Promise<FoodI
       throw error;
     }
 
-    return mapFoodOverrideRow(data);
+    return withDerivedFoodEnergy(mapFoodOverrideRow(data));
   }
 
-  const payload = foodToRow({ ...food, source: "user" }, user);
-  if (food.id) {
-    const { data, error } = await supabase.from("foods").update(payload).eq("id", food.id).select("*").single();
+  const payload = foodToRow({ ...normalizedFood, source: "user" }, user);
+  if (normalizedFood.id) {
+    const { data, error } = await supabase.from("foods").update(payload).eq("id", normalizedFood.id).select("*").single();
 
     if (error) {
       throw error;
     }
 
-    return mapFoodRow(data);
+    return withDerivedFoodEnergy(mapFoodRow(data));
   }
 
   const { data, error } = await supabase
@@ -131,7 +141,7 @@ export async function saveFood(food: FoodItem, user: User | null): Promise<FoodI
     throw error;
   }
 
-  return mapFoodRow(data);
+  return withDerivedFoodEnergy(mapFoodRow(data));
 }
 
 export async function deleteFood(foodId: string, user: User | null): Promise<void> {

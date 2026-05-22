@@ -28,9 +28,9 @@ const macroWeights: Record<keyof MacroTotals, number> = {
 };
 
 const dailyFitWeights: Record<keyof MacroTotals, number> = {
-  kcal: 1,
-  protein: 2.5,
-  carbs: 1,
+  kcal: 2,
+  protein: 1.1,
+  carbs: 1.5,
   fat: 1
 };
 
@@ -153,15 +153,13 @@ export const energyTargetSource =
   "热量目标：先估算维持热量，再按每周体重变化率设置目标；减脂默认0.5%体重/周，增肌默认0.25%体重/周。";
 
 export const macroRatioCheckSource =
-  "配比检查：凯圣王贴合按目标比例±5个百分点判断；目标参考区间按减脂/维持/增肌分别检查碳水、蛋白、脂肪供能占比。";
+  "配比检查：凯圣王贴合按目标比例±5个百分点判断；参考区间按高/中/低碳日分别检查碳水、蛋白、脂肪供能占比。";
 
 export const workoutLabels: Record<WorkoutType, string> = {
-  legs: "腿部",
-  back: "背部",
-  chest: "胸部",
-  shoulders: "肩部",
-  arms: "手臂",
-  rest: "休息"
+  chest: "胸大类",
+  back: "背大类",
+  legs: "腿大类",
+  rest: "休息日"
 };
 
 export const carbDayLabels: Record<CarbDayType, string> = {
@@ -197,6 +195,24 @@ export const goalMacroRatioRanges: Record<NutritionGoal, Record<keyof MacroRatio
     carbs: { min: 45, max: 65 },
     protein: { min: 15, max: 30 },
     fat: { min: 20, max: 35 }
+  }
+};
+
+export const carbDayMacroRatioRanges: Record<CarbDayType, Record<keyof MacroRatio, MacroRatioRange>> = {
+  high: {
+    carbs: { min: 55, max: 72 },
+    protein: { min: 14, max: 26 },
+    fat: { min: 12, max: 24 }
+  },
+  mid: {
+    carbs: { min: 42, max: 58 },
+    protein: { min: 15, max: 30 },
+    fat: { min: 22, max: 40 }
+  },
+  low: {
+    carbs: { min: 20, max: 40 },
+    protein: { min: 14, max: 35 },
+    fat: { min: 35, max: 65 }
   }
 };
 
@@ -253,9 +269,14 @@ export function calculateMacroRatio(total: MacroTotals): MacroRatio {
   };
 }
 
-export function getMacroRatioCheck(ratio: MacroRatio, targetRatio: MacroRatio, goal: NutritionGoal) {
+export function getMacroRatioCheck(
+  ratio: MacroRatio,
+  targetRatio: MacroRatio,
+  goal: NutritionGoal,
+  carbDayType?: CarbDayType
+) {
   const cycleTolerance = 5;
-  const ranges = goalMacroRatioRanges[goal];
+  const ranges = carbDayType ? carbDayMacroRatioRanges[carbDayType] : goalMacroRatioRanges[goal];
   const cycleIssues = macroRatioKeys.filter((key) => Math.abs(ratio[key] - targetRatio[key]) > cycleTolerance);
   const goalIssues = macroRatioKeys.filter((key) => ratio[key] < ranges[key].min || ratio[key] > ranges[key].max);
 
@@ -269,8 +290,16 @@ export function getMacroRatioCheck(ratio: MacroRatio, targetRatio: MacroRatio, g
   };
 }
 
+export function calculateMacroKcalPer100g(food: Pick<FoodItem, "carbsPer100g" | "proteinPer100g" | "fatPer100g">) {
+  return food.carbsPer100g * 4 + food.proteinPer100g * 4 + food.fatPer100g * 9;
+}
+
+export function calculateFoodKcalPer100g(food: Pick<FoodItem, "carbsPer100g" | "proteinPer100g" | "fatPer100g">) {
+  return round(calculateMacroKcalPer100g(food), 1);
+}
+
 export function getFoodEnergyMismatch(food: Pick<FoodItem, "kcalPer100g" | "carbsPer100g" | "proteinPer100g" | "fatPer100g">) {
-  const macroKcalPer100g = food.carbsPer100g * 4 + food.proteinPer100g * 4 + food.fatPer100g * 9;
+  const macroKcalPer100g = calculateMacroKcalPer100g(food);
   const difference = Math.abs(food.kcalPer100g - macroKcalPer100g);
   const warningLimit = Math.max(10, Math.abs(food.kcalPer100g) * 0.08);
   const errorLimit = Math.max(30, Math.abs(food.kcalPer100g) * 0.2);
@@ -473,7 +502,7 @@ export function calculateDailyTarget(profile: UserProfile): MacroTotals {
 export function calculateFoodTotals(food: FoodItem, grams: number): MacroTotals {
   const ratio = grams / 100;
   return {
-    kcal: food.kcalPer100g * ratio,
+    kcal: calculateMacroKcalPer100g(food) * ratio,
     carbs: food.carbsPer100g * ratio,
     protein: food.proteinPer100g * ratio,
     fat: food.fatPer100g * ratio
@@ -560,6 +589,9 @@ function mealDeviationScore(total: MacroTotals, target: MacroTotals) {
 }
 
 function multiFoodHardMaxFor(food: FoodItem, portionRule: FoodPortionRule) {
+  if (isCookingOil(food)) {
+    return portionRule.maxGrams;
+  }
   const categoryMax = portionRule.defaultGrams * multiFoodHardMaxMultipliers[food.category];
   if (food.category === "主食" && food.weightBasis === "cooked") {
     return Math.min(categoryMax, cookedMainMultiFoodHardMax);
@@ -1020,21 +1052,6 @@ export function buildNutritionResult(profile: UserProfile, meals: MealPlan[], fo
     conflicts.push(
       `当前实际热量缺口过大：${round(actualDeficitFromMaintenance, 0)} kcal，计划缺口 ${round(plannedDeficit, 0)} kcal`
     );
-  }
-
-  for (const meal of meals) {
-    for (const entry of meal.entries) {
-      const food = foodsById.get(entry.foodId);
-      if (!food) {
-        continue;
-      }
-      const mismatch = getFoodEnergyMismatch(food);
-      if (mismatch.severity === "error") {
-        conflicts.push(
-          `${meal.name} 的 ${food.name} 热量数据异常：标注 ${round(mismatch.kcalPer100g, 0)} kcal/100g，碳蛋脂供能约 ${round(mismatch.macroKcalPer100g, 0)} kcal/100g`
-        );
-      }
-    }
   }
 
   const mealTargetsById = buildMealTargets(meals, remainingAfterLockedMeals, unlockedRatioSum, foodsById);

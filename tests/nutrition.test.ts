@@ -115,10 +115,20 @@ describe("nutrition formulas", () => {
   it("checks macro ratios against carb cycle targets and goal ranges", () => {
     const target = calculateDailyTarget(profile);
     const targetRatio = calculateMacroRatio(target);
-    const check = getMacroRatioCheck(targetRatio, targetRatio, "cut");
+    const check = getMacroRatioCheck(targetRatio, targetRatio, "cut", getCarbDayType(profile.workoutType));
 
     expect(check.cycleAligned).toBe(true);
     expect(check.goalAligned).toBe(true);
+  });
+
+  it("keeps high, mid, and low carb day ratios inside carb-cycle ranges", () => {
+    for (const workoutType of ["legs", "chest", "back", "rest"] as const) {
+      const target = calculateDailyTarget({ ...profile, workoutType });
+      const ratio = calculateMacroRatio(target);
+      const check = getMacroRatioCheck(ratio, ratio, "cut", getCarbDayType(workoutType));
+
+      expect(check.goalAligned).toBe(true);
+    }
   });
 
   it("detects food energy data that conflicts with macro calories", () => {
@@ -131,6 +141,23 @@ describe("nutrition formulas", () => {
 
     expect(getFoodEnergyMismatch(badOats).severity).toBe("error");
     expect(builtinFoods.every((food) => getFoodEnergyMismatch(food).severity !== "error")).toBe(true);
+  });
+
+  it("calculates food calories from macros instead of the stored kcal field", () => {
+    const food: FoodItem = {
+      id: "macro-energy",
+      name: "宏量热量测试",
+      category: "主食",
+      kcalPer100g: 999,
+      fatPer100g: 1,
+      carbsPer100g: 20,
+      proteinPer100g: 5,
+      weightBasis: "cooked",
+      cookedRawRatio: null,
+      source: "user"
+    };
+
+    expect(calculateFoodTotals(food, 100).kcal).toBe(109);
   });
 
   it("creates training and rest meals with expected counts", () => {
@@ -542,7 +569,7 @@ describe("meal solving", () => {
       }
     ];
     const total = calculateMealsTotals(meals, builtinFoods);
-    expect(total.kcal).toBe(129);
+    expect(round(total.kcal, 1)).toBe(124.8);
     expect(round(total.carbs, 2)).toBe(27.9);
   });
 

@@ -5,7 +5,7 @@ import { Pencil, Plus, RotateCcw, Save, Trash2, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { foodCategories, type FoodFormState, type FoodItem } from "@/lib/types";
 import { deleteFood, saveFood } from "@/lib/storage";
-import { getFoodEnergyMismatch, round } from "@/lib/nutrition";
+import { calculateFoodKcalPer100g, round } from "@/lib/nutrition";
 
 interface FoodLibraryProps {
   foods: FoodItem[];
@@ -31,6 +31,7 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated }: Foo
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [editingFood, setEditingFood] = useState<FoodItem | null>(null);
+  const formKcalPer100g = calculateFoodKcalPer100g(form);
 
   const visibleFoods = useMemo(() => {
     return foods.filter((food) => filter === "全部" || food.category === filter);
@@ -48,7 +49,7 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated }: Foo
     setForm({
       name: food.name,
       category: food.category,
-      kcalPer100g: food.kcalPer100g,
+      kcalPer100g: calculateFoodKcalPer100g(food),
       fatPer100g: food.fatPer100g,
       carbsPer100g: food.carbsPer100g,
       proteinPer100g: food.proteinPer100g,
@@ -74,18 +75,12 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated }: Foo
       id: editingFood?.id ?? "",
       userId: editingFood?.userId,
       ...form,
+      kcalPer100g: formKcalPer100g,
       name: form.name.trim(),
       cookedRawRatio: form.cookedRawRatio ? Number(form.cookedRawRatio) : null,
       source: editingFood?.source ?? "user",
       isUserOverride: editingFood?.source === "public" || editingFood?.isUserOverride
     };
-    const mismatch = getFoodEnergyMismatch(payload);
-    if (mismatch.severity === "error") {
-      setMessage(
-        `热量与碳蛋脂供能不一致：标注 ${round(mismatch.kcalPer100g, 0)} kcal/100g，碳蛋脂约 ${round(mismatch.macroKcalPer100g, 0)} kcal/100g。`
-      );
-      return;
-    }
 
     setBusy(true);
     setMessage("");
@@ -125,7 +120,7 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated }: Foo
           <p className="text-sm text-muted">
             {editingFood?.source === "public"
               ? "公共食物会保存为你的覆盖值，不影响其他用户。"
-              : "营养值按每 100g 保存。只录入一种口径时，未知换算不显示另一口径。"}
+              : "营养值按每 100g 保存；热量由碳水、蛋白、脂肪自动计算。"}
           </p>
         </div>
         <div className="grid gap-3">
@@ -161,10 +156,12 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated }: Foo
             </label>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <label>
+            <div>
               <span className="metric-label mb-1 block">热量 kcal/100g</span>
-              <input className="field w-full" type="number" value={form.kcalPer100g} onChange={(event) => updateNumber("kcalPer100g", event.target.value)} />
-            </label>
+              <div className="field flex w-full items-center bg-slate-50 text-muted">
+                {round(formKcalPer100g, 1)}
+              </div>
+            </div>
             <label>
               <span className="metric-label mb-1 block">脂肪 g/100g</span>
               <input className="field w-full" type="number" value={form.fatPer100g} onChange={(event) => updateNumber("fatPer100g", event.target.value)} />
@@ -244,7 +241,7 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated }: Foo
                 <tr key={food.id} className="border-t border-line">
                   <td className="px-4 py-3 font-medium text-ink">{food.name}</td>
                   <td className="px-4 py-3">{food.category}</td>
-                  <td className="px-4 py-3">{food.kcalPer100g} kcal</td>
+                  <td className="px-4 py-3">{round(calculateFoodKcalPer100g(food), 1)} kcal</td>
                   <td className="px-4 py-3">{food.fatPer100g} g</td>
                   <td className="px-4 py-3">{food.carbsPer100g} g</td>
                   <td className="px-4 py-3">{food.proteinPer100g} g</td>

@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
+import { calculateFoodKcalPer100g } from "@/lib/nutrition";
 import type { FoodItem, SavedPlan } from "@/lib/types";
 
 let client: SupabaseClient | null = null;
@@ -60,7 +61,7 @@ export function foodToRow(food: FoodItem, user: User | null) {
     user_id: user?.id ?? food.userId ?? null,
     name: food.name,
     category: food.category,
-    kcal_per_100g: food.kcalPer100g,
+    kcal_per_100g: calculateFoodKcalPer100g(food),
     fat_per_100g: food.fatPer100g,
     carbs_per_100g: food.carbsPer100g,
     protein_per_100g: food.proteinPer100g,
@@ -76,7 +77,7 @@ export function foodToOverrideRow(food: FoodItem, user: User) {
     base_food_id: food.id,
     name: food.name,
     category: food.category,
-    kcal_per_100g: food.kcalPer100g,
+    kcal_per_100g: calculateFoodKcalPer100g(food),
     fat_per_100g: food.fatPer100g,
     carbs_per_100g: food.carbsPer100g,
     protein_per_100g: food.proteinPer100g,

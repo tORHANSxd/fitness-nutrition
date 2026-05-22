@@ -19,12 +19,12 @@ import {
   buildNutritionResult,
   carbDayLabels,
   carbCycleMacroSource,
+  calculateFoodTotals,
   calculateMacroRatio,
   convertWeightLabel,
   createDefaultMeals,
   energyTargetSource,
   getDefaultMealEntrySettings,
-  getFoodEnergyMismatch,
   getMacroRatioCheck,
   getWeeklyWeightChangePct,
   goalLabels,
@@ -218,6 +218,7 @@ export function NutritionPlanner({ foods, user }: NutritionPlannerProps) {
             />
             <MacroRatioPanel
               actualRatio={result.actualRatio}
+              carbDayType={result.carbDayType}
               carbDayLabel={carbDayLabels[result.carbDayType]}
               goalType={profile.goalType ?? "cut"}
               recommendedRatio={calculateMacroRatio(result.recommendedTotals)}
@@ -344,6 +345,7 @@ function DailyBalanceBar({
 }
 
 interface MacroRatioPanelProps {
+  carbDayType: ReturnType<typeof buildNutritionResult>["carbDayType"];
   carbDayLabel: string;
   targetRatio: MacroRatio;
   actualRatio: MacroRatio;
@@ -351,11 +353,11 @@ interface MacroRatioPanelProps {
   goalType: NutritionGoal;
 }
 
-function MacroRatioPanel({ actualRatio, carbDayLabel, goalType, recommendedRatio, targetRatio }: MacroRatioPanelProps) {
-  const actualCheck = getMacroRatioCheck(actualRatio, targetRatio, goalType);
-  const recommendedCheck = getMacroRatioCheck(recommendedRatio, targetRatio, goalType);
-  const actualStatus = `${actualCheck.cycleAligned ? "凯圣王贴合" : "凯圣王偏离"} / ${actualCheck.goalAligned ? `${goalLabels[goalType]}参考内` : `${goalLabels[goalType]}参考外`}`;
-  const recommendedStatus = `${recommendedCheck.cycleAligned ? "凯圣王贴合" : "凯圣王偏离"} / ${recommendedCheck.goalAligned ? `${goalLabels[goalType]}参考内` : `${goalLabels[goalType]}参考外`}`;
+function MacroRatioPanel({ actualRatio, carbDayType, carbDayLabel, goalType, recommendedRatio, targetRatio }: MacroRatioPanelProps) {
+  const actualCheck = getMacroRatioCheck(actualRatio, targetRatio, goalType, carbDayType);
+  const recommendedCheck = getMacroRatioCheck(recommendedRatio, targetRatio, goalType, carbDayType);
+  const actualStatus = `${actualCheck.cycleAligned ? "凯圣王贴合" : "凯圣王偏离"} / ${actualCheck.goalAligned ? "碳日参考内" : "碳日参考外"}`;
+  const recommendedStatus = `${recommendedCheck.cycleAligned ? "凯圣王贴合" : "凯圣王偏离"} / ${recommendedCheck.goalAligned ? "碳日参考内" : "碳日参考外"}`;
 
   return (
     <div className="mt-3 rounded-md border border-line bg-panel p-3">
@@ -662,15 +664,7 @@ function MealEditor({
                 const food = foodsById.get(entry.foodId);
                 const recommendedGrams = recommendation?.recommendedEntries[entry.id] ?? entry.grams;
                 const defaultBounds = food ? getDefaultMealEntrySettings(food, meal) : null;
-                const totals = food
-                  ? {
-                      kcal: (food.kcalPer100g * entry.grams) / 100,
-                      carbs: (food.carbsPer100g * entry.grams) / 100,
-                      protein: (food.proteinPer100g * entry.grams) / 100,
-                      fat: (food.fatPer100g * entry.grams) / 100
-                    }
-                  : { kcal: 0, carbs: 0, protein: 0, fat: 0 };
-                const energyMismatch = food ? getFoodEnergyMismatch(food) : null;
+                const totals = food ? calculateFoodTotals(food, entry.grams) : { kcal: 0, carbs: 0, protein: 0, fat: 0 };
 
                 return (
                   <tr key={entry.id} className="border-t border-line">
@@ -696,11 +690,6 @@ function MealEditor({
                         ))}
                       </select>
                       {food ? <div className="mt-1 text-xs text-muted">{convertWeightLabel(food, entry.grams)}</div> : null}
-                      {energyMismatch && energyMismatch.severity !== "ok" ? (
-                        <div className={energyMismatch.severity === "error" ? "mt-1 text-xs font-semibold text-rose" : "mt-1 text-xs font-semibold text-amber-600"}>
-                          能量校验：标注 {round(energyMismatch.kcalPer100g, 0)} kcal/100g，碳蛋脂约 {round(energyMismatch.macroKcalPer100g, 0)} kcal/100g
-                        </div>
-                      ) : null}
                     </td>
                     <td className="px-4 py-3">
                       <input

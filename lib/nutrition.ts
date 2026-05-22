@@ -521,7 +521,7 @@ function refineDailyRecommendations(
       const portionRule = getFoodPortionRule(food, meal);
       const portionTarget = clamp(portionRule.defaultGrams, min, max);
       const portionScale = Math.max(portionTarget, 25);
-      const portionWeight = portionRule.softTargetWeight * 0.02;
+      const portionWeight = portionRule.softTargetWeight * 0.001;
       numerator += portionWeight * (currentGrams - portionTarget) / (portionScale * portionScale);
       denominator += portionWeight / (portionScale * portionScale);
 

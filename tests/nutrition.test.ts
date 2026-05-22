@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { createStarterMeals, defaultProfile } from "@/lib/demoState";
 import { builtinFoods } from "@/lib/foods";
 import {
   buildNutritionResult,
@@ -224,55 +225,10 @@ describe("meal solving", () => {
 
   it("prioritizes daily calories and all three macros over per-meal portion defaults", () => {
     const userProfile: UserProfile = {
-      ...profile,
-      age: 28,
-      heightCm: 175,
-      weightKg: 75,
-      exerciseKcal: 350,
-      proteinPerKg: 1.4,
-      goalType: "cut",
-      weeklyWeightChangePct: 0.5
+      ...defaultProfile,
+      planDate: "2026-05-22"
     };
-    const meals: MealPlan[] = [
-      {
-        id: "breakfast",
-        name: "早餐",
-        ratio: 0.25,
-        locked: false,
-        entries: [
-          { id: "oats", foodId: "public-oats-raw", grams: 60, locked: false, minGrams: 40, maxGrams: 100 },
-          { id: "whey", foodId: "public-whey", grams: 25, locked: false, minGrams: 20, maxGrams: 40 }
-        ]
-      },
-      {
-        id: "lunch",
-        name: "午餐",
-        ratio: 0.35,
-        locked: false,
-        entries: [
-          { id: "rice", foodId: "public-rice-cooked", grams: 200, locked: false, minGrams: 100, maxGrams: 400 },
-          { id: "chicken", foodId: "public-chicken-breast-cooked", grams: 160, locked: false, minGrams: 100, maxGrams: 260 },
-          { id: "broccoli", foodId: "public-broccoli-cooked", grams: 180, locked: false, minGrams: 100, maxGrams: 350 }
-        ]
-      },
-      {
-        id: "pre-workout",
-        name: "训练前加餐",
-        ratio: 0.1,
-        locked: false,
-        entries: [{ id: "banana", foodId: "public-banana-raw", grams: 120, locked: false, minGrams: 80, maxGrams: 180 }]
-      },
-      {
-        id: "dinner",
-        name: "晚餐",
-        ratio: 0.3,
-        locked: false,
-        entries: [
-          { id: "salmon", foodId: "public-salmon-cooked", grams: 150, locked: false, minGrams: 100, maxGrams: 240 },
-          { id: "potato", foodId: "public-sweet-potato-cooked", grams: 220, locked: false, minGrams: 120, maxGrams: 380 }
-        ]
-      }
-    ];
+    const meals = createStarterMeals(userProfile);
     const result = buildNutritionResult(userProfile, meals, builtinFoods);
     const actualGap = absoluteGap(result.actualTotals, result.dailyTarget);
     const recommendedGap = absoluteGap(result.recommendedTotals, result.dailyTarget);
@@ -281,61 +237,18 @@ describe("meal solving", () => {
     expect(recommendedGap.carbs).toBeLessThan(actualGap.carbs);
     expect(recommendedGap.protein).toBeLessThan(actualGap.protein);
     expect(recommendedGap.fat).toBeLessThan(actualGap.fat);
-    expect(result.recommendedRemaining.protein).toBeLessThan(0);
-    expect(result.recommendedRemaining.carbs).toBeGreaterThan(0);
+    expect(recommendedGap.kcal).toBeLessThan(80);
+    expect(recommendedGap.carbs).toBeLessThan(20);
+    expect(recommendedGap.protein).toBeLessThan(8);
+    expect(recommendedGap.fat).toBeLessThan(5);
   });
 
   it("keeps displayed meal targets proportional to the daily standard after solver redistribution", () => {
     const userProfile: UserProfile = {
-      ...profile,
-      age: 28,
-      heightCm: 175,
-      weightKg: 75,
-      exerciseKcal: 350,
-      proteinPerKg: 1.4,
-      goalType: "cut",
-      weeklyWeightChangePct: 0.5
+      ...defaultProfile,
+      planDate: "2026-05-22"
     };
-    const meals: MealPlan[] = [
-      {
-        id: "breakfast",
-        name: "早餐",
-        ratio: 0.25,
-        locked: false,
-        entries: [
-          { id: "oats", foodId: "public-oats-raw", grams: 60, locked: false, minGrams: 40, maxGrams: 100 },
-          { id: "whey", foodId: "public-whey", grams: 25, locked: false, minGrams: 20, maxGrams: 40 }
-        ]
-      },
-      {
-        id: "lunch",
-        name: "午餐",
-        ratio: 0.35,
-        locked: false,
-        entries: [
-          { id: "rice", foodId: "public-rice-cooked", grams: 200, locked: false, minGrams: 100, maxGrams: 400 },
-          { id: "chicken", foodId: "public-chicken-breast-cooked", grams: 160, locked: false, minGrams: 100, maxGrams: 260 },
-          { id: "broccoli", foodId: "public-broccoli-cooked", grams: 180, locked: false, minGrams: 100, maxGrams: 350 }
-        ]
-      },
-      {
-        id: "pre-workout",
-        name: "训练前加餐",
-        ratio: 0.1,
-        locked: false,
-        entries: [{ id: "banana", foodId: "public-banana-raw", grams: 120, locked: false, minGrams: 80, maxGrams: 180 }]
-      },
-      {
-        id: "dinner",
-        name: "晚餐",
-        ratio: 0.3,
-        locked: false,
-        entries: [
-          { id: "salmon", foodId: "public-salmon-cooked", grams: 150, locked: false, minGrams: 100, maxGrams: 240 },
-          { id: "potato", foodId: "public-sweet-potato-cooked", grams: 220, locked: false, minGrams: 120, maxGrams: 380 }
-        ]
-      }
-    ];
+    const meals = createStarterMeals(userProfile);
     const result = buildNutritionResult(userProfile, meals, builtinFoods);
     const targetTotals = result.mealRecommendations.reduce(
       (total, recommendation) => ({

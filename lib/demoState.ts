@@ -30,15 +30,15 @@ export function createStarterMeals(profile: UserProfile): MealPlan[] {
             foodId: "public-oats-raw",
             grams: 60,
             locked: false,
-            minGrams: 40,
-            maxGrams: 100
+            minGrams: 0,
+            maxGrams: 130
           },
           {
             id: crypto.randomUUID(),
             foodId: "public-whey",
             grams: 25,
             locked: false,
-            minGrams: 20,
+            minGrams: 0,
             maxGrams: 40
           }
         ]
@@ -53,15 +53,15 @@ export function createStarterMeals(profile: UserProfile): MealPlan[] {
             foodId: "public-rice-cooked",
             grams: 200,
             locked: false,
-            minGrams: 100,
-            maxGrams: 400
+            minGrams: 0,
+            maxGrams: 650
           },
           {
             id: crypto.randomUUID(),
             foodId: "public-chicken-breast-cooked",
             grams: 160,
             locked: false,
-            minGrams: 100,
+            minGrams: 0,
             maxGrams: 260
           },
           {
@@ -69,7 +69,7 @@ export function createStarterMeals(profile: UserProfile): MealPlan[] {
             foodId: "public-broccoli-cooked",
             grams: 180,
             locked: false,
-            minGrams: 100,
+            minGrams: 0,
             maxGrams: 350
           }
         ]
@@ -84,8 +84,8 @@ export function createStarterMeals(profile: UserProfile): MealPlan[] {
             foodId: "public-banana-raw",
             grams: 120,
             locked: false,
-            minGrams: 80,
-            maxGrams: 180
+            minGrams: 0,
+            maxGrams: 260
           }
         ]
       };
@@ -98,16 +98,16 @@ export function createStarterMeals(profile: UserProfile): MealPlan[] {
           foodId: "public-salmon-cooked",
           grams: 150,
           locked: false,
-          minGrams: 100,
-          maxGrams: 240
+          minGrams: 0,
+          maxGrams: 260
         },
         {
           id: crypto.randomUUID(),
           foodId: "public-sweet-potato-cooked",
           grams: 220,
           locked: false,
-          minGrams: 120,
-          maxGrams: 380
+          minGrams: 0,
+          maxGrams: 700
         }
       ]
     };

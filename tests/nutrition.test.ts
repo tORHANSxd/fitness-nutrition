@@ -4,6 +4,7 @@ import {
   buildNutritionResult,
   calculateBmr,
   calculateDailyTarget,
+  calculateMacroRatio,
   calculateMealsTotals,
   createDefaultMeals,
   getCarbDayType,
@@ -42,6 +43,13 @@ describe("nutrition formulas", () => {
     const target = calculateDailyTarget(profile);
     const macroCalories = target.carbs * 4 + target.protein * 4 + target.fat * 9;
     expect(round(macroCalories, 0)).toBe(round(target.kcal, 0));
+  });
+
+  it("calculates macro calorie ratios from grams", () => {
+    const ratio = calculateMacroRatio({ kcal: 1700, carbs: 200, protein: 100, fat: 55.56 });
+    expect(round(ratio.carbs, 0)).toBe(47);
+    expect(round(ratio.protein, 0)).toBe(24);
+    expect(round(ratio.fat, 0)).toBe(29);
   });
 
   it("creates training and rest meals with expected counts", () => {
@@ -84,6 +92,8 @@ describe("meal solving", () => {
     expect(recommendation.recommendedEntries.rice).toBe(200);
     expect(recommendation.recommendedEntries.chicken).toBeGreaterThanOrEqual(80);
     expect(recommendation.recommendedEntries.chicken).toBeLessThanOrEqual(300);
+    expect(recommendation.actualDeficit.carbs).toBeLessThan(recommendation.target.carbs);
+    expect(recommendation.targetRatio.carbs).toBeGreaterThan(0);
   });
 
   it("does not adjust a locked meal", () => {
@@ -160,4 +170,3 @@ describe("meal solving", () => {
     expect(round(total.carbs, 2)).toBe(28.59);
   });
 });
-

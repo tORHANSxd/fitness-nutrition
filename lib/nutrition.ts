@@ -1,6 +1,7 @@
 import type {
   CarbDayType,
   FoodItem,
+  MacroRatio,
   MacroTotals,
   MealFoodEntry,
   MealPlan,
@@ -35,6 +36,9 @@ const fatRatios: Record<CarbDayType, number> = {
   mid: 0.35 / 3,
   low: 0.5 / 2
 };
+
+export const carbCycleMacroSource =
+  "凯圣王碳循环：周碳水高/中/低分配为50%/35%/15%，周脂肪高/中/低分配为15%/35%/50%，蛋白每日稳定。";
 
 export const workoutLabels: Record<WorkoutType, string> = {
   legs: "腿部",
@@ -86,6 +90,27 @@ export function scaleTotals(total: MacroTotals, ratio: number): MacroTotals {
     carbs: total.carbs * ratio,
     protein: total.protein * ratio,
     fat: total.fat * ratio
+  };
+}
+
+export function calculateMacroCalories(total: MacroTotals) {
+  return {
+    carbs: total.carbs * 4,
+    protein: total.protein * 4,
+    fat: total.fat * 9
+  };
+}
+
+export function calculateMacroRatio(total: MacroTotals): MacroRatio {
+  const calories = calculateMacroCalories(total);
+  const sum = calories.carbs + calories.protein + calories.fat;
+  if (sum <= 0) {
+    return { carbs: 0, protein: 0, fat: 0 };
+  }
+  return {
+    carbs: (calories.carbs / sum) * 100,
+    protein: (calories.protein / sum) * 100,
+    fat: (calories.fat / sum) * 100
   };
 }
 
@@ -294,6 +319,7 @@ export function buildNutritionResult(profile: UserProfile, meals: MealPlan[], fo
     const recommendedEntries = solveMealEntries(meal, mealTarget, foodsById);
     const recommendedTotals = calculateTotalsFromEntries(meal.entries, recommendedEntries, foodsById);
     const deficit = subtractTotals(mealTarget, recommendedTotals);
+    const actualDeficit = subtractTotals(mealTarget, mealActual);
 
     if (!meal.locked && meal.entries.length > 0) {
       const hasLargeDeficit =
@@ -310,6 +336,9 @@ export function buildNutritionResult(profile: UserProfile, meals: MealPlan[], fo
       mealId: meal.id,
       target: mealTarget,
       actual: mealActual,
+      actualDeficit,
+      targetRatio: calculateMacroRatio(mealTarget),
+      actualRatio: calculateMacroRatio(mealActual),
       recommendedEntries,
       deficit
     };
@@ -321,6 +350,8 @@ export function buildNutritionResult(profile: UserProfile, meals: MealPlan[], fo
     carbDayType: getCarbDayType(profile.workoutType),
     dailyTarget,
     actualTotals,
+    targetRatio: calculateMacroRatio(dailyTarget),
+    actualRatio: calculateMacroRatio(actualTotals),
     remaining: subtractTotals(dailyTarget, actualTotals),
     mealRecommendations,
     conflicts: Array.from(new Set(conflicts))
@@ -345,4 +376,3 @@ export function normalizeMealRatios(meals: MealPlan[]) {
   }
   return meals.map((meal) => ({ ...meal, ratio: meal.ratio / sum }));
 }
-

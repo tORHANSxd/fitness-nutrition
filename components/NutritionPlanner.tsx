@@ -18,6 +18,7 @@ import { defaultProfile, createStarterMeals } from "@/lib/demoState";
 import {
   buildNutritionResult,
   carbDayLabels,
+  carbCycleMacroSource,
   convertWeightLabel,
   createDefaultMeals,
   normalizeMealRatios,
@@ -26,7 +27,7 @@ import {
   workoutLabels
 } from "@/lib/nutrition";
 import { savePlan } from "@/lib/storage";
-import type { FoodItem, MealFoodEntry, MealPlan, UserProfile, WorkoutType } from "@/lib/types";
+import type { FoodItem, MacroRatio, MacroTotals, MealFoodEntry, MealPlan, UserProfile, WorkoutType } from "@/lib/types";
 
 interface NutritionPlannerProps {
   foods: FoodItem[];
@@ -192,6 +193,11 @@ export function NutritionPlanner({ foods, user }: NutritionPlannerProps) {
                 tone={result.remaining.kcal < 0 ? "danger" : "normal"}
               />
             </div>
+            <MacroRatioPanel
+              actualRatio={result.actualRatio}
+              carbDayLabel={carbDayLabels[result.carbDayType]}
+              targetRatio={result.targetRatio}
+            />
             {message ? <p className="mt-3 rounded-md bg-panel p-3 text-sm text-ink">{message}</p> : null}
             {result.conflicts.length > 0 ? (
               <div className="mt-3 space-y-2">
@@ -223,6 +229,46 @@ export function NutritionPlanner({ foods, user }: NutritionPlannerProps) {
         ))}
       </div>
     </section>
+  );
+}
+
+interface MacroRatioPanelProps {
+  carbDayLabel: string;
+  targetRatio: MacroRatio;
+  actualRatio: MacroRatio;
+}
+
+function MacroRatioPanel({ carbDayLabel, targetRatio, actualRatio }: MacroRatioPanelProps) {
+  return (
+    <div className="mt-3 rounded-md border border-line bg-panel p-3">
+      <div className="mb-2 flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-ink">三大营养素比例</h3>
+          <p className="text-xs text-muted">目标按{carbDayLabel}的凯圣王碳循环结构缩放到 TDEE。</p>
+        </div>
+        <span className="text-xs text-muted">{carbCycleMacroSource}</span>
+      </div>
+      <div className="grid gap-2 md:grid-cols-3">
+        <MacroRatioRow label="碳水" actual={actualRatio.carbs} target={targetRatio.carbs} />
+        <MacroRatioRow label="蛋白" actual={actualRatio.protein} target={targetRatio.protein} />
+        <MacroRatioRow label="脂肪" actual={actualRatio.fat} target={targetRatio.fat} />
+      </div>
+    </div>
+  );
+}
+
+function MacroRatioRow({ actual, label, target }: { actual: number; label: string; target: number }) {
+  return (
+    <div className="rounded-md border border-line bg-white p-3">
+      <div className="metric-label">{label}</div>
+      <div className="mt-1 flex items-end gap-2">
+        <span className="text-lg font-semibold text-ink">{round(target, 0)}%</span>
+        <span className="pb-0.5 text-xs text-muted">当前 {round(actual, 0)}%</span>
+      </div>
+      <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
+        <div className="h-full rounded-full bg-accent" style={{ width: `${Math.min(Math.max(target, 0), 100)}%` }} />
+      </div>
+    </div>
   );
 }
 
@@ -384,6 +430,16 @@ function MealEditor({
         </div>
       </div>
 
+      {recommendation ? (
+        <MealMacroBalance
+          actual={recommendation.actual}
+          actualDeficit={recommendation.actualDeficit}
+          actualRatio={recommendation.actualRatio}
+          target={recommendation.target}
+          targetRatio={recommendation.targetRatio}
+        />
+      ) : null}
+
       <div className="scrollbar-thin overflow-x-auto">
         <table className="w-full min-w-[1080px] text-left text-sm">
           <thead className="bg-panel text-xs uppercase tracking-normal text-muted">
@@ -517,3 +573,86 @@ function MealEditor({
   );
 }
 
+interface MealMacroBalanceProps {
+  target: MacroTotals;
+  actual: MacroTotals;
+  actualDeficit: MacroTotals;
+  targetRatio: MacroRatio;
+  actualRatio: MacroRatio;
+}
+
+function MealMacroBalance({ actual, actualDeficit, actualRatio, target, targetRatio }: MealMacroBalanceProps) {
+  return (
+    <div className="grid gap-2 border-b border-line bg-panel p-4 md:grid-cols-3">
+      <MacroBalanceCard
+        actual={actual.carbs}
+        actualRatio={actualRatio.carbs}
+        balance={actualDeficit.carbs}
+        label="碳水"
+        target={target.carbs}
+        targetRatio={targetRatio.carbs}
+      />
+      <MacroBalanceCard
+        actual={actual.protein}
+        actualRatio={actualRatio.protein}
+        balance={actualDeficit.protein}
+        label="蛋白"
+        target={target.protein}
+        targetRatio={targetRatio.protein}
+      />
+      <MacroBalanceCard
+        actual={actual.fat}
+        actualRatio={actualRatio.fat}
+        balance={actualDeficit.fat}
+        label="脂肪"
+        target={target.fat}
+        targetRatio={targetRatio.fat}
+      />
+    </div>
+  );
+}
+
+function MacroBalanceCard({
+  actual,
+  actualRatio,
+  balance,
+  label,
+  target,
+  targetRatio
+}: {
+  actual: number;
+  actualRatio: number;
+  balance: number;
+  label: string;
+  target: number;
+  targetRatio: number;
+}) {
+  const isSurplus = balance < 0;
+  const balanceLabel = isSurplus ? "盈" : "亏";
+  const tone = isSurplus ? "text-rose" : "text-accent";
+
+  return (
+    <div className="rounded-md border border-line bg-white p-3">
+      <div className="flex items-center justify-between gap-2">
+        <span className="metric-label">{label}</span>
+        <span className={`text-sm font-semibold ${tone}`}>
+          {balanceLabel} {round(Math.abs(balance), 1)}g
+        </span>
+      </div>
+      <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+        <div>
+          <span className="text-muted">目标</span>
+          <div className="font-semibold text-ink">
+            {round(target, 1)}g · {round(targetRatio, 0)}%
+          </div>
+        </div>
+        <div>
+          <span className="text-muted">当前</span>
+          <div className="font-semibold text-ink">
+            {round(actual, 1)}g · {round(actualRatio, 0)}%
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

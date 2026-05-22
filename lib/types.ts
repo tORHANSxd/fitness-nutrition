@@ -15,6 +15,12 @@ export interface MacroTotals {
   fat: number;
 }
 
+export interface MacroRatio {
+  carbs: number;
+  protein: number;
+  fat: number;
+}
+
 export interface UserProfile {
   sex: Sex;
   age: number;
@@ -64,6 +70,9 @@ export interface MealRecommendation {
   mealId: string;
   target: MacroTotals;
   actual: MacroTotals;
+  actualDeficit: MacroTotals;
+  targetRatio: MacroRatio;
+  actualRatio: MacroRatio;
   recommendedEntries: Record<string, number>;
   deficit: MacroTotals;
 }
@@ -74,6 +83,8 @@ export interface NutritionResult {
   carbDayType: CarbDayType;
   dailyTarget: MacroTotals;
   actualTotals: MacroTotals;
+  targetRatio: MacroRatio;
+  actualRatio: MacroRatio;
   remaining: MacroTotals;
   mealRecommendations: MealRecommendation[];
   conflicts: string[];
@@ -89,4 +100,3 @@ export interface SavedPlan {
 }
 
 export type FoodFormState = Omit<FoodItem, "id" | "source" | "userId">;
-

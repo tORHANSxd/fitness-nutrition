@@ -19,12 +19,16 @@ import {
   buildNutritionResult,
   carbDayLabels,
   carbCycleMacroSource,
+  calculateMacroRatio,
   convertWeightLabel,
   createDefaultMeals,
   energyTargetSource,
   getDefaultMealEntrySettings,
+  getFoodEnergyMismatch,
+  getMacroRatioCheck,
   getWeeklyWeightChangePct,
   goalLabels,
+  macroRatioCheckSource,
   normalizeMealRatios,
   round,
   trainingTimeLabels,
@@ -215,6 +219,8 @@ export function NutritionPlanner({ foods, user }: NutritionPlannerProps) {
             <MacroRatioPanel
               actualRatio={result.actualRatio}
               carbDayLabel={carbDayLabels[result.carbDayType]}
+              goalType={profile.goalType ?? "cut"}
+              recommendedRatio={calculateMacroRatio(result.recommendedTotals)}
               targetRatio={result.targetRatio}
             />
             {message ? <p className="mt-3 rounded-md bg-panel p-3 text-sm text-ink">{message}</p> : null}
@@ -341,35 +347,79 @@ interface MacroRatioPanelProps {
   carbDayLabel: string;
   targetRatio: MacroRatio;
   actualRatio: MacroRatio;
+  recommendedRatio: MacroRatio;
+  goalType: NutritionGoal;
 }
 
-function MacroRatioPanel({ carbDayLabel, targetRatio, actualRatio }: MacroRatioPanelProps) {
+function MacroRatioPanel({ actualRatio, carbDayLabel, goalType, recommendedRatio, targetRatio }: MacroRatioPanelProps) {
+  const actualCheck = getMacroRatioCheck(actualRatio, targetRatio, goalType);
+  const recommendedCheck = getMacroRatioCheck(recommendedRatio, targetRatio, goalType);
+  const actualStatus = `${actualCheck.cycleAligned ? "凯圣王贴合" : "凯圣王偏离"} / ${actualCheck.goalAligned ? `${goalLabels[goalType]}参考内` : `${goalLabels[goalType]}参考外`}`;
+  const recommendedStatus = `${recommendedCheck.cycleAligned ? "凯圣王贴合" : "凯圣王偏离"} / ${recommendedCheck.goalAligned ? `${goalLabels[goalType]}参考内` : `${goalLabels[goalType]}参考外`}`;
+
   return (
     <div className="mt-3 rounded-md border border-line bg-panel p-3">
       <div className="mb-2 flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
         <div>
           <h3 className="text-sm font-semibold text-ink">三大营养素比例</h3>
-          <p className="text-xs text-muted">目标按{carbDayLabel}的凯圣王碳循环结构缩放到目标热量。</p>
+          <p className="text-xs text-muted">
+            目标按{carbDayLabel}的凯圣王碳循环结构缩放到目标热量；当前 {actualStatus}，推荐后 {recommendedStatus}。
+          </p>
         </div>
-        <span className="text-xs text-muted">{energyTargetSource} {carbCycleMacroSource}</span>
+        <span className="text-xs text-muted">{macroRatioCheckSource} {energyTargetSource} {carbCycleMacroSource}</span>
       </div>
       <div className="grid gap-2 md:grid-cols-3">
-        <MacroRatioRow label="碳水" actual={actualRatio.carbs} target={targetRatio.carbs} />
-        <MacroRatioRow label="蛋白" actual={actualRatio.protein} target={targetRatio.protein} />
-        <MacroRatioRow label="脂肪" actual={actualRatio.fat} target={targetRatio.fat} />
+        <MacroRatioRow
+          actual={actualRatio.carbs}
+          label="碳水"
+          range={actualCheck.ranges.carbs}
+          recommended={recommendedRatio.carbs}
+          target={targetRatio.carbs}
+        />
+        <MacroRatioRow
+          actual={actualRatio.protein}
+          label="蛋白"
+          range={actualCheck.ranges.protein}
+          recommended={recommendedRatio.protein}
+          target={targetRatio.protein}
+        />
+        <MacroRatioRow
+          actual={actualRatio.fat}
+          label="脂肪"
+          range={actualCheck.ranges.fat}
+          recommended={recommendedRatio.fat}
+          target={targetRatio.fat}
+        />
       </div>
     </div>
   );
 }
 
-function MacroRatioRow({ actual, label, target }: { actual: number; label: string; target: number }) {
+function MacroRatioRow({
+  actual,
+  label,
+  range,
+  recommended,
+  target
+}: {
+  actual: number;
+  label: string;
+  range: { min: number; max: number };
+  recommended: number;
+  target: number;
+}) {
   return (
     <div className="rounded-md border border-line bg-white p-3">
       <div className="metric-label">{label}</div>
       <div className="mt-1 flex items-end gap-2">
         <span className="text-lg font-semibold text-ink">{round(target, 0)}%</span>
-        <span className="pb-0.5 text-xs text-muted">当前 {round(actual, 0)}%</span>
+        <span className="pb-0.5 text-xs text-muted">
+          当前 {round(actual, 0)}% / 推荐 {round(recommended, 0)}%
+        </span>
       </div>
+      <p className="mt-1 text-xs text-muted">
+        {round(range.min, 0)}%-{round(range.max, 0)}% 参考区间
+      </p>
       <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
         <div className="h-full rounded-full bg-accent" style={{ width: `${Math.min(Math.max(target, 0), 100)}%` }} />
       </div>
@@ -571,13 +621,16 @@ function MealEditor({
       </div>
 
       {recommendation ? (
-        <MealMacroBalance
-          actual={recommendation.actual}
-          actualDeficit={recommendation.actualDeficit}
-          actualRatio={recommendation.actualRatio}
-          target={recommendation.target}
-          targetRatio={recommendation.targetRatio}
-        />
+        <>
+          <MealMacroBalance
+            actual={recommendation.actual}
+            actualDeficit={recommendation.actualDeficit}
+            actualRatio={recommendation.actualRatio}
+            target={recommendation.target}
+            targetRatio={recommendation.targetRatio}
+          />
+          <LockedMealGapNotice meal={meal} recommendation={recommendation} />
+        </>
       ) : null}
 
       <div className="scrollbar-thin overflow-x-auto">
@@ -617,6 +670,7 @@ function MealEditor({
                       fat: (food.fatPer100g * entry.grams) / 100
                     }
                   : { kcal: 0, carbs: 0, protein: 0, fat: 0 };
+                const energyMismatch = food ? getFoodEnergyMismatch(food) : null;
 
                 return (
                   <tr key={entry.id} className="border-t border-line">
@@ -642,6 +696,11 @@ function MealEditor({
                         ))}
                       </select>
                       {food ? <div className="mt-1 text-xs text-muted">{convertWeightLabel(food, entry.grams)}</div> : null}
+                      {energyMismatch && energyMismatch.severity !== "ok" ? (
+                        <div className={energyMismatch.severity === "error" ? "mt-1 text-xs font-semibold text-rose" : "mt-1 text-xs font-semibold text-amber-600"}>
+                          能量校验：标注 {round(energyMismatch.kcalPer100g, 0)} kcal/100g，碳蛋脂约 {round(energyMismatch.macroKcalPer100g, 0)} kcal/100g
+                        </div>
+                      ) : null}
                     </td>
                     <td className="px-4 py-3">
                       <input
@@ -716,6 +775,26 @@ function MealEditor({
         </table>
       </div>
     </section>
+  );
+}
+
+function LockedMealGapNotice({
+  meal,
+  recommendation
+}: {
+  meal: MealPlan;
+  recommendation: ReturnType<typeof buildNutritionResult>["mealRecommendations"][number];
+}) {
+  const hasLockedItems = meal.locked || meal.entries.some((entry) => entry.locked);
+  if (!hasLockedItems || Math.abs(recommendation.deficit.kcal) <= 120) {
+    return null;
+  }
+
+  const direction = recommendation.deficit.kcal > 0 ? "仍亏" : "仍盈";
+  return (
+    <p className="border-b border-line bg-amber-50 px-4 py-2 text-sm font-medium text-amber-800">
+      锁定项使本餐推荐后{direction} {round(Math.abs(recommendation.deficit.kcal), 0)} kcal，系统会保留该差额，避免其他餐被过度拉高或压低。
+    </p>
   );
 }
 

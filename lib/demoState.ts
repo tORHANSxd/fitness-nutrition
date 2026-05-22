@@ -40,6 +40,14 @@ export function createStarterMeals(profile: UserProfile): MealPlan[] {
             locked: false,
             minGrams: 0,
             maxGrams: 40
+          },
+          {
+            id: crypto.randomUUID(),
+            foodId: "public-blueberry-raw",
+            grams: 100,
+            locked: false,
+            minGrams: 0,
+            maxGrams: 200
           }
         ]
       };
@@ -71,6 +79,14 @@ export function createStarterMeals(profile: UserProfile): MealPlan[] {
             locked: false,
             minGrams: 0,
             maxGrams: 350
+          },
+          {
+            id: crypto.randomUUID(),
+            foodId: "public-cooking-oil",
+            grams: 5,
+            locked: false,
+            minGrams: 0,
+            maxGrams: 20
           }
         ]
       };
@@ -108,6 +124,14 @@ export function createStarterMeals(profile: UserProfile): MealPlan[] {
           locked: false,
           minGrams: 0,
           maxGrams: 700
+        },
+        {
+          id: crypto.randomUUID(),
+          foodId: "public-cooking-oil",
+          grams: 5,
+          locked: false,
+          minGrams: 0,
+          maxGrams: 20
         }
       ]
     };

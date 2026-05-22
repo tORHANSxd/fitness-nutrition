@@ -5,6 +5,7 @@ import { Pencil, Plus, RotateCcw, Save, Trash2, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { foodCategories, type FoodFormState, type FoodItem } from "@/lib/types";
 import { deleteFood, saveFood } from "@/lib/storage";
+import { getFoodEnergyMismatch, round } from "@/lib/nutrition";
 
 interface FoodLibraryProps {
   foods: FoodItem[];
@@ -69,21 +70,27 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated }: Foo
       return;
     }
 
+    const payload: FoodItem = {
+      id: editingFood?.id ?? "",
+      userId: editingFood?.userId,
+      ...form,
+      name: form.name.trim(),
+      cookedRawRatio: form.cookedRawRatio ? Number(form.cookedRawRatio) : null,
+      source: editingFood?.source ?? "user",
+      isUserOverride: editingFood?.source === "public" || editingFood?.isUserOverride
+    };
+    const mismatch = getFoodEnergyMismatch(payload);
+    if (mismatch.severity === "error") {
+      setMessage(
+        `热量与碳蛋脂供能不一致：标注 ${round(mismatch.kcalPer100g, 0)} kcal/100g，碳蛋脂约 ${round(mismatch.macroKcalPer100g, 0)} kcal/100g。`
+      );
+      return;
+    }
+
     setBusy(true);
     setMessage("");
     try {
-      const savedFood = await saveFood(
-        {
-          id: editingFood?.id ?? "",
-          userId: editingFood?.userId,
-          ...form,
-          name: form.name.trim(),
-          cookedRawRatio: form.cookedRawRatio ? Number(form.cookedRawRatio) : null,
-          source: editingFood?.source ?? "user",
-          isUserOverride: editingFood?.source === "public" || editingFood?.isUserOverride
-        },
-        user
-      );
+      const savedFood = await saveFood(payload, user);
       onFoodsUpdated([...foods.filter((food) => food.id !== savedFood.id), savedFood]);
       setForm(emptyForm);
       setEditingFood(null);

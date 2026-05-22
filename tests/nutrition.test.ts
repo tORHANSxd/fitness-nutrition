@@ -3,6 +3,7 @@ import { createStarterMeals, defaultProfile } from "@/lib/demoState";
 import { builtinFoods } from "@/lib/foods";
 import {
   buildNutritionResult,
+  calculateFoodTotals,
   calculateBmr,
   calculateCalorieTarget,
   calculateDailyTarget,
@@ -11,10 +12,12 @@ import {
   calculateTdee,
   createDefaultMeals,
   getDefaultMealEntrySettings,
+  getFoodEnergyMismatch,
+  getMacroRatioCheck,
   getCarbDayType,
   round
 } from "@/lib/nutrition";
-import type { MealPlan, UserProfile } from "@/lib/types";
+import type { FoodItem, MealPlan, UserProfile } from "@/lib/types";
 
 const profile: UserProfile = {
   sex: "male",
@@ -37,6 +40,40 @@ function absoluteGap(total: { kcal: number; carbs: number; protein: number; fat:
     protein: Math.abs(target.protein - total.protein),
     fat: Math.abs(target.fat - total.fat)
   };
+}
+
+function mealRecommendedTotals(meal: MealPlan, result: ReturnType<typeof buildNutritionResult>, foods: FoodItem[]) {
+  const recommendation = result.mealRecommendations.find((item) => item.mealId === meal.id);
+  expect(recommendation).toBeDefined();
+  return meal.entries.reduce(
+    (total, entry) => {
+      const food = foods.find((item) => item.id === entry.foodId);
+      if (!food) {
+        return total;
+      }
+      const grams = recommendation!.recommendedEntries[entry.id] ?? entry.grams;
+      const foodTotals = calculateFoodTotals(food, grams);
+      return {
+        kcal: total.kcal + foodTotals.kcal,
+        carbs: total.carbs + foodTotals.carbs,
+        protein: total.protein + foodTotals.protein,
+        fat: total.fat + foodTotals.fat
+      };
+    },
+    { kcal: 0, carbs: 0, protein: 0, fat: 0 }
+  );
+}
+
+function nonSupplementRecommendedGrams(meal: MealPlan, result: ReturnType<typeof buildNutritionResult>, foods: FoodItem[]) {
+  const recommendation = result.mealRecommendations.find((item) => item.mealId === meal.id);
+  expect(recommendation).toBeDefined();
+  return meal.entries.reduce((total, entry) => {
+    const food = foods.find((item) => item.id === entry.foodId);
+    if (!food || food.category === "补剂") {
+      return total;
+    }
+    return total + (recommendation!.recommendedEntries[entry.id] ?? entry.grams);
+  }, 0);
 }
 
 describe("nutrition formulas", () => {
@@ -73,6 +110,27 @@ describe("nutrition formulas", () => {
     expect(round(ratio.carbs, 0)).toBe(47);
     expect(round(ratio.protein, 0)).toBe(24);
     expect(round(ratio.fat, 0)).toBe(29);
+  });
+
+  it("checks macro ratios against carb cycle targets and goal ranges", () => {
+    const target = calculateDailyTarget(profile);
+    const targetRatio = calculateMacroRatio(target);
+    const check = getMacroRatioCheck(targetRatio, targetRatio, "cut");
+
+    expect(check.cycleAligned).toBe(true);
+    expect(check.goalAligned).toBe(true);
+  });
+
+  it("detects food energy data that conflicts with macro calories", () => {
+    const badOats = {
+      kcalPer100g: 38,
+      carbsPer100g: 57.1,
+      proteinPer100g: 12.3,
+      fatPer100g: 11.9
+    };
+
+    expect(getFoodEnergyMismatch(badOats).severity).toBe("error");
+    expect(builtinFoods.every((food) => getFoodEnergyMismatch(food).severity !== "error")).toBe(true);
   });
 
   it("creates training and rest meals with expected counts", () => {
@@ -263,8 +321,98 @@ describe("meal solving", () => {
 
     expect(recommended.broccoli).toBeGreaterThanOrEqual(100);
     expect(recommended.chicken).toBeGreaterThanOrEqual(20);
-    expect(recommended.rice).toBeLessThan(600);
+    expect(recommended.rice).toBeLessThanOrEqual(420);
     expect(recommended.rice / totalGrams).toBeLessThanOrEqual(0.62);
+  });
+
+  it("keeps a locked low pre-workout meal from making lunch absorb the whole daily gap", () => {
+    const foods: FoodItem[] = [
+      ...builtinFoods,
+      {
+        id: "test-bun",
+        name: "杂粮馒头",
+        category: "主食",
+        kcalPer100g: 251,
+        fatPer100g: 3.87,
+        carbsPer100g: 46.4,
+        proteinPer100g: 10,
+        weightBasis: "cooked",
+        cookedRawRatio: null,
+        source: "user"
+      },
+      {
+        id: "test-light-protein",
+        name: "低热量蛋白粉",
+        category: "补剂",
+        kcalPer100g: 117,
+        fatPer100g: 1.33,
+        carbsPer100g: 4,
+        proteinPer100g: 22.33,
+        weightBasis: "raw",
+        cookedRawRatio: null,
+        source: "user"
+      }
+    ];
+    const meals: MealPlan[] = [
+      {
+        id: "breakfast",
+        name: "早餐",
+        ratio: 0.25,
+        locked: false,
+        entries: [
+          { id: "oats", foodId: "public-oats-raw", grams: 31, locked: false, minGrams: 0, maxGrams: 120 },
+          { id: "egg", foodId: "public-egg-whole", grams: 97, locked: false, minGrams: 70, maxGrams: 280 },
+          { id: "blueberry", foodId: "public-blueberry-raw", grams: 100, locked: false, minGrams: 0, maxGrams: 100 }
+        ]
+      },
+      {
+        id: "lunch",
+        name: "午餐",
+        ratio: 0.3,
+        locked: false,
+        entries: [
+          { id: "rice", foodId: "public-brown-rice-cooked", grams: 540, locked: false, minGrams: 0, maxGrams: 900 },
+          { id: "chicken", foodId: "public-chicken-breast-cooked", grams: 154, locked: false, minGrams: 0, maxGrams: 260 },
+          { id: "broccoli", foodId: "public-broccoli-cooked", grams: 420, locked: false, minGrams: 0, maxGrams: 420 },
+          { id: "oil", foodId: "public-cooking-oil", grams: 1.5, locked: false, minGrams: 0, maxGrams: 20 }
+        ]
+      },
+      {
+        id: "pre-workout",
+        name: "训练前加餐",
+        ratio: 0.15,
+        locked: false,
+        entries: [
+          { id: "bun", foodId: "test-bun", grams: 75, locked: true, minGrams: 0, maxGrams: 360 },
+          { id: "protein", foodId: "test-light-protein", grams: 30, locked: true, minGrams: 0, maxGrams: 280 }
+        ]
+      },
+      {
+        id: "dinner",
+        name: "晚餐",
+        ratio: 0.3,
+        locked: false,
+        entries: [
+          { id: "dinner-chicken", foodId: "public-chicken-breast-cooked", grams: 103, locked: false, minGrams: 0, maxGrams: 260 },
+          { id: "dinner-rice", foodId: "public-brown-rice-cooked", grams: 360, locked: false, minGrams: 0, maxGrams: 360 },
+          { id: "dinner-broccoli", foodId: "public-broccoli-cooked", grams: 420, locked: false, minGrams: 0, maxGrams: 420 },
+          { id: "dinner-oil", foodId: "public-cooking-oil", grams: 1.5, locked: false, minGrams: 0, maxGrams: 20 }
+        ]
+      }
+    ];
+    const userProfile: UserProfile = {
+      ...defaultProfile,
+      planDate: "2026-05-22"
+    };
+    const result = buildNutritionResult(userProfile, meals, foods);
+    const lunch = meals[1];
+    const lunchTarget = result.mealRecommendations.find((item) => item.mealId === "lunch")!.target;
+    const lunchTotals = mealRecommendedTotals(lunch, result, foods);
+    const lunchKcalTolerance = Math.max(80, lunchTarget.kcal * 0.15);
+
+    expect(lunchTotals.kcal).toBeLessThanOrEqual(lunchTarget.kcal + lunchKcalTolerance);
+    expect(nonSupplementRecommendedGrams(lunch, result, foods)).toBeLessThanOrEqual(950);
+    expect(result.conflicts.some((item) => item.includes("训练前加餐 有锁定项"))).toBe(true);
   });
 
   it("keeps displayed meal targets proportional to the daily standard after solver redistribution", () => {
@@ -291,6 +439,13 @@ describe("meal solving", () => {
     expect(round(targetTotals.carbs, 1)).toBe(round(result.dailyTarget.carbs, 1));
     expect(round(targetTotals.protein, 1)).toBe(round(result.dailyTarget.protein, 1));
     expect(round(targetTotals.fat, 1)).toBe(round(result.dailyTarget.fat, 1));
+
+    for (const meal of meals) {
+      const recommendation = result.mealRecommendations.find((item) => item.mealId === meal.id)!;
+      const totals = mealRecommendedTotals(meal, result, builtinFoods);
+      const tolerance = Math.max(80, recommendation.target.kcal * 0.15);
+      expect(Math.abs(totals.kcal - recommendation.target.kcal)).toBeLessThanOrEqual(tolerance);
+    }
   });
 
   it("calculates totals for current meal entries", () => {

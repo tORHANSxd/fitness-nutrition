@@ -1,0 +1,15 @@
+node_modules/
+.next/
+out/
+dist/
+coverage/
+.verification/
+.env
+.env*.local
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.next-dev*.log
+.DS_Store

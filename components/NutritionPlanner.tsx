@@ -21,14 +21,17 @@ import {
   carbCycleMacroSource,
   convertWeightLabel,
   createDefaultMeals,
+  energyTargetSource,
   getDefaultMealEntrySettings,
+  getWeeklyWeightChangePct,
+  goalLabels,
   normalizeMealRatios,
   round,
   trainingTimeLabels,
   workoutLabels
 } from "@/lib/nutrition";
 import { savePlan } from "@/lib/storage";
-import type { FoodItem, MacroRatio, MacroTotals, MealFoodEntry, MealPlan, UserProfile, WorkoutType } from "@/lib/types";
+import type { FoodItem, MacroRatio, MacroTotals, MealFoodEntry, MealPlan, NutritionGoal, UserProfile, WorkoutType } from "@/lib/types";
 
 interface NutritionPlannerProps {
   foods: FoodItem[];
@@ -167,7 +170,8 @@ export function NutritionPlanner({ foods, user }: NutritionPlannerProps) {
               <div>
                 <h2 className="text-lg font-semibold text-ink">实时目标</h2>
                 <p className="text-sm text-muted">
-                  {workoutLabels[profile.workoutType]} / {carbDayLabels[result.carbDayType]} / {trainingTimeLabels[profile.trainingTime]}
+                  {goalLabels[profile.goalType ?? "cut"]} / {workoutLabels[profile.workoutType]} / {carbDayLabels[result.carbDayType]} /{" "}
+                  {trainingTimeLabels[profile.trainingTime]}
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -185,12 +189,19 @@ export function NutritionPlanner({ foods, user }: NutritionPlannerProps) {
                 </button>
               </div>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
               <MetricCard label="BMR" value={result.bmr} unit="kcal" />
-              <MetricCard label="TDEE" value={result.tdee} unit="kcal" tone="accent" />
+              <MetricCard label="维持热量" value={result.tdee} unit="kcal" tone="accent" />
+              <MetricCard label="目标热量" value={result.dailyTarget.kcal} unit="kcal" tone="accent" />
+              <MetricCard
+                label={result.plannedCalorieDelta < 0 ? "计划缺口" : result.plannedCalorieDelta > 0 ? "计划盈余" : "计划差额"}
+                value={Math.abs(result.plannedCalorieDelta)}
+                unit="kcal"
+                tone={result.plannedCalorieDelta < 0 ? "normal" : "accent"}
+              />
               <MetricCard label="当前摄入" value={result.actualTotals.kcal} unit="kcal" />
               <MetricCard
-                label="剩余热量"
+                label="剩余目标"
                 value={result.remaining.kcal}
                 unit="kcal"
                 tone={result.remaining.kcal < 0 ? "danger" : "normal"}
@@ -247,9 +258,9 @@ function MacroRatioPanel({ carbDayLabel, targetRatio, actualRatio }: MacroRatioP
       <div className="mb-2 flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
         <div>
           <h3 className="text-sm font-semibold text-ink">三大营养素比例</h3>
-          <p className="text-xs text-muted">目标按{carbDayLabel}的凯圣王碳循环结构缩放到 TDEE。</p>
+          <p className="text-xs text-muted">目标按{carbDayLabel}的凯圣王碳循环结构缩放到目标热量。</p>
         </div>
-        <span className="text-xs text-muted">{carbCycleMacroSource}</span>
+        <span className="text-xs text-muted">{energyTargetSource} {carbCycleMacroSource}</span>
       </div>
       <div className="grid gap-2 md:grid-cols-3">
         <MacroRatioRow label="碳水" actual={actualRatio.carbs} target={targetRatio.carbs} />
@@ -281,8 +292,20 @@ interface ProfilePanelProps {
 }
 
 function ProfilePanel({ profile, updateProfile }: ProfilePanelProps) {
+  const goalType = profile.goalType ?? "cut";
+
   function numberInput<K extends keyof UserProfile>(key: K, value: string) {
     updateProfile(key, Number(value) as UserProfile[K]);
+  }
+
+  function updateGoal(nextGoal: NutritionGoal) {
+    const defaultRate: Record<NutritionGoal, number> = {
+      cut: 0.5,
+      maintain: 0,
+      bulk: 0.25
+    };
+    updateProfile("goalType", nextGoal);
+    updateProfile("weeklyWeightChangePct", defaultRate[nextGoal]);
   }
 
   return (
@@ -324,7 +347,30 @@ function ProfilePanel({ profile, updateProfile }: ProfilePanelProps) {
         </div>
         <div className="grid grid-cols-2 gap-3">
           <label>
-            <span className="metric-label mb-1 block">活动系数</span>
+            <span className="metric-label mb-1 block">目标</span>
+            <select className="field w-full" value={goalType} onChange={(event) => updateGoal(event.target.value as NutritionGoal)}>
+              {Object.entries(goalLabels).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span className="metric-label mb-1 block">每周体重变化 %</span>
+            <input
+              className="field w-full"
+              min="0"
+              max="1"
+              step="0.05"
+              type="number"
+              value={getWeeklyWeightChangePct(profile)}
+              onChange={(event) => numberInput("weeklyWeightChangePct", event.target.value)}
+              disabled={goalType === "maintain"}
+            />
+          </label>
+          <label>
+            <span className="metric-label mb-1 block">日常活动系数</span>
             <input className="field w-full" step="0.01" type="number" value={profile.activityFactor} onChange={(event) => numberInput("activityFactor", event.target.value)} />
           </label>
           <label>
@@ -336,7 +382,7 @@ function ProfilePanel({ profile, updateProfile }: ProfilePanelProps) {
             <input className="field w-full" min="0.8" max="1.5" step="0.1" type="number" value={profile.proteinPerKg} onChange={(event) => numberInput("proteinPerKg", event.target.value)} />
           </label>
           <label>
-            <span className="metric-label mb-1 block">体质参数</span>
+            <span className="metric-label mb-1 block">碳水系数 g/kg</span>
             <input className="field w-full" min="2" max="3" step="0.1" type="number" value={profile.bodyTypeFactor} onChange={(event) => numberInput("bodyTypeFactor", event.target.value)} />
           </label>
         </div>

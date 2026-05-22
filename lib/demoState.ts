@@ -9,7 +9,9 @@ export const defaultProfile: UserProfile = {
   weightKg: 75,
   activityFactor: 1.45,
   exerciseKcal: 350,
-  proteinPerKg: 1.2,
+  goalType: "cut",
+  weeklyWeightChangePct: 0.5,
+  proteinPerKg: 1.4,
   bodyTypeFactor: 2.5,
   workoutType: "legs",
   trainingTime: "afternoon",
@@ -113,4 +115,3 @@ export function createStarterMeals(profile: UserProfile): MealPlan[] {
 }
 
 export const defaultFoods = builtinFoods;
-

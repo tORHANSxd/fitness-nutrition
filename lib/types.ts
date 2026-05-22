@@ -6,6 +6,7 @@ export type Sex = "male" | "female";
 export type WorkoutType = "legs" | "back" | "chest" | "shoulders" | "arms" | "rest";
 export type CarbDayType = "high" | "mid" | "low";
 export type TrainingTime = "morning" | "afternoon" | "evening";
+export type NutritionGoal = "cut" | "maintain" | "bulk";
 export type ViewName = "planner" | "foods" | "history" | "login";
 
 export interface MacroTotals {
@@ -28,6 +29,8 @@ export interface UserProfile {
   weightKg: number;
   activityFactor: number;
   exerciseKcal: number;
+  goalType?: NutritionGoal;
+  weeklyWeightChangePct?: number;
   proteinPerKg: number;
   bodyTypeFactor: number;
   workoutType: WorkoutType;
@@ -81,6 +84,7 @@ export interface MealRecommendation {
 export interface NutritionResult {
   bmr: number;
   tdee: number;
+  plannedCalorieDelta: number;
   carbDayType: CarbDayType;
   dailyTarget: MacroTotals;
   actualTotals: MacroTotals;

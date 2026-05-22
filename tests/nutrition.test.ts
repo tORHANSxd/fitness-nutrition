@@ -3,9 +3,11 @@ import { builtinFoods } from "@/lib/foods";
 import {
   buildNutritionResult,
   calculateBmr,
+  calculateCalorieTarget,
   calculateDailyTarget,
   calculateMacroRatio,
   calculateMealsTotals,
+  calculateTdee,
   createDefaultMeals,
   getDefaultMealEntrySettings,
   getCarbDayType,
@@ -40,7 +42,17 @@ describe("nutrition formulas", () => {
     expect(getCarbDayType("rest")).toBe("low");
   });
 
-  it("keeps daily macro calories aligned with TDEE", () => {
+  it("sets a moderate default cut below maintenance calories", () => {
+    expect(round(calculateTdee(profile), 0)).toBe(2881);
+    expect(round(calculateCalorieTarget(profile), 0)).toBe(2441);
+  });
+
+  it("supports maintenance and lean bulk calorie targets", () => {
+    expect(round(calculateCalorieTarget({ ...profile, goalType: "maintain", weeklyWeightChangePct: 0 }), 0)).toBe(2881);
+    expect(round(calculateCalorieTarget({ ...profile, goalType: "bulk", weeklyWeightChangePct: 0.25 }), 0)).toBe(3101);
+  });
+
+  it("keeps daily macro calories aligned with target calories", () => {
     const target = calculateDailyTarget(profile);
     const macroCalories = target.carbs * 4 + target.protein * 4 + target.fat * 9;
     expect(round(macroCalories, 0)).toBe(round(target.kcal, 0));
@@ -154,6 +166,20 @@ describe("meal solving", () => {
     const result = buildNutritionResult(profile, meals, builtinFoods);
     expect(result.remaining.kcal).toBeLessThan(0);
     expect(result.conflicts.length).toBeGreaterThan(0);
+  });
+
+  it("warns when actual intake creates a much larger deficit than planned", () => {
+    const meals: MealPlan[] = [
+      {
+        id: "single",
+        name: "单餐",
+        ratio: 1,
+        locked: false,
+        entries: [{ id: "rice", foodId: "public-rice-cooked", grams: 100, locked: true }]
+      }
+    ];
+    const result = buildNutritionResult(profile, meals, builtinFoods);
+    expect(result.conflicts.some((item) => item.includes("实际热量缺口过大"))).toBe(true);
   });
 
   it("calculates totals for current meal entries", () => {

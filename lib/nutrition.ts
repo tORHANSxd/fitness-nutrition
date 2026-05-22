@@ -7,6 +7,7 @@ import type {
   MealFoodEntry,
   MealPlan,
   NutritionResult,
+  NutritionGoal,
   TrainingTime,
   UserProfile,
   WorkoutType
@@ -38,6 +39,20 @@ const fatRatios: Record<CarbDayType, number> = {
   low: 0.5 / 2
 };
 
+const kcalPerKgWeight = 7700;
+
+const goalDefaults: Record<NutritionGoal, number> = {
+  cut: 0.5,
+  maintain: 0,
+  bulk: 0.25
+};
+
+const goalRanges: Record<NutritionGoal, { min: number; max: number }> = {
+  cut: { min: 0.25, max: 1 },
+  maintain: { min: 0, max: 0 },
+  bulk: { min: 0.1, max: 0.5 }
+};
+
 interface FoodPortionRule {
   defaultGrams: number;
   maxGrams: number;
@@ -62,6 +77,9 @@ export const carbCycleMacroSource =
 export const foodPortionSource =
   "分类份量参考中国居民平衡膳食餐盘：蔬菜约34%-36%、谷薯类约26%-28%、水果约20%-25%、动物性食物约13%-17%；补剂和坚果按健身常用单次份量设上限。";
 
+export const energyTargetSource =
+  "热量目标：先估算维持热量，再按每周体重变化率设置目标；减脂默认0.5%体重/周，增肌默认0.25%体重/周。";
+
 export const workoutLabels: Record<WorkoutType, string> = {
   legs: "腿部",
   back: "背部",
@@ -81,6 +99,12 @@ export const trainingTimeLabels: Record<TrainingTime, string> = {
   morning: "上午训练",
   afternoon: "午后训练",
   evening: "傍晚训练"
+};
+
+export const goalLabels: Record<NutritionGoal, string> = {
+  cut: "减脂",
+  maintain: "维持",
+  bulk: "增肌"
 };
 
 export function round(value: number, digits = 1) {
@@ -187,6 +211,44 @@ export function calculateTdee(profile: UserProfile) {
   return calculateBmr(profile) * profile.activityFactor + profile.exerciseKcal;
 }
 
+export function getNutritionGoal(profile: Pick<UserProfile, "goalType">): NutritionGoal {
+  return profile.goalType ?? "cut";
+}
+
+export function getWeeklyWeightChangePct(profile: Pick<UserProfile, "goalType" | "weeklyWeightChangePct">) {
+  const goal = getNutritionGoal(profile);
+  const range = goalRanges[goal];
+  const rawValue = profile.weeklyWeightChangePct ?? goalDefaults[goal];
+  return clamp(rawValue, range.min, range.max);
+}
+
+function minimumTargetCalories(profile: Pick<UserProfile, "sex">) {
+  return profile.sex === "female" ? 1200 : 1500;
+}
+
+export function calculateCalorieTarget(profile: UserProfile) {
+  const tdee = calculateTdee(profile);
+  const goal = getNutritionGoal(profile);
+  const weeklyChangePct = getWeeklyWeightChangePct(profile);
+  const dailyEnergyDelta = (profile.weightKg * (weeklyChangePct / 100) * kcalPerKgWeight) / 7;
+
+  if (goal === "maintain") {
+    return tdee;
+  }
+
+  if (goal === "bulk") {
+    const surplus = Math.min(dailyEnergyDelta, 500, tdee * 0.15);
+    return tdee + surplus;
+  }
+
+  const deficit = Math.min(dailyEnergyDelta, 1000, tdee * 0.25);
+  return Math.max(tdee - deficit, minimumTargetCalories(profile));
+}
+
+export function calculatePlannedCalorieDelta(profile: UserProfile) {
+  return calculateCalorieTarget(profile) - calculateTdee(profile);
+}
+
 export function getCarbDayType(workoutType: WorkoutType): CarbDayType {
   if (workoutType === "legs" || workoutType === "back") {
     return "high";
@@ -199,19 +261,19 @@ export function getCarbDayType(workoutType: WorkoutType): CarbDayType {
 
 export function calculateDailyTarget(profile: UserProfile): MacroTotals {
   const carbDayType = getCarbDayType(profile.workoutType);
-  const tdee = calculateTdee(profile);
+  const targetCalories = calculateCalorieTarget(profile);
   const protein = profile.weightKg * profile.proteinPerKg;
   const weeklyCarbs = profile.weightKg * profile.bodyTypeFactor * 7;
   const fatParameter = 0.8 + (profile.bodyTypeFactor - 2) * 0.3;
   const weeklyFat = profile.weightKg * fatParameter * 7;
   const rawCarbs = weeklyCarbs * carbRatios[carbDayType];
   const rawFat = weeklyFat * fatRatios[carbDayType];
-  const caloriesAfterProtein = Math.max(tdee - protein * 4, 0);
+  const caloriesAfterProtein = Math.max(targetCalories - protein * 4, 0);
   const rawCarbFatCalories = rawCarbs * 4 + rawFat * 9;
   const scale = rawCarbFatCalories > 0 ? caloriesAfterProtein / rawCarbFatCalories : 1;
 
   return {
-    kcal: tdee,
+    kcal: targetCalories,
     protein,
     carbs: rawCarbs * scale,
     fat: rawFat * scale
@@ -359,6 +421,8 @@ export function buildNutritionResult(profile: UserProfile, meals: MealPlan[], fo
   const foodsById = new Map(foods.map((food) => [food.id, food]));
   const dailyTarget = calculateDailyTarget(profile);
   const actualTotals = calculateMealsTotals(meals, foods);
+  const tdee = calculateTdee(profile);
+  const plannedCalorieDelta = calculatePlannedCalorieDelta(profile);
   const lockedMealTotals = meals
     .filter((meal) => meal.locked)
     .reduce((total, meal) => addTotals(total, calculateMealTotals(meal, foodsById)), zeroTotals);
@@ -369,6 +433,14 @@ export function buildNutritionResult(profile: UserProfile, meals: MealPlan[], fo
 
   if (Object.values(remainingAfterLockedMeals).some((value) => value < 0)) {
     conflicts.push(deficitMessage("锁定餐已超过目标", remainingAfterLockedMeals));
+  }
+
+  const plannedDeficit = Math.max(-plannedCalorieDelta, 0);
+  const actualDeficitFromMaintenance = tdee - actualTotals.kcal;
+  if (plannedDeficit > 0 && actualTotals.kcal > 0 && actualDeficitFromMaintenance > plannedDeficit + 250) {
+    conflicts.push(
+      `当前实际热量缺口过大：${round(actualDeficitFromMaintenance, 0)} kcal，计划缺口 ${round(plannedDeficit, 0)} kcal`
+    );
   }
 
   const mealRecommendations = meals.map((meal) => {
@@ -414,7 +486,8 @@ export function buildNutritionResult(profile: UserProfile, meals: MealPlan[], fo
 
   return {
     bmr: calculateBmr(profile),
-    tdee: calculateTdee(profile),
+    tdee,
+    plannedCalorieDelta,
     carbDayType: getCarbDayType(profile.workoutType),
     dailyTarget,
     actualTotals,

@@ -1,5 +1,6 @@
 # Progress
 
+- 2026-05-22 14:15:00 优化热量目标逻辑：维持热量与目标热量分离，新增目标类型和每周体重变化率；默认减脂按 0.5% 体重/周计算缺口，并增加实际缺口过大提醒。验证 npm run lint、npm run test、npm run build 通过，浏览器首屏新字段渲染正常且控制台 error=0。
 - 2026-05-22 11:29:00 食物库支持网页端编辑公共食物和本人自定义食物：公共食物保存为当前用户覆盖值，可重置；本人食物可更新原记录。验证 npm run lint、npm run test、npm run build、npm audit --json 通过，浏览器公共食物编辑/重置控制台 error=0。
 - 2026-05-22 11:10:00 复核 FatSecret.cn 直接条目后再次校准白米饭、鸡胸肉、杏仁的每 100g 数据；验证 npm run lint、npm run test、npm run build 通过，浏览器控制台 error=0。
 - 2026-05-22 11:07:00 npm audit --json 通过：0 个漏洞。

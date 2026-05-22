@@ -243,6 +243,30 @@ describe("meal solving", () => {
     expect(recommendedGap.fat).toBeLessThan(5);
   });
 
+  it("keeps vegetables present when a meal also has a large rice allowance", () => {
+    const meals: MealPlan[] = [
+      {
+        id: "lunch",
+        name: "午餐",
+        ratio: 1,
+        locked: false,
+        entries: [
+          { id: "rice", foodId: "public-rice-cooked", grams: 200, locked: false, minGrams: 0, maxGrams: 650 },
+          { id: "broccoli", foodId: "public-broccoli-cooked", grams: 180, locked: false, minGrams: 0, maxGrams: 350 },
+          { id: "chicken", foodId: "public-chicken-breast-cooked", grams: 160, locked: false, minGrams: 0, maxGrams: 300 }
+        ]
+      }
+    ];
+    const result = buildNutritionResult({ ...profile, goalType: "maintain", weeklyWeightChangePct: 0 }, meals, builtinFoods);
+    const recommended = result.mealRecommendations[0].recommendedEntries;
+    const totalGrams = recommended.rice + recommended.broccoli + recommended.chicken;
+
+    expect(recommended.broccoli).toBeGreaterThanOrEqual(100);
+    expect(recommended.chicken).toBeGreaterThanOrEqual(20);
+    expect(recommended.rice).toBeLessThan(600);
+    expect(recommended.rice / totalGrams).toBeLessThanOrEqual(0.62);
+  });
+
   it("keeps displayed meal targets proportional to the daily standard after solver redistribution", () => {
     const userProfile: UserProfile = {
       ...defaultProfile,

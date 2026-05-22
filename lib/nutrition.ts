@@ -34,6 +34,8 @@ const dailyFitWeights: Record<keyof MacroTotals, number> = {
   fat: 1
 };
 
+const macroKeys: Array<keyof MacroTotals> = ["kcal", "carbs", "protein", "fat"];
+
 const carbRatios: Record<CarbDayType, number> = {
   high: 0.5 / 2,
   mid: 0.35 / 3,
@@ -66,6 +68,17 @@ interface FoodPortionRule {
   softTargetWeight: number;
 }
 
+interface SolverEntryModel {
+  meal: MealPlan;
+  entry: MealFoodEntry;
+  food: FoodItem;
+  min: number;
+  max: number;
+  portionTarget: number;
+  comfortMax: number;
+  portionWeight: number;
+}
+
 const cookedMainMax = 360;
 const rawMainMax = 120;
 
@@ -76,6 +89,42 @@ const defaultPortionRules: Record<FoodCategory, FoodPortionRule> = {
   肉类: { defaultGrams: 150, maxGrams: 260, softTargetWeight: 0.26 },
   补剂: { defaultGrams: 30, maxGrams: 40, softTargetWeight: 1.3 },
   坚果: { defaultGrams: 20, maxGrams: 35, softTargetWeight: 1.1 }
+};
+
+const presenceFloorRatios: Record<FoodCategory, number> = {
+  主食: 0.35,
+  蔬菜: 0.5,
+  水果: 0.4,
+  肉类: 0.15,
+  补剂: 0.15,
+  坚果: 0.3
+};
+
+const comfortMaxMultipliers: Record<FoodCategory, number> = {
+  主食: 2.1,
+  蔬菜: 1.7,
+  水果: 1.7,
+  肉类: 1.45,
+  补剂: 1.15,
+  坚果: 1.25
+};
+
+const multiFoodHardMaxMultipliers: Record<FoodCategory, number> = {
+  主食: 3,
+  蔬菜: 2.1,
+  水果: 2.1,
+  肉类: 1.8,
+  补剂: 1,
+  坚果: 1.5
+};
+
+const categoryGramWeights: Record<FoodCategory, number> = {
+  主食: 0.32,
+  蔬菜: 0.38,
+  水果: 0.24,
+  肉类: 0.18,
+  补剂: 0.04,
+  坚果: 0.06
 };
 
 export const carbCycleMacroSource =
@@ -344,58 +393,208 @@ function entryBounds(entry: MealFoodEntry, food?: FoodItem, meal?: Pick<MealPlan
   return { min, max };
 }
 
+function macroFitScore(
+  total: MacroTotals,
+  target: MacroTotals,
+  weights: Record<keyof MacroTotals, number>,
+  scaleFloors: MacroTotals
+) {
+  return macroKeys.reduce((score, key) => {
+    const scale = Math.max(Math.abs(target[key]), scaleFloors[key]);
+    const ratio = (total[key] - target[key]) / scale;
+    return score + weights[key] * ratio * ratio;
+  }, 0);
+}
+
+function buildMealSolverModels(
+  meal: MealPlan,
+  foodsById: Map<string, FoodItem>,
+  mealTarget: MacroTotals
+): SolverEntryModel[] {
+  if (meal.locked) {
+    return [];
+  }
+
+  const baseModels = meal.entries.flatMap((entry) => {
+    const food = foodsById.get(entry.foodId);
+    if (!food || entry.locked) {
+      return [];
+    }
+    const bounds = entryBounds(entry, food, meal);
+    const portionRule = getFoodPortionRule(food, meal);
+    return [{ entry, food, bounds, portionRule }];
+  });
+
+  if (baseModels.length === 0) {
+    return [];
+  }
+
+  const protectsPresence = baseModels.length > 1;
+  const rawFloors = baseModels.map(({ bounds, food, portionRule }) =>
+    protectsPresence
+      ? clamp(portionRule.defaultGrams * presenceFloorRatios[food.category], bounds.min, bounds.max)
+      : bounds.min
+  );
+  const floorTotals = baseModels.reduce(
+    (total, model, index) => addTotals(total, calculateFoodTotals(model.food, rawFloors[index])),
+    zeroTotals
+  );
+  const floorKcalLimit = mealTarget.kcal > 0 ? Math.max(mealTarget.kcal * 0.55, 120) : Number.POSITIVE_INFINITY;
+  const floorScale = floorTotals.kcal > floorKcalLimit && floorTotals.kcal > 0 ? floorKcalLimit / floorTotals.kcal : 1;
+
+  return baseModels.map(({ entry, food, bounds, portionRule }, index) => {
+    const min = round(clamp(bounds.min + (rawFloors[index] - bounds.min) * floorScale, bounds.min, bounds.max), 1);
+    const solverMax = protectsPresence
+      ? round(clamp(portionRule.defaultGrams * multiFoodHardMaxMultipliers[food.category], min, bounds.max), 1)
+      : bounds.max;
+    return {
+      meal,
+      entry,
+      food,
+      min,
+      max: solverMax,
+      portionTarget: round(clamp(portionRule.defaultGrams, min, solverMax), 1),
+      comfortMax: round(clamp(portionRule.defaultGrams * comfortMaxMultipliers[food.category], min, solverMax), 1),
+      portionWeight: portionRule.softTargetWeight
+    };
+  });
+}
+
+function mealStructureScore(models: SolverEntryModel[], gramsByEntryId: Record<string, number>) {
+  let score = 0;
+
+  for (const model of models) {
+    const grams = gramsByEntryId[model.entry.id] ?? model.entry.grams;
+    const portionScale = Math.max(model.portionTarget, 25);
+    const portionRatio = (grams - model.portionTarget) / portionScale;
+    score += model.portionWeight * 0.18 * portionRatio * portionRatio;
+
+    if (models.length > 1 && grams > model.comfortMax) {
+      const comfortScale = Math.max(model.comfortMax, 25);
+      const overRatio = (grams - model.comfortMax) / comfortScale;
+      score += 1.4 * overRatio * overRatio;
+    }
+  }
+
+  const structureModels = models.filter((model) => model.food.category !== "补剂");
+  const totalGrams = structureModels.reduce((sum, model) => sum + (gramsByEntryId[model.entry.id] ?? model.entry.grams), 0);
+
+  if (structureModels.length > 1 && totalGrams > 0) {
+    const dominanceLimit = structureModels.length >= 3 ? 0.62 : 0.72;
+    for (const model of structureModels) {
+      const share = (gramsByEntryId[model.entry.id] ?? model.entry.grams) / totalGrams;
+      if (share > dominanceLimit) {
+        const overRatio = (share - dominanceLimit) / 0.1;
+        score += 4.5 * overRatio * overRatio;
+      }
+    }
+
+    const categoryTotals = new Map<FoodCategory, number>();
+    for (const model of structureModels) {
+      categoryTotals.set(
+        model.food.category,
+        (categoryTotals.get(model.food.category) ?? 0) + (gramsByEntryId[model.entry.id] ?? model.entry.grams)
+      );
+    }
+    const presentCategories = Array.from(categoryTotals.keys()).filter((category) => (categoryTotals.get(category) ?? 0) > 0);
+    const targetWeightSum = presentCategories.reduce((sum, category) => sum + categoryGramWeights[category], 0);
+
+    if (presentCategories.length > 1 && targetWeightSum > 0) {
+      for (const category of presentCategories) {
+        const share = (categoryTotals.get(category) ?? 0) / totalGrams;
+        const targetShare = categoryGramWeights[category] / targetWeightSum;
+        const diffRatio = (share - targetShare) / 0.35;
+        score += 0.25 * diffRatio * diffRatio;
+      }
+    }
+  }
+
+  return score;
+}
+
+function candidateGrams(model: SolverEntryModel, current: number, step: number) {
+  return Array.from(
+    new Set(
+      [current - step, current + step, model.min, model.portionTarget, model.comfortMax, model.max].map((value) =>
+        round(clamp(value, model.min, model.max), 1)
+      )
+    )
+  );
+}
+
+function optimizeSolverModels(
+  models: SolverEntryModel[],
+  readGrams: (model: SolverEntryModel) => number,
+  writeGrams: (model: SolverEntryModel, grams: number) => void,
+  scoreState: () => number
+) {
+  const steps = [160, 80, 40, 20, 10, 5, 1];
+  let bestScore = scoreState();
+
+  for (const step of steps) {
+    let improved = true;
+    let pass = 0;
+
+    while (improved && pass < 8) {
+      improved = false;
+      pass += 1;
+
+      for (const model of models) {
+        let current = readGrams(model);
+        for (const candidate of candidateGrams(model, current, step)) {
+          if (Math.abs(candidate - current) < 0.05) {
+            continue;
+          }
+
+          writeGrams(model, candidate);
+          const score = scoreState();
+          if (score + 1e-9 < bestScore) {
+            bestScore = score;
+            current = candidate;
+            improved = true;
+          } else {
+            writeGrams(model, current);
+          }
+        }
+      }
+    }
+  }
+}
+
 function solveMealEntries(
   meal: MealPlan,
   mealTarget: MacroTotals,
   foodsById: Map<string, FoodItem>
 ) {
   const recommended = Object.fromEntries(meal.entries.map((entry) => [entry.id, entry.grams]));
-  const adjustable = meal.entries.filter((entry) => !entry.locked && foodsById.has(entry.foodId));
+  const models = buildMealSolverModels(meal, foodsById, mealTarget);
 
-  if (meal.locked || adjustable.length === 0) {
+  if (models.length === 0) {
     return recommended;
   }
 
-  for (const entry of adjustable) {
-    const food = foodsById.get(entry.foodId);
-    const { min, max } = entryBounds(entry, food, meal);
-    recommended[entry.id] = clamp(recommended[entry.id] ?? entry.grams, min, max);
+  for (const model of models) {
+    recommended[model.entry.id] = round(clamp(recommended[model.entry.id] ?? model.entry.grams, model.min, model.max), 1);
   }
 
-  for (let iteration = 0; iteration < 36; iteration += 1) {
-    for (const entry of adjustable) {
-      const food = foodsById.get(entry.foodId);
-      if (!food) {
-        continue;
-      }
-      const currentGrams = recommended[entry.id] ?? entry.grams;
-      const currentTotals = calculateTotalsFromEntries(meal.entries, recommended, foodsById);
-      const diff = subtractTotals(currentTotals, mealTarget);
-      const vector: MacroTotals = {
-        kcal: food.kcalPer100g / 100,
-        carbs: food.carbsPer100g / 100,
-        protein: food.proteinPer100g / 100,
-        fat: food.fatPer100g / 100
-      };
-      let numerator = 0;
-      let denominator = 0;
-      for (const key of Object.keys(vector) as Array<keyof MacroTotals>) {
-        const scale = Math.max(Math.abs(mealTarget[key]), 25);
-        numerator += macroWeights[key] * diff[key] * vector[key] / (scale * scale);
-        denominator += macroWeights[key] * vector[key] * vector[key] / (scale * scale);
-      }
-      if (denominator === 0) {
-        continue;
-      }
-      const { min, max } = entryBounds(entry, food, meal);
-      const portionRule = getFoodPortionRule(food, meal);
-      const portionTarget = clamp(portionRule.defaultGrams, min, max);
-      const portionScale = Math.max(portionTarget, 25);
-      numerator += portionRule.softTargetWeight * (currentGrams - portionTarget) / (portionScale * portionScale);
-      denominator += portionRule.softTargetWeight / (portionScale * portionScale);
-      recommended[entry.id] = round(clamp(currentGrams - numerator / denominator, min, max), 1);
-    }
-  }
+  const scoreState = () =>
+    macroFitScore(calculateTotalsFromEntries(meal.entries, recommended, foodsById), mealTarget, macroWeights, {
+      kcal: 80,
+      carbs: 8,
+      protein: 8,
+      fat: 6
+    }) *
+      12 +
+    mealStructureScore(models, recommended);
+
+  optimizeSolverModels(
+    models,
+    (model) => recommended[model.entry.id] ?? model.entry.grams,
+    (model, grams) => {
+      recommended[model.entry.id] = grams;
+    },
+    scoreState
+  );
 
   return recommended;
 }
@@ -460,7 +659,7 @@ function solveAllMealRecommendations(
     );
   }
 
-  const refined = refineDailyRecommendations(meals, dailyTarget, solvedEntriesByMealId, recommendedTotals, foodsById);
+  const refined = refineDailyRecommendations(meals, dailyTarget, mealTargetsById, solvedEntriesByMealId, recommendedTotals, foodsById);
   solvedEntriesByMealId = refined.solvedEntriesByMealId;
   recommendedTotals = refined.recommendedTotals;
 
@@ -470,6 +669,7 @@ function solveAllMealRecommendations(
 function refineDailyRecommendations(
   meals: MealPlan[],
   dailyTarget: MacroTotals,
+  mealTargetsById: Map<string, MacroTotals>,
   initialEntriesByMealId: Map<string, Record<string, number>>,
   initialTotals: MacroTotals,
   foodsById: Map<string, FoodItem>
@@ -477,73 +677,66 @@ function refineDailyRecommendations(
   const solvedEntriesByMealId = new Map(
     Array.from(initialEntriesByMealId.entries()).map(([mealId, entries]) => [mealId, { ...entries }])
   );
-  let recommendedTotals = initialTotals;
-  const adjustableEntries = meals.flatMap((meal) =>
-    meal.locked
-      ? []
-      : meal.entries.flatMap((entry) => {
-          const food = foodsById.get(entry.foodId);
-          return food && !entry.locked ? [{ meal, entry, food }] : [];
-        })
+  const modelsByMealId = new Map(
+    meals.map((meal) => [meal.id, buildMealSolverModels(meal, foodsById, mealTargetsById.get(meal.id) ?? zeroTotals)])
+  );
+  const models = Array.from(modelsByMealId.values()).flat();
+
+  if (models.length === 0) {
+    return { solvedEntriesByMealId, recommendedTotals: initialTotals };
+  }
+
+  for (const model of models) {
+    const mealEntries = solvedEntriesByMealId.get(model.meal.id);
+    if (mealEntries) {
+      mealEntries[model.entry.id] = round(clamp(mealEntries[model.entry.id] ?? model.entry.grams, model.min, model.max), 1);
+    }
+  }
+
+  const calculateRecommendedTotals = () =>
+    meals.reduce((total, meal) => {
+      const entries = solvedEntriesByMealId.get(meal.id) ?? Object.fromEntries(meal.entries.map((entry) => [entry.id, entry.grams]));
+      return addTotals(total, calculateTotalsFromEntries(meal.entries, entries, foodsById));
+    }, zeroTotals);
+
+  const scoreState = () => {
+    let score =
+      macroFitScore(calculateRecommendedTotals(), dailyTarget, dailyFitWeights, {
+        kcal: 120,
+        carbs: 12,
+        protein: 10,
+        fat: 8
+      }) * 250;
+
+    for (const meal of meals) {
+      const mealEntries = solvedEntriesByMealId.get(meal.id) ?? Object.fromEntries(meal.entries.map((entry) => [entry.id, entry.grams]));
+      const mealTarget = mealTargetsById.get(meal.id) ?? zeroTotals;
+      score +=
+        macroFitScore(calculateTotalsFromEntries(meal.entries, mealEntries, foodsById), mealTarget, macroWeights, {
+          kcal: 80,
+          carbs: 8,
+          protein: 8,
+          fat: 6
+        }) * 0.05;
+      score += mealStructureScore(modelsByMealId.get(meal.id) ?? [], mealEntries);
+    }
+
+    return score;
+  };
+
+  optimizeSolverModels(
+    models,
+    (model) => solvedEntriesByMealId.get(model.meal.id)?.[model.entry.id] ?? model.entry.grams,
+    (model, grams) => {
+      const mealEntries = solvedEntriesByMealId.get(model.meal.id);
+      if (mealEntries) {
+        mealEntries[model.entry.id] = grams;
+      }
+    },
+    scoreState
   );
 
-  if (adjustableEntries.length === 0) {
-    return { solvedEntriesByMealId, recommendedTotals };
-  }
-
-  for (let iteration = 0; iteration < 80; iteration += 1) {
-    let maxDelta = 0;
-
-    for (const { meal, entry, food } of adjustableEntries) {
-      const mealEntries = solvedEntriesByMealId.get(meal.id);
-      if (!mealEntries) {
-        continue;
-      }
-
-      const currentGrams = mealEntries[entry.id] ?? entry.grams;
-      const { min, max } = entryBounds(entry, food, meal);
-      const vector: MacroTotals = {
-        kcal: food.kcalPer100g / 100,
-        carbs: food.carbsPer100g / 100,
-        protein: food.proteinPer100g / 100,
-        fat: food.fatPer100g / 100
-      };
-      const diff = subtractTotals(recommendedTotals, dailyTarget);
-      let numerator = 0;
-      let denominator = 0;
-
-      for (const key of Object.keys(vector) as Array<keyof MacroTotals>) {
-        const scale = Math.max(Math.abs(dailyTarget[key]), key === "kcal" ? 100 : 10);
-        numerator += dailyFitWeights[key] * diff[key] * vector[key] / (scale * scale);
-        denominator += dailyFitWeights[key] * vector[key] * vector[key] / (scale * scale);
-      }
-
-      const portionRule = getFoodPortionRule(food, meal);
-      const portionTarget = clamp(portionRule.defaultGrams, min, max);
-      const portionScale = Math.max(portionTarget, 25);
-      const portionWeight = portionRule.softTargetWeight * 0.001;
-      numerator += portionWeight * (currentGrams - portionTarget) / (portionScale * portionScale);
-      denominator += portionWeight / (portionScale * portionScale);
-
-      if (denominator === 0) {
-        continue;
-      }
-
-      const nextGrams = round(clamp(currentGrams - numerator / denominator, min, max), 1);
-      const delta = nextGrams - currentGrams;
-      if (Math.abs(delta) < 0.05) {
-        continue;
-      }
-
-      mealEntries[entry.id] = nextGrams;
-      recommendedTotals = addTotals(recommendedTotals, scaleTotals(vector, delta));
-      maxDelta = Math.max(maxDelta, Math.abs(delta));
-    }
-
-    if (maxDelta < 0.1) {
-      break;
-    }
-  }
+  const recommendedTotals = calculateRecommendedTotals();
 
   return { solvedEntriesByMealId, recommendedTotals };
 }

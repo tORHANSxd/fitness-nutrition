@@ -1,5 +1,6 @@
 # Progress
 
+- 2026-05-22 11:10:00 复核 FatSecret.cn 直接条目后再次校准白米饭、鸡胸肉、杏仁的每 100g 数据；验证 npm run lint、npm run test、npm run build 通过，浏览器控制台 error=0。
 - 2026-05-22 11:07:00 npm audit --json 通过：0 个漏洞。
 - 2026-05-22 11:05:00 优化公共食物库和求解约束：按 FatSecret.cn 常见每 100g 条目校准主食/蔬菜/水果/肉类/坚果数据，新增分类默认克重、默认最大克重和份量软约束；验证 npm run lint、npm run test、npm run build 通过，桌面与 390px 移动浏览器控制台 error=0。
 

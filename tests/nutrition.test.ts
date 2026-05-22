@@ -167,8 +167,8 @@ describe("meal solving", () => {
       }
     ];
     const total = calculateMealsTotals(meals, builtinFoods);
-    expect(total.kcal).toBe(130);
-    expect(round(total.carbs, 2)).toBe(28.59);
+    expect(total.kcal).toBe(129);
+    expect(round(total.carbs, 2)).toBe(27.9);
   });
 
   it("uses category default max when user does not set max grams", () => {

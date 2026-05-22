@@ -29,6 +29,15 @@ const profile: UserProfile = {
   planDate: "2026-05-22"
 };
 
+function absoluteGap(total: { kcal: number; carbs: number; protein: number; fat: number }, target: { kcal: number; carbs: number; protein: number; fat: number }) {
+  return {
+    kcal: Math.abs(target.kcal - total.kcal),
+    carbs: Math.abs(target.carbs - total.carbs),
+    protein: Math.abs(target.protein - total.protein),
+    fat: Math.abs(target.fat - total.fat)
+  };
+}
+
 describe("nutrition formulas", () => {
   it("uses Mifflin-St Jeor BMR", () => {
     expect(calculateBmr(profile)).toBe(1780);
@@ -211,6 +220,69 @@ describe("meal solving", () => {
 
     expect(result.recommendedTotals.kcal).toBeGreaterThan(result.actualTotals.kcal);
     expect(recommendedKcalGap).toBeLessThan(actualKcalGap);
+  });
+
+  it("prioritizes daily calories and all three macros over per-meal portion defaults", () => {
+    const userProfile: UserProfile = {
+      ...profile,
+      age: 28,
+      heightCm: 175,
+      weightKg: 75,
+      exerciseKcal: 350,
+      proteinPerKg: 1.4,
+      goalType: "cut",
+      weeklyWeightChangePct: 0.5
+    };
+    const meals: MealPlan[] = [
+      {
+        id: "breakfast",
+        name: "早餐",
+        ratio: 0.25,
+        locked: false,
+        entries: [
+          { id: "oats", foodId: "public-oats-raw", grams: 60, locked: false, minGrams: 40, maxGrams: 100 },
+          { id: "whey", foodId: "public-whey", grams: 25, locked: false, minGrams: 20, maxGrams: 40 }
+        ]
+      },
+      {
+        id: "lunch",
+        name: "午餐",
+        ratio: 0.35,
+        locked: false,
+        entries: [
+          { id: "rice", foodId: "public-rice-cooked", grams: 200, locked: false, minGrams: 100, maxGrams: 400 },
+          { id: "chicken", foodId: "public-chicken-breast-cooked", grams: 160, locked: false, minGrams: 100, maxGrams: 260 },
+          { id: "broccoli", foodId: "public-broccoli-cooked", grams: 180, locked: false, minGrams: 100, maxGrams: 350 }
+        ]
+      },
+      {
+        id: "pre-workout",
+        name: "训练前加餐",
+        ratio: 0.1,
+        locked: false,
+        entries: [{ id: "banana", foodId: "public-banana-raw", grams: 120, locked: false, minGrams: 80, maxGrams: 180 }]
+      },
+      {
+        id: "dinner",
+        name: "晚餐",
+        ratio: 0.3,
+        locked: false,
+        entries: [
+          { id: "salmon", foodId: "public-salmon-cooked", grams: 150, locked: false, minGrams: 100, maxGrams: 240 },
+          { id: "potato", foodId: "public-sweet-potato-cooked", grams: 220, locked: false, minGrams: 120, maxGrams: 380 }
+        ]
+      }
+    ];
+    const result = buildNutritionResult(userProfile, meals, builtinFoods);
+    const actualGap = absoluteGap(result.actualTotals, result.dailyTarget);
+    const recommendedGap = absoluteGap(result.recommendedTotals, result.dailyTarget);
+
+    expect(recommendedGap.kcal).toBeLessThan(actualGap.kcal);
+    expect(recommendedGap.carbs).toBeLessThan(actualGap.carbs);
+    expect(recommendedGap.protein).toBeLessThan(actualGap.protein);
+    expect(recommendedGap.fat).toBeLessThan(actualGap.fat);
+    expect(result.recommendedRemaining.protein).toBeLessThan(0);
+    expect(result.recommendedRemaining.carbs).toBeGreaterThan(0);
   });
 
   it("keeps displayed meal targets proportional to the daily standard after solver redistribution", () => {

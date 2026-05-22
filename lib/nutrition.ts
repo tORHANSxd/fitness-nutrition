@@ -27,6 +27,13 @@ const macroWeights: Record<keyof MacroTotals, number> = {
   fat: 1
 };
 
+const dailyFitWeights: Record<keyof MacroTotals, number> = {
+  kcal: 1,
+  protein: 2.5,
+  carbs: 1,
+  fat: 1
+};
+
 const carbRatios: Record<CarbDayType, number> = {
   high: 0.5 / 2,
   mid: 0.35 / 3,
@@ -407,10 +414,6 @@ function calculateTotalsFromEntries(
   }, zeroTotals);
 }
 
-function hasAdjustableEntries(meal: MealPlan, foodsById: Map<string, FoodItem>) {
-  return !meal.locked && meal.entries.some((entry) => !entry.locked && foodsById.has(entry.foodId));
-}
-
 function buildMealTargets(
   meals: MealPlan[],
   remainingAfterLockedMeals: MacroTotals,
@@ -444,50 +447,101 @@ function solveAllMealRecommendations(
   mealTargetsById: Map<string, MacroTotals>,
   foodsById: Map<string, FoodItem>
 ) {
-  const solverTargetsByMealId = new Map(mealTargetsById);
-
   let solvedEntriesByMealId = new Map<string, Record<string, number>>();
   let recommendedTotals = zeroTotals;
 
-  for (let pass = 0; pass < 5; pass += 1) {
-    solvedEntriesByMealId = new Map();
-    recommendedTotals = zeroTotals;
+  for (const meal of meals) {
+    const target = mealTargetsById.get(meal.id) ?? zeroTotals;
+    const solvedEntries = solveMealEntries(meal, target, foodsById);
+    solvedEntriesByMealId.set(meal.id, solvedEntries);
+    recommendedTotals = addTotals(
+      recommendedTotals,
+      calculateTotalsFromEntries(meal.entries, solvedEntries, foodsById)
+    );
+  }
 
-    for (const meal of meals) {
-      const target = solverTargetsByMealId.get(meal.id) ?? zeroTotals;
-      const solvedEntries = solveMealEntries(meal, target, foodsById);
-      solvedEntriesByMealId.set(meal.id, solvedEntries);
-      recommendedTotals = addTotals(
-        recommendedTotals,
-        calculateTotalsFromEntries(meal.entries, solvedEntries, foodsById)
-      );
+  const refined = refineDailyRecommendations(meals, dailyTarget, solvedEntriesByMealId, recommendedTotals, foodsById);
+  solvedEntriesByMealId = refined.solvedEntriesByMealId;
+  recommendedTotals = refined.recommendedTotals;
+
+  return { solvedEntriesByMealId, recommendedTotals };
+}
+
+function refineDailyRecommendations(
+  meals: MealPlan[],
+  dailyTarget: MacroTotals,
+  initialEntriesByMealId: Map<string, Record<string, number>>,
+  initialTotals: MacroTotals,
+  foodsById: Map<string, FoodItem>
+) {
+  const solvedEntriesByMealId = new Map(
+    Array.from(initialEntriesByMealId.entries()).map(([mealId, entries]) => [mealId, { ...entries }])
+  );
+  let recommendedTotals = initialTotals;
+  const adjustableEntries = meals.flatMap((meal) =>
+    meal.locked
+      ? []
+      : meal.entries.flatMap((entry) => {
+          const food = foodsById.get(entry.foodId);
+          return food && !entry.locked ? [{ meal, entry, food }] : [];
+        })
+  );
+
+  if (adjustableEntries.length === 0) {
+    return { solvedEntriesByMealId, recommendedTotals };
+  }
+
+  for (let iteration = 0; iteration < 80; iteration += 1) {
+    let maxDelta = 0;
+
+    for (const { meal, entry, food } of adjustableEntries) {
+      const mealEntries = solvedEntriesByMealId.get(meal.id);
+      if (!mealEntries) {
+        continue;
+      }
+
+      const currentGrams = mealEntries[entry.id] ?? entry.grams;
+      const { min, max } = entryBounds(entry, food, meal);
+      const vector: MacroTotals = {
+        kcal: food.kcalPer100g / 100,
+        carbs: food.carbsPer100g / 100,
+        protein: food.proteinPer100g / 100,
+        fat: food.fatPer100g / 100
+      };
+      const diff = subtractTotals(recommendedTotals, dailyTarget);
+      let numerator = 0;
+      let denominator = 0;
+
+      for (const key of Object.keys(vector) as Array<keyof MacroTotals>) {
+        const scale = Math.max(Math.abs(dailyTarget[key]), key === "kcal" ? 100 : 10);
+        numerator += dailyFitWeights[key] * diff[key] * vector[key] / (scale * scale);
+        denominator += dailyFitWeights[key] * vector[key] * vector[key] / (scale * scale);
+      }
+
+      const portionRule = getFoodPortionRule(food, meal);
+      const portionTarget = clamp(portionRule.defaultGrams, min, max);
+      const portionScale = Math.max(portionTarget, 25);
+      const portionWeight = portionRule.softTargetWeight * 0.02;
+      numerator += portionWeight * (currentGrams - portionTarget) / (portionScale * portionScale);
+      denominator += portionWeight / (portionScale * portionScale);
+
+      if (denominator === 0) {
+        continue;
+      }
+
+      const nextGrams = round(clamp(currentGrams - numerator / denominator, min, max), 1);
+      const delta = nextGrams - currentGrams;
+      if (Math.abs(delta) < 0.05) {
+        continue;
+      }
+
+      mealEntries[entry.id] = nextGrams;
+      recommendedTotals = addTotals(recommendedTotals, scaleTotals(vector, delta));
+      maxDelta = Math.max(maxDelta, Math.abs(delta));
     }
 
-    const remaining = subtractTotals(dailyTarget, recommendedTotals);
-    const shouldStop =
-      Math.abs(remaining.kcal) < 20 &&
-      Math.abs(remaining.carbs) < 4 &&
-      Math.abs(remaining.protein) < 4 &&
-      Math.abs(remaining.fat) < 3;
-    if (shouldStop) {
+    if (maxDelta < 0.1) {
       break;
-    }
-
-    const redistributableMeals = meals.filter((meal) => hasAdjustableEntries(meal, foodsById));
-    const redistributableRatioSum = redistributableMeals.reduce((sum, meal) => sum + meal.ratio, 0);
-    if (redistributableRatioSum <= 0) {
-      break;
-    }
-
-    for (const meal of redistributableMeals) {
-      const currentTarget = solverTargetsByMealId.get(meal.id) ?? zeroTotals;
-      const adjustment = scaleTotals(remaining, meal.ratio / redistributableRatioSum);
-      solverTargetsByMealId.set(meal.id, {
-        kcal: Math.max(currentTarget.kcal + adjustment.kcal, 0),
-        carbs: Math.max(currentTarget.carbs + adjustment.carbs, 0),
-        protein: Math.max(currentTarget.protein + adjustment.protein, 0),
-        fat: Math.max(currentTarget.fat + adjustment.fat, 0)
-      });
     }
   }
 

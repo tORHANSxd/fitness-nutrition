@@ -129,12 +129,16 @@ const mealSoftKcalTolerance = 80;
 const mealSoftKcalToleranceRatio = 0.15;
 const usefulMealGramLimit = 850;
 const hardMealGramLimit = 950;
+const breakfastAnimalProteinFloor = 65;
+const mainMealAnimalProteinFloor = 90;
+const breakfastAnimalProteinShareFloor = 0.1;
+const mainMealAnimalProteinShareFloor = 0.12;
 
 const categoryGramWeights: Record<FoodCategory, number> = {
-  主食: 0.32,
-  蔬菜: 0.38,
+  主食: 0.31,
+  蔬菜: 0.34,
   水果: 0.24,
-  肉类: 0.18,
+  肉类: 0.27,
   补剂: 0.04,
   坚果: 0.06
 };
@@ -143,7 +147,7 @@ export const carbCycleMacroSource =
   "凯圣王碳循环：周碳水高/中/低分配为50%/35%/15%，周脂肪高/中/低分配为15%/35%/50%，蛋白每日稳定。";
 
 export const foodPortionSource =
-  "分类份量参考中国居民平衡膳食餐盘：蔬菜约34%-36%、谷薯类约26%-28%、水果约20%-25%、动物性食物约13%-17%；补剂和坚果按健身常用单次份量设上限。";
+  "分类份量参考中国居民平衡膳食餐盘和健康餐盘法：主餐保留可见蛋白份量，主食、蔬果、蛋白按餐盘结构评分；补剂和坚果按健身常用单次份量设上限。";
 
 export const energyTargetSource =
   "热量目标：先估算维持热量，再按每周体重变化率设置目标；减脂默认0.5%体重/周，增肌默认0.25%体重/周。";
@@ -290,6 +294,67 @@ function isSupplementNamed(food: FoodItem, keyword: string) {
   return food.name.toLowerCase().includes(keyword.toLowerCase());
 }
 
+function isProteinSupplement(food: FoodItem) {
+  return (
+    food.category === "补剂" &&
+    (isSupplementNamed(food, "乳清") ||
+      isSupplementNamed(food, "蛋白粉") ||
+      isSupplementNamed(food, "whey") ||
+      isSupplementNamed(food, "protein"))
+  );
+}
+
+function isCookingOil(food: FoodItem) {
+  return (
+    food.category === "补剂" &&
+    (isSupplementNamed(food, "食用油") || isSupplementNamed(food, "cooking oil") || isSupplementNamed(food, "vegetable oil"))
+  );
+}
+
+function isSnackMeal(meal?: Pick<MealPlan, "id" | "name">) {
+  if (!meal) {
+    return false;
+  }
+  const label = `${meal.id} ${meal.name}`.toLowerCase();
+  return label.includes("pre-workout") || label.includes("snack") || label.includes("加餐") || label.includes("训练前");
+}
+
+function isStructuredMeal(meal?: Pick<MealPlan, "id" | "name">) {
+  return Boolean(meal) && !isSnackMeal(meal);
+}
+
+function animalProteinFloorForMeal(meal?: Pick<MealPlan, "id" | "name">) {
+  if (!isStructuredMeal(meal)) {
+    return 0;
+  }
+  return meal?.id === "breakfast" ? breakfastAnimalProteinFloor : mainMealAnimalProteinFloor;
+}
+
+function animalProteinShareFloorForMeal(meal?: Pick<MealPlan, "id" | "name">) {
+  if (!isStructuredMeal(meal)) {
+    return 0;
+  }
+  return meal?.id === "breakfast" ? breakfastAnimalProteinShareFloor : mainMealAnimalProteinShareFloor;
+}
+
+function supplementPresenceFloor(food: FoodItem, portionRule: FoodPortionRule) {
+  if (isProteinSupplement(food)) {
+    return 20;
+  }
+  if (isCookingOil(food)) {
+    return 5;
+  }
+  if (
+    isSupplementNamed(food, "肌酸") ||
+    isSupplementNamed(food, "creatine") ||
+    isSupplementNamed(food, "鱼油") ||
+    isSupplementNamed(food, "fish oil")
+  ) {
+    return portionRule.defaultGrams;
+  }
+  return portionRule.defaultGrams * presenceFloorRatios[food.category];
+}
+
 export function getFoodPortionRule(food: FoodItem, meal?: Pick<MealPlan, "id" | "name">): FoodPortionRule {
   const base = defaultPortionRules[food.category];
   if (food.category === "主食" && food.weightBasis === "raw") {
@@ -308,7 +373,7 @@ export function getFoodPortionRule(food: FoodItem, meal?: Pick<MealPlan, "id" | 
     if (isSupplementNamed(food, "鱼油") || isSupplementNamed(food, "fish oil")) {
       return { defaultGrams: 2, maxGrams: 5, softTargetWeight: 2.4 };
     }
-    if (isSupplementNamed(food, "食用油") || isSupplementNamed(food, "cooking oil") || isSupplementNamed(food, "vegetable oil")) {
+    if (isCookingOil(food)) {
       return { defaultGrams: 10, maxGrams: 20, softTargetWeight: 2.4 };
     }
     if (isSupplementNamed(food, "电解质") || isSupplementNamed(food, "electrolyte")) {
@@ -539,16 +604,28 @@ function buildMealSolverModels(
   }
 
   const protectsPresence = baseModels.length > 1;
-  const rawFloors = baseModels.map(({ bounds, food, portionRule }) =>
-    protectsPresence
-      ? clamp(portionRule.defaultGrams * presenceFloorRatios[food.category], bounds.min, bounds.max)
-      : bounds.min
-  );
+  const categoryCounts = baseModels.reduce((counts, model) => {
+    counts.set(model.food.category, (counts.get(model.food.category) ?? 0) + 1);
+    return counts;
+  }, new Map<FoodCategory, number>());
+  const rawFloors = baseModels.map(({ bounds, food, portionRule }) => {
+    if (!protectsPresence) {
+      return bounds.min;
+    }
+    const categoryPresenceFloor =
+      food.category === "补剂" ? supplementPresenceFloor(food, portionRule) : portionRule.defaultGrams * presenceFloorRatios[food.category];
+    const animalProteinFloor =
+      food.category === "肉类" ? animalProteinFloorForMeal(meal) / Math.max(categoryCounts.get("肉类") ?? 1, 1) : 0;
+    return clamp(Math.max(categoryPresenceFloor, animalProteinFloor), bounds.min, bounds.max);
+  });
   const floorTotals = baseModels.reduce(
     (total, model, index) => addTotals(total, calculateFoodTotals(model.food, rawFloors[index])),
     zeroTotals
   );
-  const floorKcalLimit = mealTarget.kcal > 0 ? Math.max(mealTarget.kcal * 0.55, 120) : Number.POSITIVE_INFINITY;
+  const floorKcalLimit =
+    mealTarget.kcal > 0
+      ? Math.max(mealTarget.kcal * (isStructuredMeal(meal) ? 0.78 : 0.55), isStructuredMeal(meal) ? 260 : 120)
+      : Number.POSITIVE_INFINITY;
   const floorScale = floorTotals.kcal > floorKcalLimit && floorTotals.kcal > 0 ? floorKcalLimit / floorTotals.kcal : 1;
 
   return baseModels.map(({ entry, food, bounds, portionRule }, index) => {
@@ -565,6 +642,18 @@ function buildMealSolverModels(
       portionWeight: portionRule.softTargetWeight
     };
   });
+}
+
+function shareRangeScore(share: number, min: number, max: number, weight: number, scale = 0.08) {
+  if (share < min) {
+    const ratio = (min - share) / scale;
+    return weight * ratio * ratio;
+  }
+  if (share > max) {
+    const ratio = (share - max) / scale;
+    return weight * ratio * ratio;
+  }
+  return 0;
 }
 
 function mealStructureScore(models: SolverEntryModel[], gramsByEntryId: Record<string, number>) {
@@ -620,7 +709,40 @@ function mealStructureScore(models: SolverEntryModel[], gramsByEntryId: Record<s
         const share = (categoryTotals.get(category) ?? 0) / totalGrams;
         const targetShare = categoryGramWeights[category] / targetWeightSum;
         const diffRatio = (share - targetShare) / 0.35;
-        score += 0.25 * diffRatio * diffRatio;
+        score += 0.8 * diffRatio * diffRatio;
+      }
+    }
+
+    const meal = structureModels[0]?.meal;
+    if (isStructuredMeal(meal)) {
+      const mainShare = (categoryTotals.get("主食") ?? 0) / totalGrams;
+      const vegetableShare = (categoryTotals.get("蔬菜") ?? 0) / totalGrams;
+      const fruitShare = (categoryTotals.get("水果") ?? 0) / totalGrams;
+      const animalProteinShare = (categoryTotals.get("肉类") ?? 0) / totalGrams;
+      const animalProteinGrams = categoryTotals.get("肉类") ?? 0;
+      const animalProteinFloor = animalProteinFloorForMeal(meal);
+      const animalProteinShareFloor = animalProteinShareFloorForMeal(meal);
+
+      if (animalProteinGrams > 0 && animalProteinGrams < animalProteinFloor) {
+        const underRatio = (animalProteinFloor - animalProteinGrams) / animalProteinFloor;
+        score += 40 * underRatio * underRatio;
+      }
+      if (animalProteinShare > 0 && animalProteinShare < animalProteinShareFloor) {
+        const underRatio = (animalProteinShareFloor - animalProteinShare) / 0.05;
+        score += 18 * underRatio * underRatio;
+      }
+
+      if (mainShare > 0) {
+        score += shareRangeScore(mainShare, 0.18, 0.5, 6);
+      }
+      if (vegetableShare > 0) {
+        score += shareRangeScore(vegetableShare, 0.18, 0.52, 5);
+      }
+      if (fruitShare > 0 && meal?.id !== "breakfast") {
+        score += shareRangeScore(fruitShare, 0.08, 0.36, 3);
+      }
+      if (animalProteinShare > 0) {
+        score += shareRangeScore(animalProteinShare, animalProteinShareFloor, 0.34, 12);
       }
     }
   }

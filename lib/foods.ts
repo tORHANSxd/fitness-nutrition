@@ -15,6 +15,18 @@ export const builtinFoods: FoodItem[] = [
     source: "public"
   },
   {
+    id: "public-brown-rice-cooked",
+    name: "糙米饭",
+    category: "主食",
+    kcalPer100g: 110,
+    fatPer100g: 0.89,
+    carbsPer100g: 22.78,
+    proteinPer100g: 2.56,
+    weightBasis: "cooked",
+    cookedRawRatio: 2.5,
+    source: "public"
+  },
+  {
     id: "public-oats-raw",
     name: "燕麦片",
     category: "主食",

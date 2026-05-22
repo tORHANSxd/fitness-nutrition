@@ -356,8 +356,8 @@ interface MacroRatioPanelProps {
 function MacroRatioPanel({ actualRatio, carbDayType, carbDayLabel, goalType, recommendedRatio, targetRatio }: MacroRatioPanelProps) {
   const actualCheck = getMacroRatioCheck(actualRatio, targetRatio, goalType, carbDayType);
   const recommendedCheck = getMacroRatioCheck(recommendedRatio, targetRatio, goalType, carbDayType);
-  const actualStatus = `${actualCheck.cycleAligned ? "凯圣王贴合" : "凯圣王偏离"} / ${actualCheck.goalAligned ? "碳日参考内" : "碳日参考外"}`;
-  const recommendedStatus = `${recommendedCheck.cycleAligned ? "凯圣王贴合" : "凯圣王偏离"} / ${recommendedCheck.goalAligned ? "碳日参考内" : "碳日参考外"}`;
+  const actualStatus = `${actualCheck.cycleAligned ? "公式贴合" : "公式偏离"} / ${actualCheck.goalAligned ? "参考内" : "参考外"}`;
+  const recommendedStatus = `${recommendedCheck.cycleAligned ? "公式贴合" : "公式偏离"} / ${recommendedCheck.goalAligned ? "参考内" : "参考外"}`;
 
   return (
     <div className="mt-3 rounded-md border border-line bg-panel p-3">
@@ -365,7 +365,7 @@ function MacroRatioPanel({ actualRatio, carbDayType, carbDayLabel, goalType, rec
         <div>
           <h3 className="text-sm font-semibold text-ink">三大营养素比例</h3>
           <p className="text-xs text-muted">
-            目标按{carbDayLabel}的凯圣王碳循环结构缩放到目标热量；当前 {actualStatus}，推荐后 {recommendedStatus}。
+            目标按{carbDayLabel}的每周碳水/脂肪总量重分配公式生成；当前 {actualStatus}，推荐后 {recommendedStatus}。
           </p>
         </div>
         <span className="text-xs text-muted">{macroRatioCheckSource} {energyTargetSource} {carbCycleMacroSource}</span>

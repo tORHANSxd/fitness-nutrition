@@ -97,25 +97,32 @@ describe("nutrition formulas", () => {
     expect(round(calculateCalorieTarget({ ...profile, goalType: "bulk", weeklyWeightChangePct: 0.25 }), 0)).toBe(3101);
   });
 
-  it("keeps daily macro calories strictly aligned with Kaisheng carb-cycle ratios", () => {
+  it("uses Kaisheng weekly carb and fat redistribution for easy-fat-gain cutting", () => {
     const expectedByWorkout = [
-      { workoutType: "legs", expected: { carbs: 66, protein: 17, fat: 17 } },
-      { workoutType: "back", expected: { carbs: 66, protein: 17, fat: 17 } },
-      { workoutType: "chest", expected: { carbs: 45, protein: 17, fat: 38 } },
-      { workoutType: "rest", expected: { carbs: 22, protein: 17, fat: 61 } }
+      { workoutType: "legs", expected: { carbs: 280, protein: 96, fat: 33.6 } },
+      { workoutType: "back", expected: { carbs: 280, protein: 96, fat: 33.6 } },
+      { workoutType: "chest", expected: { carbs: 130.67, protein: 96, fat: 52.27 } },
+      { workoutType: "rest", expected: { carbs: 84, protein: 96, fat: 112 } }
     ] as const;
 
     for (const { workoutType, expected } of expectedByWorkout) {
       const target = calculateDailyTarget({ ...profile, workoutType });
       const macroCalories = target.carbs * 4 + target.protein * 4 + target.fat * 9;
-      const targetRatio = calculateMacroRatio(target);
 
       expect(round(macroCalories, 0)).toBe(round(target.kcal, 0));
-      expect(round(targetRatio.carbs, 0)).toBe(expected.carbs);
-      expect(round(targetRatio.protein, 0)).toBe(expected.protein);
-      expect(round(targetRatio.fat, 0)).toBe(expected.fat);
-      expect(round(target.protein, 1)).toBe(round((target.kcal * expected.protein) / 100 / 4, 1));
+      expect(round(target.carbs, 2)).toBe(expected.carbs);
+      expect(round(target.protein, 2)).toBe(expected.protein);
+      expect(round(target.fat, 2)).toBe(expected.fat);
     }
+
+    const high = calculateDailyTarget({ ...profile, workoutType: "legs" });
+    const mid = calculateDailyTarget({ ...profile, workoutType: "chest" });
+    const low = calculateDailyTarget({ ...profile, workoutType: "rest" });
+
+    expect(round(high.carbs * 2 + mid.carbs * 3 + low.carbs * 2, 1)).toBe(profile.weightKg * 2 * 7);
+    expect(round(high.fat * 2 + mid.fat * 3 + low.fat * 2, 1)).toBe(profile.weightKg * 0.8 * 7);
+    expect(round(high.protein, 1)).toBe(round(mid.protein, 1));
+    expect(round(mid.protein, 1)).toBe(round(low.protein, 1));
   });
 
   it("calculates macro calorie ratios from grams", () => {
@@ -532,10 +539,11 @@ describe("meal solving", () => {
     const lunchTarget = result.mealRecommendations.find((item) => item.mealId === "lunch")!.target;
     const lunchTotals = mealRecommendedTotals(lunch, result, foods);
     const lunchKcalTolerance = Math.max(80, lunchTarget.kcal * 0.15);
+    const preWorkout = result.mealRecommendations.find((item) => item.mealId === "pre-workout")!;
 
     expect(lunchTotals.kcal).toBeLessThanOrEqual(lunchTarget.kcal + lunchKcalTolerance);
     expect(nonSupplementRecommendedGrams(lunch, result, foods)).toBeLessThanOrEqual(950);
-    expect(result.conflicts.some((item) => item.includes("训练前加餐 有锁定项"))).toBe(true);
+    expect(Math.abs(preWorkout.deficit.kcal)).toBeLessThanOrEqual(120);
   });
 
   it("keeps displayed meal targets proportional to the daily standard after solver redistribution", () => {
@@ -555,10 +563,10 @@ describe("meal solving", () => {
       { kcal: 0, carbs: 0, protein: 0, fat: 0 }
     );
 
-    expect(round(result.dailyTarget.protein, 1)).toBe(round((result.dailyTarget.kcal * 0.17) / 4, 1));
+    expect(round(result.dailyTarget.protein, 1)).toBe(round(userProfile.weightKg * 1.2, 1));
     expect(round(result.mealRecommendations[0].target.protein, 1)).toBe(round(result.dailyTarget.protein * meals[0].ratio, 1));
     expect(round(result.mealRecommendations[1].target.carbs, 1)).toBe(round(result.dailyTarget.carbs * 0.35, 1));
-    expect(round(targetTotals.kcal, 0)).toBe(round(result.dailyTarget.kcal, 0));
+    expect(Math.abs(targetTotals.kcal - result.dailyTarget.kcal)).toBeLessThan(1);
     expect(round(targetTotals.carbs, 1)).toBe(round(result.dailyTarget.carbs, 1));
     expect(round(targetTotals.protein, 1)).toBe(round(result.dailyTarget.protein, 1));
     expect(round(targetTotals.fat, 1)).toBe(round(result.dailyTarget.fat, 1));

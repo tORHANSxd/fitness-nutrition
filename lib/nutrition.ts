@@ -37,11 +37,15 @@ const dailyFitWeights: Record<keyof MacroTotals, number> = {
 const macroKeys: Array<keyof MacroTotals> = ["kcal", "carbs", "protein", "fat"];
 const macroRatioKeys: Array<keyof MacroRatio> = ["carbs", "protein", "fat"];
 
-const carbCycleEnergyRatios: Record<CarbDayType, MacroRatio> = {
-  high: { carbs: 66, protein: 17, fat: 17 },
-  mid: { carbs: 45, protein: 17, fat: 38 },
-  low: { carbs: 22, protein: 17, fat: 61 }
+const carbCycleDistribution: Record<CarbDayType, { daysPerWeek: number; carbShare: number; fatShare: number }> = {
+  high: { daysPerWeek: 2, carbShare: 0.5, fatShare: 0.15 },
+  mid: { daysPerWeek: 3, carbShare: 0.35, fatShare: 0.35 },
+  low: { daysPerWeek: 2, carbShare: 0.15, fatShare: 0.5 }
 };
+
+const easyFatGainBaseCarbsPerKg = 2;
+const easyFatGainBaseFatPerKg = 0.8;
+const regularTrainingProteinPerKg = 1.2;
 
 const kcalPerKgWeight = 7700;
 
@@ -138,16 +142,16 @@ const categoryGramWeights: Record<FoodCategory, number> = {
 };
 
 export const carbCycleMacroSource =
-  "凯圣王碳循环：目标严格按固定供能比例换算克数，高碳日碳水/蛋白/脂肪为66%/17%/17%，中碳日为45%/17%/38%，低碳日为22%/17%/61%。";
+  "凯圣王碳循环：易胖体质减脂起跳版按每周总量分配，蛋白每日固定 W×1.2g，碳水/脂肪为高碳 W×3.5g/W×0.42g，中碳 W×1.63g/W×0.65g，低碳 W×1.05g/W×1.4g。";
 
 export const foodPortionSource =
   "分类份量参考中国居民平衡膳食餐盘和健康餐盘法：主餐保留可见蛋白份量，主食、蔬果、蛋白按餐盘结构评分；补剂和坚果按健身常用单次份量设上限。";
 
 export const energyTargetSource =
-  "热量目标：先估算维持热量，再按每周体重变化率设置目标；减脂默认0.5%体重/周，增肌默认0.25%体重/周。";
+  "热量目标：维持热量仍用于缺口/盈余参考；当日目标热量由碳水、蛋白、脂肪克数按4/4/9 kcal反推。";
 
 export const macroRatioCheckSource =
-  "配比检查：凯圣王贴合按目标比例±5个百分点判断；参考区间按高/中/低碳日分别检查碳水、蛋白、脂肪供能占比。";
+  "配比检查：按当前体重公式反推的目标供能占比±5个百分点判断碳水、蛋白、脂肪是否贴合。";
 
 export const workoutLabels: Record<WorkoutType, string> = {
   chest: "胸大类",
@@ -210,6 +214,14 @@ export const carbDayMacroRatioRanges: Record<CarbDayType, Record<keyof MacroRati
   }
 };
 
+function targetRatioRanges(targetRatio: MacroRatio): Record<keyof MacroRatio, MacroRatioRange> {
+  return {
+    carbs: { min: clamp(targetRatio.carbs - 5, 0, 100), max: clamp(targetRatio.carbs + 5, 0, 100) },
+    protein: { min: clamp(targetRatio.protein - 5, 0, 100), max: clamp(targetRatio.protein + 5, 0, 100) },
+    fat: { min: clamp(targetRatio.fat - 5, 0, 100), max: clamp(targetRatio.fat + 5, 0, 100) }
+  };
+}
+
 export function round(value: number, digits = 1) {
   const factor = 10 ** digits;
   return Math.round((value + Number.EPSILON) * factor) / factor;
@@ -270,7 +282,7 @@ export function getMacroRatioCheck(
   carbDayType?: CarbDayType
 ) {
   const cycleTolerance = 5;
-  const ranges = carbDayType ? carbDayMacroRatioRanges[carbDayType] : goalMacroRatioRanges[goal];
+  const ranges = carbDayType ? targetRatioRanges(targetRatio) : goalMacroRatioRanges[goal];
   const cycleIssues = macroRatioKeys.filter((key) => Math.abs(ratio[key] - targetRatio[key]) > cycleTolerance);
   const goalIssues = macroRatioKeys.filter((key) => ratio[key] < ranges[key].min || ratio[key] > ranges[key].max);
 
@@ -459,7 +471,7 @@ export function calculateCalorieTarget(profile: UserProfile) {
 }
 
 export function calculatePlannedCalorieDelta(profile: UserProfile) {
-  return calculateCalorieTarget(profile) - calculateTdee(profile);
+  return calculateDailyTarget(profile).kcal - calculateTdee(profile);
 }
 
 export function getCarbDayType(workoutType: WorkoutType): CarbDayType {
@@ -474,14 +486,20 @@ export function getCarbDayType(workoutType: WorkoutType): CarbDayType {
 
 export function calculateDailyTarget(profile: UserProfile): MacroTotals {
   const carbDayType = getCarbDayType(profile.workoutType);
-  const targetCalories = calculateCalorieTarget(profile);
-  const ratio = carbCycleEnergyRatios[carbDayType];
+  const distribution = carbCycleDistribution[carbDayType];
+  const weeklyBaseCarbsPerKg = easyFatGainBaseCarbsPerKg * 7;
+  const weeklyBaseFatPerKg = easyFatGainBaseFatPerKg * 7;
+  const target = {
+    kcal: 0,
+    carbs: profile.weightKg * ((weeklyBaseCarbsPerKg * distribution.carbShare) / distribution.daysPerWeek),
+    protein: profile.weightKg * regularTrainingProteinPerKg,
+    fat: profile.weightKg * ((weeklyBaseFatPerKg * distribution.fatShare) / distribution.daysPerWeek)
+  };
+  const calories = calculateMacroCalories(target);
 
   return {
-    kcal: targetCalories,
-    carbs: (targetCalories * ratio.carbs) / 100 / 4,
-    protein: (targetCalories * ratio.protein) / 100 / 4,
-    fat: (targetCalories * ratio.fat) / 100 / 9
+    ...target,
+    kcal: calories.carbs + calories.protein + calories.fat
   };
 }
 

@@ -1,6 +1,6 @@
 # 健身营养计划网页程序
 
-`Next.js + TypeScript + Supabase + Vercel` 饮食计划器。用户可维护在线食物库，按 BMR/TDEE 和碳循环目标编辑当天餐次，锁定已完成餐，实时预览推荐克重，并手动保存计划。
+`Next.js + TypeScript + Supabase + Vercel` 饮食计划器。用户可维护在线食物库，展示 BMR/TDEE 参考，并按凯圣王碳循环每周总量分配公式编辑当天餐次，锁定已完成餐，实时预览推荐克重，并手动保存计划。
 
 ## 本地运行
 
@@ -35,8 +35,8 @@ npm run build
 ## 资料来源
 
 - [凯圣王碳循环公开整理](https://design.liyao.sbs/posts/tanxunhuan)
-- [B站视频页](https://www.bilibili.com/list/2100737396?bvid=BV1z8zPYjE4j&oid=113542896291911)
+- [凯圣王碳循环上集 BV1Gh411479A](https://www.bilibili.com/video/BV1Gh411479A/)
+- [凯圣王碳循环下集 BV1Di4y1o7KF](https://www.bilibili.com/video/BV1Di4y1o7KF/)
 - [Mifflin-St Jeor 公式来源](https://www.ncbi.nlm.nih.gov/books/NBK278991/table/diet-treatment-obes.table12est/)
 - [Supabase Pricing](https://supabase.com/pricing)
 - [Vercel Pricing](https://vercel.com/pricing)
-

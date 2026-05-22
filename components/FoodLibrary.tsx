@@ -1,7 +1,7 @@
 "use client";
 
 import type { User } from "@supabase/supabase-js";
-import { Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, RotateCcw, Save, Trash2, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { foodCategories, type FoodFormState, type FoodItem } from "@/lib/types";
 import { deleteFood, saveFood } from "@/lib/storage";
@@ -29,6 +29,7 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated }: Foo
   const [filter, setFilter] = useState<FoodItem["category"] | "全部">("全部");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [editingFood, setEditingFood] = useState<FoodItem | null>(null);
 
   const visibleFoods = useMemo(() => {
     return foods.filter((food) => filter === "全部" || food.category === filter);
@@ -39,6 +40,27 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated }: Foo
       ...current,
       [key]: value === "" ? 0 : Number(value)
     }));
+  }
+
+  function startEditFood(food: FoodItem) {
+    setEditingFood(food);
+    setForm({
+      name: food.name,
+      category: food.category,
+      kcalPer100g: food.kcalPer100g,
+      fatPer100g: food.fatPer100g,
+      carbsPer100g: food.carbsPer100g,
+      proteinPer100g: food.proteinPer100g,
+      weightBasis: food.weightBasis,
+      cookedRawRatio: food.cookedRawRatio ?? null
+    });
+    setMessage("");
+  }
+
+  function cancelEdit() {
+    setEditingFood(null);
+    setForm(emptyForm);
+    setMessage("");
   }
 
   async function submitFood() {
@@ -52,17 +74,20 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated }: Foo
     try {
       const savedFood = await saveFood(
         {
-          id: "",
+          id: editingFood?.id ?? "",
+          userId: editingFood?.userId,
           ...form,
           name: form.name.trim(),
           cookedRawRatio: form.cookedRawRatio ? Number(form.cookedRawRatio) : null,
-          source: "user"
+          source: editingFood?.source ?? "user",
+          isUserOverride: editingFood?.source === "public" || editingFood?.isUserOverride
         },
         user
       );
       onFoodsUpdated([...foods.filter((food) => food.id !== savedFood.id), savedFood]);
       setForm(emptyForm);
-      setMessage("食物已保存。");
+      setEditingFood(null);
+      setMessage(editingFood ? "食物已更新。" : "食物已保存。");
       await onFoodsChanged();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "保存失败。");
@@ -76,8 +101,8 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated }: Foo
     setMessage("");
     try {
       await deleteFood(foodId, user);
-      onFoodsUpdated(foods.filter((food) => food.id !== foodId));
-      setMessage("食物已删除。");
+      await onFoodsChanged();
+      setMessage(foodId.startsWith("public-") ? "公共食物已恢复默认值。" : "食物已删除。");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "删除失败。");
     } finally {
@@ -89,8 +114,12 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated }: Foo
     <section className="grid gap-4 xl:grid-cols-[420px_1fr]">
       <div className="panel p-4">
         <div className="mb-4">
-          <h2 className="text-lg font-semibold text-ink">新增食物</h2>
-          <p className="text-sm text-muted">营养值按每 100g 保存。只录入一种口径时，未知换算不显示另一口径。</p>
+          <h2 className="text-lg font-semibold text-ink">{editingFood ? "编辑食物" : "新增食物"}</h2>
+          <p className="text-sm text-muted">
+            {editingFood?.source === "public"
+              ? "公共食物会保存为你的覆盖值，不影响其他用户。"
+              : "营养值按每 100g 保存。只录入一种口径时，未知换算不显示另一口径。"}
+          </p>
         </div>
         <div className="grid gap-3">
           <label>
@@ -157,10 +186,18 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated }: Foo
               placeholder="例：生米1g对应熟饭2.5g"
             />
           </label>
-          <button className="btn-primary" type="button" onClick={submitFood} disabled={busy}>
-            <Plus size={16} />
-            保存食物
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button className="btn-primary" type="button" onClick={submitFood} disabled={busy}>
+              {editingFood ? <Save size={16} /> : <Plus size={16} />}
+              {editingFood ? "更新食物" : "保存食物"}
+            </button>
+            {editingFood ? (
+              <button className="btn-secondary" type="button" onClick={cancelEdit} disabled={busy}>
+                <X size={16} />
+                取消编辑
+              </button>
+            ) : null}
+          </div>
           {message ? <p className="rounded-md bg-panel p-3 text-sm text-ink">{message}</p> : null}
         </div>
       </div>
@@ -205,16 +242,28 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated }: Foo
                   <td className="px-4 py-3">{food.carbsPer100g} g</td>
                   <td className="px-4 py-3">{food.proteinPer100g} g</td>
                   <td className="px-4 py-3">{food.weightBasis === "raw" ? "生重" : "熟重"}</td>
-                  <td className="px-4 py-3">{food.source === "public" ? "公共" : "本人"}</td>
                   <td className="px-4 py-3">
-                    {food.source === "user" ? (
-                      <button className="btn-danger h-8 px-2" type="button" onClick={() => removeFood(food.id)} disabled={busy}>
-                        <Trash2 size={14} />
-                        删除
+                    {food.source === "public" ? (food.isUserOverride ? "公共·已修改" : "公共") : "本人"}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-wrap gap-2">
+                      <button className="btn-secondary h-8 px-2" type="button" onClick={() => startEditFood(food)} disabled={busy}>
+                        <Pencil size={14} />
+                        编辑
                       </button>
-                    ) : (
-                      <span className="text-muted">-</span>
-                    )}
+                      {food.source === "user" ? (
+                        <button className="btn-danger h-8 px-2" type="button" onClick={() => removeFood(food.id)} disabled={busy}>
+                          <Trash2 size={14} />
+                          删除
+                        </button>
+                      ) : null}
+                      {food.source === "public" && food.isUserOverride ? (
+                        <button className="btn-secondary h-8 px-2" type="button" onClick={() => removeFood(food.id)} disabled={busy}>
+                          <RotateCcw size={14} />
+                          重置
+                        </button>
+                      ) : null}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -225,4 +274,3 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated }: Foo
     </section>
   );
 }
-

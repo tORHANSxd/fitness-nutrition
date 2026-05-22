@@ -38,6 +38,7 @@ export interface UserProfile {
 export interface FoodItem {
   id: string;
   userId?: string | null;
+  isUserOverride?: boolean;
   name: string;
   category: FoodCategory;
   kcalPer100g: number;

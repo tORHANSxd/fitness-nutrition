@@ -38,6 +38,23 @@ export function mapFoodRow(row: Record<string, unknown>): FoodItem {
   };
 }
 
+export function mapFoodOverrideRow(row: Record<string, unknown>): FoodItem {
+  return {
+    id: String(row.base_food_id),
+    userId: String(row.user_id),
+    isUserOverride: true,
+    name: String(row.name),
+    category: row.category as FoodItem["category"],
+    kcalPer100g: Number(row.kcal_per_100g),
+    fatPer100g: Number(row.fat_per_100g),
+    carbsPer100g: Number(row.carbs_per_100g),
+    proteinPer100g: Number(row.protein_per_100g),
+    weightBasis: row.weight_basis as FoodItem["weightBasis"],
+    cookedRawRatio: row.cooked_raw_ratio == null ? null : Number(row.cooked_raw_ratio),
+    source: "public"
+  };
+}
+
 export function foodToRow(food: FoodItem, user: User | null) {
   return {
     user_id: user?.id ?? food.userId ?? null,
@@ -53,6 +70,22 @@ export function foodToRow(food: FoodItem, user: User | null) {
   };
 }
 
+export function foodToOverrideRow(food: FoodItem, user: User) {
+  return {
+    user_id: user.id,
+    base_food_id: food.id,
+    name: food.name,
+    category: food.category,
+    kcal_per_100g: food.kcalPer100g,
+    fat_per_100g: food.fatPer100g,
+    carbs_per_100g: food.carbsPer100g,
+    protein_per_100g: food.proteinPer100g,
+    weight_basis: food.weightBasis,
+    cooked_raw_ratio: food.cookedRawRatio ?? null,
+    updated_at: new Date().toISOString()
+  };
+}
+
 export function mapPlanRow(row: Record<string, unknown>): SavedPlan {
   return {
     id: String(row.id),
@@ -63,4 +96,3 @@ export function mapPlanRow(row: Record<string, unknown>): SavedPlan {
     createdAt: String(row.created_at)
   };
 }
-

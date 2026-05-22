@@ -193,10 +193,11 @@ export function NutritionPlanner({ foods, user }: NutritionPlannerProps) {
                 </button>
               </div>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-7">
               <MetricCard label="BMR" value={result.bmr} unit="kcal" />
               <MetricCard label="维持热量" value={result.tdee} unit="kcal" tone="accent" />
-              <MetricCard label="目标热量" value={result.dailyTarget.kcal} unit="kcal" tone="accent" />
+              <MetricCard label="计划均热量" value={result.cycleAverageTarget.kcal} unit="kcal" tone="accent" />
+              <MetricCard label="当日目标热量" value={result.dailyTarget.kcal} unit="kcal" tone="accent" />
               <MetricCard
                 label={result.plannedCalorieDelta < 0 ? "计划缺口" : result.plannedCalorieDelta > 0 ? "计划盈余" : "计划差额"}
                 value={Math.abs(result.plannedCalorieDelta)}

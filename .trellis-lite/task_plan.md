@@ -7,7 +7,7 @@
 ## Constraints
 - 项目规则：need_git:true，修改后必须提交并推送到本地远端 D:\Workspace\git\fitness_nutrition.git。
 - 技术栈：Next.js、TypeScript、Supabase、Tailwind CSS、Recharts。
-- 计算以 BMR/TDEE 为主，结合凯圣王三分化碳循环高/中/低碳日。
+- BMR/TDEE 作为维持热量和计划缺口参考；当日目标按凯圣王三分化碳循环高/中/低碳日宏量公式生成。
 
 ## Next Actions
 - 安装依赖。

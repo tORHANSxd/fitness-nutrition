@@ -6,9 +6,11 @@ import {
   calculateFoodTotals,
   calculateBmr,
   calculateCalorieTarget,
+  calculateCycleAverageTarget,
   calculateDailyTarget,
   calculateMacroRatio,
   calculateMealsTotals,
+  calculatePlannedCalorieDelta,
   calculateTdee,
   createDefaultMeals,
   getDefaultMealEntrySettings,
@@ -87,14 +89,13 @@ describe("nutrition formulas", () => {
     expect(getCarbDayType("rest")).toBe("low");
   });
 
-  it("sets a moderate default cut below maintenance calories", () => {
+  it("calculates the Kaisheng cycle-average calorie target", () => {
     expect(round(calculateTdee(profile), 0)).toBe(2881);
-    expect(round(calculateCalorieTarget(profile), 0)).toBe(2441);
-  });
-
-  it("supports maintenance and lean bulk calorie targets", () => {
-    expect(round(calculateCalorieTarget({ ...profile, goalType: "maintain", weeklyWeightChangePct: 0 }), 0)).toBe(2881);
-    expect(round(calculateCalorieTarget({ ...profile, goalType: "bulk", weeklyWeightChangePct: 0.25 }), 0)).toBe(3101);
+    expect(round(calculateCalorieTarget(profile), 0)).toBe(1600);
+    expect(round(calculateCycleAverageTarget(profile).carbs, 1)).toBe(160);
+    expect(round(calculateCycleAverageTarget(profile).protein, 1)).toBe(96);
+    expect(round(calculateCycleAverageTarget(profile).fat, 1)).toBe(64);
+    expect(round(calculatePlannedCalorieDelta(profile), 0)).toBe(-1281);
   });
 
   it("uses Kaisheng weekly carb and fat redistribution for easy-fat-gain cutting", () => {

@@ -84,6 +84,7 @@ export interface NutritionResult {
   tdee: number;
   plannedCalorieDelta: number;
   carbDayType: CarbDayType;
+  cycleAverageTarget: MacroTotals;
   dailyTarget: MacroTotals;
   actualTotals: MacroTotals;
   recommendedTotals: MacroTotals;

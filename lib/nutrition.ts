@@ -47,8 +47,6 @@ const easyFatGainBaseCarbsPerKg = 2;
 const easyFatGainBaseFatPerKg = 0.8;
 const regularTrainingProteinPerKg = 1.2;
 
-const kcalPerKgWeight = 7700;
-
 const goalDefaults: Record<NutritionGoal, number> = {
   cut: 0.5,
   maintain: 0,
@@ -148,7 +146,7 @@ export const foodPortionSource =
   "分类份量参考中国居民平衡膳食餐盘和健康餐盘法：主餐保留可见蛋白份量，主食、蔬果、蛋白按餐盘结构评分；补剂和坚果按健身常用单次份量设上限。";
 
 export const energyTargetSource =
-  "热量目标：维持热量仍用于缺口/盈余参考；当日目标热量由碳水、蛋白、脂肪克数按4/4/9 kcal反推。";
+  "热量目标：当日目标由当前碳日的碳水、蛋白、脂肪按4/4/9 kcal反推；计划缺口用7天周期平均目标热量与维持热量对比。";
 
 export const macroRatioCheckSource =
   "配比检查：按当前体重公式反推的目标供能占比±5个百分点判断碳水、蛋白、脂肪是否贴合。";
@@ -447,31 +445,31 @@ export function getWeeklyWeightChangePct(profile: Pick<UserProfile, "goalType" |
   return clamp(rawValue, range.min, range.max);
 }
 
-function minimumTargetCalories(profile: Pick<UserProfile, "sex">) {
-  return profile.sex === "female" ? 1200 : 1500;
+function caloriesFromMacros(target: Pick<MacroTotals, "carbs" | "protein" | "fat">) {
+  const calories = calculateMacroCalories({ kcal: 0, ...target });
+  return calories.carbs + calories.protein + calories.fat;
+}
+
+export function calculateCycleAverageTarget(profile: UserProfile): MacroTotals {
+  const target = {
+    kcal: 0,
+    carbs: profile.weightKg * easyFatGainBaseCarbsPerKg,
+    protein: profile.weightKg * regularTrainingProteinPerKg,
+    fat: profile.weightKg * easyFatGainBaseFatPerKg
+  };
+
+  return {
+    ...target,
+    kcal: caloriesFromMacros(target)
+  };
 }
 
 export function calculateCalorieTarget(profile: UserProfile) {
-  const tdee = calculateTdee(profile);
-  const goal = getNutritionGoal(profile);
-  const weeklyChangePct = getWeeklyWeightChangePct(profile);
-  const dailyEnergyDelta = (profile.weightKg * (weeklyChangePct / 100) * kcalPerKgWeight) / 7;
-
-  if (goal === "maintain") {
-    return tdee;
-  }
-
-  if (goal === "bulk") {
-    const surplus = Math.min(dailyEnergyDelta, 500, tdee * 0.15);
-    return tdee + surplus;
-  }
-
-  const deficit = Math.min(dailyEnergyDelta, 1000, tdee * 0.25);
-  return Math.max(tdee - deficit, minimumTargetCalories(profile));
+  return calculateCycleAverageTarget(profile).kcal;
 }
 
 export function calculatePlannedCalorieDelta(profile: UserProfile) {
-  return calculateDailyTarget(profile).kcal - calculateTdee(profile);
+  return calculateCalorieTarget(profile) - calculateTdee(profile);
 }
 
 export function getCarbDayType(workoutType: WorkoutType): CarbDayType {
@@ -495,11 +493,10 @@ export function calculateDailyTarget(profile: UserProfile): MacroTotals {
     protein: profile.weightKg * regularTrainingProteinPerKg,
     fat: profile.weightKg * ((weeklyBaseFatPerKg * distribution.fatShare) / distribution.daysPerWeek)
   };
-  const calories = calculateMacroCalories(target);
 
   return {
     ...target,
-    kcal: calories.carbs + calories.protein + calories.fat
+    kcal: caloriesFromMacros(target)
   };
 }
 
@@ -1034,6 +1031,7 @@ function lockedMealDeviationMessage(meal: MealPlan, deficit: MacroTotals) {
 
 export function buildNutritionResult(profile: UserProfile, meals: MealPlan[], foods: FoodItem[]): NutritionResult {
   const foodsById = new Map(foods.map((food) => [food.id, food]));
+  const cycleAverageTarget = calculateCycleAverageTarget(profile);
   const dailyTarget = calculateDailyTarget(profile);
   const actualTotals = calculateMealsTotals(meals, foods);
   const tdee = calculateTdee(profile);
@@ -1106,6 +1104,7 @@ export function buildNutritionResult(profile: UserProfile, meals: MealPlan[], fo
     tdee,
     plannedCalorieDelta,
     carbDayType: getCarbDayType(profile.workoutType),
+    cycleAverageTarget,
     dailyTarget,
     actualTotals,
     recommendedTotals,

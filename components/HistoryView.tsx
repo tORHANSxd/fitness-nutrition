@@ -58,7 +58,7 @@ export function HistoryView({ user }: HistoryViewProps) {
               <th className="px-4 py-3">日期</th>
               <th className="px-4 py-3">训练</th>
               <th className="px-4 py-3">碳日</th>
-              <th className="px-4 py-3">目标热量</th>
+              <th className="px-4 py-3">当日目标热量</th>
               <th className="px-4 py-3">当前热量</th>
               <th className="px-4 py-3">碳水</th>
               <th className="px-4 py-3">蛋白</th>
@@ -92,4 +92,3 @@ export function HistoryView({ user }: HistoryViewProps) {
     </section>
   );
 }
-

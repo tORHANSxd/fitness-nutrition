@@ -3,6 +3,7 @@ import { createStarterMeals, defaultProfile } from "@/lib/demoState";
 import { builtinFoods } from "@/lib/foods";
 import {
   buildNutritionResult,
+  calculateFoodKcalPer100g,
   calculateFoodTotals,
   calculateBmr,
   calculateCalorieTarget,
@@ -171,6 +172,24 @@ describe("nutrition formulas", () => {
 
     expect(getFoodEnergyMismatch(badOats).severity).toBe("error");
     expect(builtinFoods.every((food) => getFoodEnergyMismatch(food).severity !== "error")).toBe(true);
+  });
+
+  it("uses net carbs for built-in vegetables so fiber does not count as energy macros", () => {
+    const expectedVegetableNetCarbs = {
+      "public-broccoli-cooked": 3.88,
+      "public-spinach-cooked": 1.35,
+      "public-lettuce-raw": 1.57,
+      "public-tomato-raw": 2.72,
+      "public-cucumber-raw": 3.13
+    };
+
+    for (const [foodId, expectedCarbs] of Object.entries(expectedVegetableNetCarbs)) {
+      const food = builtinFoods.find((item) => item.id === foodId);
+      expect(food).toBeDefined();
+      expect(food?.category).toBe("蔬菜");
+      expect(food?.carbsPer100g).toBe(expectedCarbs);
+      expect(round(calculateFoodTotals(food!, 100).kcal, 1)).toBe(round(calculateFoodKcalPer100g(food!), 1));
+    }
   });
 
   it("calculates food calories from macros instead of the stored kcal field", () => {

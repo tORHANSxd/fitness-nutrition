@@ -17,6 +17,7 @@ import {
   getFoodEnergyMismatch,
   getMacroRatioCheck,
   getCarbDayType,
+  getProteinPerKg,
   round
 } from "@/lib/nutrition";
 import type { FoodItem, MealPlan, UserProfile } from "@/lib/types";
@@ -84,26 +85,26 @@ describe("nutrition formulas", () => {
 
   it("maps workout type to carb day type", () => {
     expect(getCarbDayType("legs")).toBe("high");
-    expect(getCarbDayType("back")).toBe("high");
+    expect(getCarbDayType("back")).toBe("mid");
     expect(getCarbDayType("chest")).toBe("mid");
     expect(getCarbDayType("rest")).toBe("low");
   });
 
   it("calculates the Kaisheng cycle-average calorie target", () => {
     expect(round(calculateTdee(profile), 0)).toBe(2881);
-    expect(round(calculateCalorieTarget(profile), 0)).toBe(1600);
+    expect(round(calculateCalorieTarget(profile), 0)).toBe(1792);
     expect(round(calculateCycleAverageTarget(profile).carbs, 1)).toBe(160);
-    expect(round(calculateCycleAverageTarget(profile).protein, 1)).toBe(96);
+    expect(round(calculateCycleAverageTarget(profile).protein, 1)).toBe(144);
     expect(round(calculateCycleAverageTarget(profile).fat, 1)).toBe(64);
-    expect(round(calculatePlannedCalorieDelta(profile), 0)).toBe(-1281);
+    expect(round(calculatePlannedCalorieDelta(profile), 0)).toBe(-1089);
   });
 
   it("uses Kaisheng weekly carb and fat redistribution for easy-fat-gain cutting", () => {
     const expectedByWorkout = [
-      { workoutType: "legs", expected: { carbs: 280, protein: 96, fat: 33.6 } },
-      { workoutType: "back", expected: { carbs: 280, protein: 96, fat: 33.6 } },
-      { workoutType: "chest", expected: { carbs: 130.67, protein: 96, fat: 52.27 } },
-      { workoutType: "rest", expected: { carbs: 84, protein: 96, fat: 112 } }
+      { workoutType: "legs", expected: { carbs: 280, protein: 144, fat: 33.6 } },
+      { workoutType: "back", expected: { carbs: 130.67, protein: 144, fat: 52.27 } },
+      { workoutType: "chest", expected: { carbs: 130.67, protein: 144, fat: 52.27 } },
+      { workoutType: "rest", expected: { carbs: 84, protein: 144, fat: 112 } }
     ] as const;
 
     for (const { workoutType, expected } of expectedByWorkout) {
@@ -124,6 +125,14 @@ describe("nutrition formulas", () => {
     expect(round(high.fat * 2 + mid.fat * 3 + low.fat * 2, 1)).toBe(profile.weightKg * 0.8 * 7);
     expect(round(high.protein, 1)).toBe(round(mid.protein, 1));
     expect(round(mid.protein, 1)).toBe(round(low.protein, 1));
+  });
+
+  it("clamps daily fixed protein inside Kaisheng 1.6-2.2 g/kg range", () => {
+    expect(getProteinPerKg({ proteinPerKg: 1.2 })).toBe(1.6);
+    expect(getProteinPerKg({ proteinPerKg: 1.9 })).toBe(1.9);
+    expect(getProteinPerKg({ proteinPerKg: 2.6 })).toBe(2.2);
+    expect(round(calculateDailyTarget({ ...profile, proteinPerKg: 1.6 }).protein, 1)).toBe(128);
+    expect(round(calculateDailyTarget({ ...profile, proteinPerKg: 2.2 }).protein, 1)).toBe(176);
   });
 
   it("calculates macro calorie ratios from grams", () => {
@@ -564,7 +573,7 @@ describe("meal solving", () => {
       { kcal: 0, carbs: 0, protein: 0, fat: 0 }
     );
 
-    expect(round(result.dailyTarget.protein, 1)).toBe(round(userProfile.weightKg * 1.2, 1));
+    expect(round(result.dailyTarget.protein, 1)).toBe(round(userProfile.weightKg * getProteinPerKg(userProfile), 1));
     expect(round(result.mealRecommendations[0].target.protein, 1)).toBe(round(result.dailyTarget.protein * meals[0].ratio, 1));
     expect(round(result.mealRecommendations[1].target.carbs, 1)).toBe(round(result.dailyTarget.carbs * 0.35, 1));
     expect(Math.abs(targetTotals.kcal - result.dailyTarget.kcal)).toBeLessThan(1);

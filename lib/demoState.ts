@@ -9,6 +9,7 @@ export const defaultProfile: UserProfile = {
   weightKg: 75,
   activityFactor: 1.45,
   exerciseKcal: 350,
+  proteinPerKg: 1.8,
   goalType: "cut",
   weeklyWeightChangePct: 0.5,
   workoutType: "legs",
@@ -109,7 +110,7 @@ export function createStarterMeals(profile: UserProfile): MealPlan[] {
       entries: [
         {
           id: crypto.randomUUID(),
-          foodId: "public-salmon-cooked",
+          foodId: "public-chicken-breast-cooked",
           grams: 150,
           locked: false,
           minGrams: 0,

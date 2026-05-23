@@ -29,7 +29,7 @@ const macroWeights: Record<keyof MacroTotals, number> = {
 
 const dailyFitWeights: Record<keyof MacroTotals, number> = {
   kcal: 2,
-  protein: 1.1,
+  protein: 2.4,
   carbs: 1.5,
   fat: 1
 };
@@ -45,7 +45,8 @@ const carbCycleDistribution: Record<CarbDayType, { daysPerWeek: number; carbShar
 
 const easyFatGainBaseCarbsPerKg = 2;
 const easyFatGainBaseFatPerKg = 0.8;
-const regularTrainingProteinPerKg = 1.2;
+const defaultProteinPerKg = 1.8;
+const proteinPerKgRange = { min: 1.6, max: 2.2 };
 
 const goalDefaults: Record<NutritionGoal, number> = {
   cut: 0.5,
@@ -140,7 +141,7 @@ const categoryGramWeights: Record<FoodCategory, number> = {
 };
 
 export const carbCycleMacroSource =
-  "凯圣王碳循环：易胖体质减脂起跳版按每周总量分配，蛋白每日固定 W×1.2g，碳水/脂肪为高碳 W×3.5g/W×0.42g，中碳 W×1.63g/W×0.65g，低碳 W×1.05g/W×1.4g。";
+  "凯圣王碳循环：每周固定2高碳+3中碳+2低碳，蛋白每日固定W×1.6-2.2g；碳水周总量W×2×7，脂肪周总量W×0.8×7；高碳日=周碳水25%/周脂肪7.5%，中碳日=周碳水11.67%/周脂肪11.67%，低碳日=周碳水7.5%/周脂肪25%。";
 
 export const foodPortionSource =
   "分类份量参考中国居民平衡膳食餐盘和健康餐盘法：主餐保留可见蛋白份量，主食、蔬果、蛋白按餐盘结构评分；补剂和坚果按健身常用单次份量设上限。";
@@ -152,9 +153,9 @@ export const macroRatioCheckSource =
   "配比检查：按当前体重公式反推的目标供能占比±5个百分点判断碳水、蛋白、脂肪是否贴合。";
 
 export const workoutLabels: Record<WorkoutType, string> = {
-  chest: "胸大类",
-  back: "背大类",
-  legs: "腿大类",
+  chest: "推：胸肩三头",
+  back: "拉：背二头",
+  legs: "腿：深蹲硬拉",
   rest: "休息日"
 };
 
@@ -445,6 +446,10 @@ export function getWeeklyWeightChangePct(profile: Pick<UserProfile, "goalType" |
   return clamp(rawValue, range.min, range.max);
 }
 
+export function getProteinPerKg(profile: Pick<UserProfile, "proteinPerKg">) {
+  return clamp(profile.proteinPerKg ?? defaultProteinPerKg, proteinPerKgRange.min, proteinPerKgRange.max);
+}
+
 function caloriesFromMacros(target: Pick<MacroTotals, "carbs" | "protein" | "fat">) {
   const calories = calculateMacroCalories({ kcal: 0, ...target });
   return calories.carbs + calories.protein + calories.fat;
@@ -454,7 +459,7 @@ export function calculateCycleAverageTarget(profile: UserProfile): MacroTotals {
   const target = {
     kcal: 0,
     carbs: profile.weightKg * easyFatGainBaseCarbsPerKg,
-    protein: profile.weightKg * regularTrainingProteinPerKg,
+    protein: profile.weightKg * getProteinPerKg(profile),
     fat: profile.weightKg * easyFatGainBaseFatPerKg
   };
 
@@ -473,7 +478,7 @@ export function calculatePlannedCalorieDelta(profile: UserProfile) {
 }
 
 export function getCarbDayType(workoutType: WorkoutType): CarbDayType {
-  if (workoutType === "legs" || workoutType === "back") {
+  if (workoutType === "legs") {
     return "high";
   }
   if (workoutType === "rest") {
@@ -490,7 +495,7 @@ export function calculateDailyTarget(profile: UserProfile): MacroTotals {
   const target = {
     kcal: 0,
     carbs: profile.weightKg * ((weeklyBaseCarbsPerKg * distribution.carbShare) / distribution.daysPerWeek),
-    protein: profile.weightKg * regularTrainingProteinPerKg,
+    protein: profile.weightKg * getProteinPerKg(profile),
     fat: profile.weightKg * ((weeklyBaseFatPerKg * distribution.fatShare) / distribution.daysPerWeek)
   };
 

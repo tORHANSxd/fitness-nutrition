@@ -29,6 +29,7 @@ export interface UserProfile {
   weightKg: number;
   activityFactor: number;
   exerciseKcal: number;
+  proteinPerKg?: number;
   goalType?: NutritionGoal;
   weeklyWeightChangePct?: number;
   workoutType: WorkoutType;

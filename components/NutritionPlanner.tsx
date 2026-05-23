@@ -26,6 +26,7 @@ import {
   energyTargetSource,
   getDefaultMealEntrySettings,
   getMacroRatioCheck,
+  getProteinPerKg,
   getWeeklyWeightChangePct,
   goalLabels,
   macroRatioCheckSource,
@@ -225,6 +226,7 @@ export function NutritionPlanner({ foods, user }: NutritionPlannerProps) {
               recommendedRatio={calculateMacroRatio(result.recommendedTotals)}
               targetRatio={result.targetRatio}
             />
+            <PlanRulePanel />
             {message ? <p className="mt-3 rounded-md bg-panel p-3 text-sm text-ink">{message}</p> : null}
             {result.conflicts.length > 0 ? (
               <div className="mt-3 space-y-2">
@@ -430,6 +432,39 @@ function MacroRatioRow({
   );
 }
 
+function PlanRulePanel() {
+  const weeklyPlan = [
+    ["周一", "推：胸肩三头", "中碳"],
+    ["周二", "拉：背二头", "中碳"],
+    ["周三", "腿：深蹲硬拉", "高碳"],
+    ["周四", "休息", "低碳"],
+    ["周五", "推/拉或轻训", "中碳"],
+    ["周六", "腿或强度次高", "高碳"],
+    ["周日", "休息", "低碳"]
+  ];
+
+  return (
+    <div className="mt-3 rounded-md border border-line bg-panel p-3">
+      <div className="mb-3 flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-ink">凯圣王三分化饮食规则</h3>
+          <p className="text-xs text-muted">腿日高碳；推拉常规中碳；完全休息低碳。训练日碳水集中在训前和训后，低碳日不做力量训练。</p>
+        </div>
+        <span className="text-xs text-muted">16/8进食窗口；绿叶蔬菜不限量；高碳日严控油脂和劣质碳水。</span>
+      </div>
+      <div className="grid gap-2 md:grid-cols-7">
+        {weeklyPlan.map(([day, workout, carbDay]) => (
+          <div key={day} className="rounded-md border border-line bg-white p-2">
+            <div className="text-xs font-semibold text-ink">{day}</div>
+            <div className="mt-1 min-h-8 text-xs text-muted">{workout}</div>
+            <div className="mt-2 text-xs font-semibold text-accent">{carbDay}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 interface ProfilePanelProps {
   profile: UserProfile;
   updateProfile: <K extends keyof UserProfile>(key: K, value: UserProfile[K]) => void;
@@ -520,6 +555,18 @@ function ProfilePanel({ profile, updateProfile }: ProfilePanelProps) {
           <label>
             <span className="metric-label mb-1 block">运动消耗 kcal</span>
             <input className="field w-full" type="number" value={profile.exerciseKcal} onChange={(event) => numberInput("exerciseKcal", event.target.value)} />
+          </label>
+          <label>
+            <span className="metric-label mb-1 block">蛋白 g/kg</span>
+            <input
+              className="field w-full"
+              min="1.6"
+              max="2.2"
+              step="0.1"
+              type="number"
+              value={getProteinPerKg(profile)}
+              onChange={(event) => numberInput("proteinPerKg", event.target.value)}
+            />
           </label>
         </div>
         <label>

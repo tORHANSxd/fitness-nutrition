@@ -4,9 +4,13 @@ import type { FoodItem, SavedPlan } from "@/lib/types";
 
 let client: SupabaseClient | null = null;
 
+function cleanPublicEnv(value: string | undefined) {
+  return value?.replace(/^\uFEFF/, "").trim();
+}
+
 export function getSupabaseClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const url = cleanPublicEnv(process.env.NEXT_PUBLIC_SUPABASE_URL);
+  const anonKey = cleanPublicEnv(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 
   if (!url || !anonKey || url.includes("your-project") || anonKey.includes("your-anon-key")) {
     return null;

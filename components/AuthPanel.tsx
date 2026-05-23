@@ -42,8 +42,9 @@ export function AuthPanel({ user, onSignedIn }: AuthPanelProps) {
       setMessage(mode === "login" ? "登录成功。" : "注册成功；如果项目开启邮箱确认，请先完成邮箱验证。");
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "未知错误";
+      const normalizedErrorMessage = errorMessage.toLowerCase();
       setMessage(
-        errorMessage.includes("Failed to execute 'fetch'") || errorMessage.includes("headers")
+        normalizedErrorMessage.includes("failed to execute 'fetch'") || normalizedErrorMessage.includes("headers")
           ? "登录/注册请求失败：浏览器里存在旧的认证缓存，请清理本站点数据后刷新重试。"
           : errorMessage
       );

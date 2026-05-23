@@ -27,8 +27,6 @@ import {
   getDefaultMealEntrySettings,
   getMacroRatioCheck,
   getProteinPerKg,
-  getWeeklyWeightChangePct,
-  goalLabels,
   macroRatioCheckSource,
   normalizeMealRatios,
   round,
@@ -36,7 +34,7 @@ import {
   workoutLabels
 } from "@/lib/nutrition";
 import { savePlan } from "@/lib/storage";
-import type { FoodItem, MacroRatio, MacroTotals, MealFoodEntry, MealPlan, NutritionGoal, UserProfile, WorkoutType } from "@/lib/types";
+import type { FoodItem, MacroRatio, MacroTotals, MealFoodEntry, MealPlan, UserProfile, WorkoutType } from "@/lib/types";
 
 interface NutritionPlannerProps {
   foods: FoodItem[];
@@ -175,7 +173,7 @@ export function NutritionPlanner({ foods, user }: NutritionPlannerProps) {
               <div>
                 <h2 className="text-lg font-semibold text-ink">实时目标</h2>
                 <p className="text-sm text-muted">
-                  {goalLabels[profile.goalType ?? "cut"]} / {workoutLabels[profile.workoutType]} / {carbDayLabels[result.carbDayType]} /{" "}
+                  凯圣王减脂 / {workoutLabels[profile.workoutType]} / {carbDayLabels[result.carbDayType]} /{" "}
                   {trainingTimeLabels[profile.trainingTime]}
                 </p>
               </div>
@@ -222,7 +220,6 @@ export function NutritionPlanner({ foods, user }: NutritionPlannerProps) {
               actualRatio={result.actualRatio}
               carbDayType={result.carbDayType}
               carbDayLabel={carbDayLabels[result.carbDayType]}
-              goalType={profile.goalType ?? "cut"}
               recommendedRatio={calculateMacroRatio(result.recommendedTotals)}
               targetRatio={result.targetRatio}
             />
@@ -353,12 +350,11 @@ interface MacroRatioPanelProps {
   targetRatio: MacroRatio;
   actualRatio: MacroRatio;
   recommendedRatio: MacroRatio;
-  goalType: NutritionGoal;
 }
 
-function MacroRatioPanel({ actualRatio, carbDayType, carbDayLabel, goalType, recommendedRatio, targetRatio }: MacroRatioPanelProps) {
-  const actualCheck = getMacroRatioCheck(actualRatio, targetRatio, goalType, carbDayType);
-  const recommendedCheck = getMacroRatioCheck(recommendedRatio, targetRatio, goalType, carbDayType);
+function MacroRatioPanel({ actualRatio, carbDayType, carbDayLabel, recommendedRatio, targetRatio }: MacroRatioPanelProps) {
+  const actualCheck = getMacroRatioCheck(actualRatio, targetRatio, "cut", carbDayType);
+  const recommendedCheck = getMacroRatioCheck(recommendedRatio, targetRatio, "cut", carbDayType);
   const actualStatus = `${actualCheck.cycleAligned ? "公式贴合" : "公式偏离"} / ${actualCheck.goalAligned ? "参考内" : "参考外"}`;
   const recommendedStatus = `${recommendedCheck.cycleAligned ? "公式贴合" : "公式偏离"} / ${recommendedCheck.goalAligned ? "参考内" : "参考外"}`;
 
@@ -471,20 +467,8 @@ interface ProfilePanelProps {
 }
 
 function ProfilePanel({ profile, updateProfile }: ProfilePanelProps) {
-  const goalType = profile.goalType ?? "cut";
-
   function numberInput<K extends keyof UserProfile>(key: K, value: string) {
     updateProfile(key, Number(value) as UserProfile[K]);
-  }
-
-  function updateGoal(nextGoal: NutritionGoal) {
-    const defaultRate: Record<NutritionGoal, number> = {
-      cut: 0.5,
-      maintain: 0,
-      bulk: 0.25
-    };
-    updateProfile("goalType", nextGoal);
-    updateProfile("weeklyWeightChangePct", defaultRate[nextGoal]);
   }
 
   return (
@@ -525,29 +509,6 @@ function ProfilePanel({ profile, updateProfile }: ProfilePanelProps) {
           </label>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <label>
-            <span className="metric-label mb-1 block">目标</span>
-            <select className="field w-full" value={goalType} onChange={(event) => updateGoal(event.target.value as NutritionGoal)}>
-              {Object.entries(goalLabels).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span className="metric-label mb-1 block">每周体重变化 %</span>
-            <input
-              className="field w-full"
-              min="0"
-              max="1"
-              step="0.05"
-              type="number"
-              value={getWeeklyWeightChangePct(profile)}
-              onChange={(event) => numberInput("weeklyWeightChangePct", event.target.value)}
-              disabled={goalType === "maintain"}
-            />
-          </label>
           <label>
             <span className="metric-label mb-1 block">日常活动系数</span>
             <input className="field w-full" step="0.01" type="number" value={profile.activityFactor} onChange={(event) => numberInput("activityFactor", event.target.value)} />

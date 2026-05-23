@@ -100,6 +100,21 @@ describe("nutrition formulas", () => {
     expect(round(calculatePlannedCalorieDelta(profile), 0)).toBe(-1089);
   });
 
+  it("uses the requested default body profile for the Kaisheng plan", () => {
+    expect(defaultProfile.sex).toBe("male");
+    expect(defaultProfile.age).toBe(23);
+    expect(defaultProfile.heightCm).toBe(174);
+    expect(defaultProfile.weightKg).toBe(94.5);
+    expect(defaultProfile.activityFactor).toBe(1.2);
+    expect(defaultProfile.exerciseKcal).toBe(550);
+
+    expect(round(calculateBmr(defaultProfile), 1)).toBe(1922.5);
+    expect(round(calculateTdee(defaultProfile), 0)).toBe(2857);
+    expect(round(calculateCycleAverageTarget(defaultProfile).kcal, 0)).toBe(2117);
+    expect(round(calculateDailyTarget(defaultProfile).kcal, 0)).toBe(2361);
+    expect(round(calculatePlannedCalorieDelta(defaultProfile), 0)).toBe(-740);
+  });
+
   it("uses Kaisheng weekly carb and fat redistribution for easy-fat-gain cutting", () => {
     const expectedByWorkout = [
       { workoutType: "legs", expected: { carbs: 280, protein: 144, fat: 33.6 } },
@@ -572,7 +587,8 @@ describe("meal solving", () => {
 
     expect(lunchTotals.kcal).toBeLessThanOrEqual(lunchTarget.kcal + lunchKcalTolerance);
     expect(nonSupplementRecommendedGrams(lunch, result, foods)).toBeLessThanOrEqual(950);
-    expect(Math.abs(preWorkout.deficit.kcal)).toBeLessThanOrEqual(120);
+    expect(Math.abs(preWorkout.deficit.kcal)).toBeGreaterThan(120);
+    expect(result.conflicts.some((item) => item.includes("训练前加餐 有锁定项"))).toBe(true);
   });
 
   it("keeps displayed meal targets proportional to the daily standard after solver redistribution", () => {

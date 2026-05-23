@@ -4,11 +4,11 @@ import type { MealPlan, UserProfile } from "@/lib/types";
 
 export const defaultProfile: UserProfile = {
   sex: "male",
-  age: 28,
-  heightCm: 175,
-  weightKg: 75,
-  activityFactor: 1.45,
-  exerciseKcal: 350,
+  age: 23,
+  heightCm: 174,
+  weightKg: 94.5,
+  activityFactor: 1.2,
+  exerciseKcal: 550,
   proteinPerKg: 1.8,
   goalType: "cut",
   weeklyWeightChangePct: 0.5,

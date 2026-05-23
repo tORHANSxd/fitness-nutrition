@@ -120,7 +120,7 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated }: Foo
           <p className="text-sm text-muted">
             {editingFood?.source === "public"
               ? "公共食物会保存为你的覆盖值，不影响其他用户。"
-              : "营养值按每 100g 保存；热量由碳水、蛋白、脂肪自动计算。"}
+              : "营养值按每 100g 保存；热量由净碳水、蛋白、脂肪自动计算。"}
           </p>
         </div>
         <div className="grid gap-3">
@@ -167,7 +167,7 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated }: Foo
               <input className="field w-full" type="number" value={form.fatPer100g} onChange={(event) => updateNumber("fatPer100g", event.target.value)} />
             </label>
             <label>
-              <span className="metric-label mb-1 block">碳水 g/100g</span>
+              <span className="metric-label mb-1 block">净碳水 g/100g</span>
               <input className="field w-full" type="number" value={form.carbsPer100g} onChange={(event) => updateNumber("carbsPer100g", event.target.value)} />
             </label>
             <label>
@@ -229,7 +229,7 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated }: Foo
                 <th className="px-4 py-3">分类</th>
                 <th className="px-4 py-3">热量</th>
                 <th className="px-4 py-3">脂肪</th>
-                <th className="px-4 py-3">碳水</th>
+                <th className="px-4 py-3">净碳水</th>
                 <th className="px-4 py-3">蛋白</th>
                 <th className="px-4 py-3">口径</th>
                 <th className="px-4 py-3">来源</th>

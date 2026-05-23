@@ -45,6 +45,7 @@ export interface FoodItem {
   category: FoodCategory;
   kcalPer100g: number;
   fatPer100g: number;
+  /** 净碳水/可利用碳水，不包含不参与供能的碳水组分。 */
   carbsPer100g: number;
   proteinPer100g: number;
   weightBasis: WeightBasis;

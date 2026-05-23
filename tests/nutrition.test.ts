@@ -174,7 +174,7 @@ describe("nutrition formulas", () => {
     expect(builtinFoods.every((food) => getFoodEnergyMismatch(food).severity !== "error")).toBe(true);
   });
 
-  it("uses net carbs for built-in vegetables so fiber does not count as energy macros", () => {
+  it("uses net carbs for built-in vegetables as the energy macro record", () => {
     const expectedVegetableNetCarbs = {
       "public-broccoli-cooked": 3.88,
       "public-spinach-cooked": 1.35,

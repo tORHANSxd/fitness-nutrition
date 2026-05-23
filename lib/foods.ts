@@ -1,6 +1,6 @@
 import type { FoodItem } from "@/lib/types";
 
-// 公共食物按常见每 100g 口径整理；蔬菜碳水使用净碳水，不把膳食纤维计入三大营养素供能。
+// carbsPer100g 记录净碳水/可利用碳水；蔬菜不把不可供能的碳水组分计入三大营养素。
 export const builtinFoods: FoodItem[] = [
   {
     id: "public-rice-cooked",

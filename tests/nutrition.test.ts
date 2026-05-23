@@ -105,14 +105,14 @@ describe("nutrition formulas", () => {
     expect(defaultProfile.age).toBe(23);
     expect(defaultProfile.heightCm).toBe(174);
     expect(defaultProfile.weightKg).toBe(94.5);
-    expect(defaultProfile.activityFactor).toBe(1.2);
-    expect(defaultProfile.exerciseKcal).toBe(550);
+    expect(defaultProfile.activityFactor).toBe(1.1);
+    expect(defaultProfile.exerciseKcal).toBe(800);
 
     expect(round(calculateBmr(defaultProfile), 1)).toBe(1922.5);
-    expect(round(calculateTdee(defaultProfile), 0)).toBe(2857);
+    expect(round(calculateTdee(defaultProfile), 0)).toBe(2915);
     expect(round(calculateCycleAverageTarget(defaultProfile).kcal, 0)).toBe(2117);
     expect(round(calculateDailyTarget(defaultProfile).kcal, 0)).toBe(2361);
-    expect(round(calculatePlannedCalorieDelta(defaultProfile), 0)).toBe(-740);
+    expect(round(calculatePlannedCalorieDelta(defaultProfile), 0)).toBe(-798);
   });
 
   it("uses Kaisheng weekly carb and fat redistribution for easy-fat-gain cutting", () => {

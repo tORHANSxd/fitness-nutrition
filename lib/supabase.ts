@@ -13,7 +13,11 @@ export function getSupabaseClient() {
   }
 
   if (!client) {
-    client = createClient(url, anonKey);
+    client = createClient(url, anonKey, {
+      auth: {
+        storageKey: "fitness-nutrition-auth-v1"
+      }
+    });
   }
 
   return client;

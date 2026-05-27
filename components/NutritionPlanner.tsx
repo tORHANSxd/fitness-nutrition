@@ -279,35 +279,40 @@ export function NutritionPlanner({ foods, user }: NutritionPlannerProps) {
   }
 
   return (
-    <section className="space-y-4">
-      <div className="grid gap-4 xl:grid-cols-[360px_1fr]">
-        <ProfilePanel profile={profile} updateProfile={updateProfile} />
-        <div className="space-y-4">
-          <section className="panel p-4">
-            <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-ink">实时目标</h2>
-                <p className="text-sm text-muted">
-                  凯圣王减脂 / {workoutLabels[profile.workoutType]} / {carbDayLabels[result.carbDayType]} /{" "}
-                  {trainingTimeLabels[profile.trainingTime]}
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <button className="btn-secondary" type="button" onClick={normalizeRatios}>
-                  <Check size={16} />
-                  归一餐次比例
-                </button>
-                <button className="btn-primary" type="button" onClick={applyRecommendations}>
-                  <Wand2 size={16} />
-                  应用推荐
-                </button>
-                <button className="btn-primary" type="button" onClick={persistPlan} disabled={saving}>
-                  <Save size={16} />
-                  {saving ? "保存中" : "保存计划"}
-                </button>
+    <section className="space-y-5">
+      <div className="grid gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
+        <div className="order-1 space-y-4 xl:order-2">
+          <section className="panel overflow-hidden">
+            <div className="border-b border-line bg-blue-50/70 p-4 md:p-5">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-xl font-semibold text-ink">实时目标</h2>
+                    <span className="rounded-md bg-white px-2.5 py-1 text-xs font-semibold text-accent ring-1 ring-blue-100">
+                      {carbDayLabels[result.carbDayType]}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-sm text-muted">
+                    凯圣王减脂 · {workoutLabels[profile.workoutType]} · {trainingTimeLabels[profile.trainingTime]} · {profile.planDate}
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  <button className="btn-secondary" type="button" onClick={normalizeRatios}>
+                    <Check size={16} />
+                    归一餐次比例
+                  </button>
+                  <button className="btn-cta" type="button" onClick={applyRecommendations}>
+                    <Wand2 size={16} />
+                    应用推荐
+                  </button>
+                  <button className="btn-primary" type="button" onClick={persistPlan} disabled={saving}>
+                    <Save size={16} />
+                    {saving ? "保存中" : "保存计划"}
+                  </button>
+                </div>
               </div>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-7">
+            <div className="grid gap-3 p-4 sm:grid-cols-2 md:grid-cols-4 2xl:grid-cols-7">
               <MetricCard label="BMR" value={result.bmr} unit="kcal" />
               <MetricCard label="维持热量" value={result.tdee} unit="kcal" tone="accent" />
               <MetricCard label="计划均热量" value={result.cycleAverageTarget.kcal} unit="kcal" tone="accent" />
@@ -339,9 +344,9 @@ export function NutritionPlanner({ foods, user }: NutritionPlannerProps) {
               targetRatio={result.targetRatio}
             />
             <PlanRulePanel />
-            {message ? <p className="mt-3 rounded-md bg-panel p-3 text-sm text-ink">{message}</p> : null}
+            {message ? <p className="mx-4 mt-3 rounded-md bg-blue-50 p-3 text-sm font-medium text-accent">{message}</p> : null}
             {result.conflicts.length > 0 ? (
-              <div className="mt-3 space-y-2">
+              <div className="mx-4 mt-3 space-y-2 pb-4">
                 {result.conflicts.map((conflict) => (
                   <p key={conflict} className="rounded-md bg-rose/10 p-3 text-sm text-rose">
                     {conflict}
@@ -358,6 +363,9 @@ export function NutritionPlanner({ foods, user }: NutritionPlannerProps) {
             onDeleteMealTemplate={deleteMealTemplate}
             onSaveDayTemplate={saveDayTemplate}
           />
+        </div>
+        <div className="order-2 xl:order-1">
+          <ProfilePanel profile={profile} updateProfile={updateProfile} />
         </div>
       </div>
 
@@ -399,27 +407,27 @@ function TemplatePanel({
   onSaveDayTemplate
 }: TemplatePanelProps) {
   return (
-    <section className="panel p-4">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+    <section className="panel overflow-hidden xl:sticky xl:top-28 xl:self-start">
+      <div className="flex flex-col gap-3 border-b border-line bg-blue-50/70 p-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="text-lg font-semibold text-ink">饮食模板</h2>
           <p className="text-sm text-muted">单餐模板保留食物搭配和锁定克重；全天模板保留当天所有餐次。</p>
         </div>
-        <button className="btn-primary w-full md:w-auto" type="button" onClick={onSaveDayTemplate}>
+        <button className="btn-primary h-11 w-full md:w-auto" type="button" onClick={onSaveDayTemplate}>
           <Save size={16} />
           保存全天模板
         </button>
       </div>
 
-      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+      <div className="grid gap-3 p-4 lg:grid-cols-2">
         <div className="rounded-md border border-line bg-panel p-3">
           <div className="mb-2 flex items-center justify-between">
             <h3 className="text-sm font-semibold text-ink">每一天的模板</h3>
-            <span className="text-xs text-muted">{templates.dayTemplates.length} 个</span>
+            <span className="rounded-md bg-white px-2 py-1 text-xs font-semibold text-accent ring-1 ring-blue-100">{templates.dayTemplates.length} 个</span>
           </div>
           <div className="grid gap-2">
             {templates.dayTemplates.length === 0 ? (
-              <p className="rounded-md bg-white p-3 text-sm text-muted">还没有全天模板。</p>
+              <p className="rounded-md border border-dashed border-line bg-white p-3 text-sm text-muted">还没有全天模板。</p>
             ) : (
               templates.dayTemplates.map((template) => (
                 <div key={template.id} className="flex flex-col gap-2 rounded-md border border-line bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
@@ -445,11 +453,11 @@ function TemplatePanel({
         <div className="rounded-md border border-line bg-panel p-3">
           <div className="mb-2 flex items-center justify-between">
             <h3 className="text-sm font-semibold text-ink">每一餐的模板</h3>
-            <span className="text-xs text-muted">{templates.mealTemplates.length} 个</span>
+            <span className="rounded-md bg-white px-2 py-1 text-xs font-semibold text-accent ring-1 ring-blue-100">{templates.mealTemplates.length} 个</span>
           </div>
           <div className="grid gap-2">
             {templates.mealTemplates.length === 0 ? (
-              <p className="rounded-md bg-white p-3 text-sm text-muted">还没有单餐模板，可在每一餐标题区保存。</p>
+              <p className="rounded-md border border-dashed border-line bg-white p-3 text-sm text-muted">还没有单餐模板，可在每一餐标题区保存。</p>
             ) : (
               templates.mealTemplates.map((template) => {
                 const lockedCount = template.entries.filter((entry) => entry.locked).length;
@@ -481,7 +489,7 @@ interface DailyBalancePanelProps {
 
 function DailyBalancePanel({ actual, recommended, target }: DailyBalancePanelProps) {
   return (
-    <div className="mt-3 rounded-md border border-line bg-panel p-3">
+    <div className="mx-4 my-3 rounded-md border border-line bg-panel p-3">
       <div className="mb-3 flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
         <div>
           <h3 className="text-sm font-semibold text-ink">当日热量与三大营养素盈亏</h3>
@@ -574,7 +582,7 @@ function MacroRatioPanel({ actualRatio, carbDayType, carbDayLabel, recommendedRa
   const recommendedStatus = `${recommendedCheck.cycleAligned ? "公式贴合" : "公式偏离"} / ${recommendedCheck.goalAligned ? "参考内" : "参考外"}`;
 
   return (
-    <div className="mt-3 rounded-md border border-line bg-panel p-3">
+    <div className="mx-4 mt-3 rounded-md border border-line bg-panel p-3">
       <div className="mb-2 flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
         <div>
           <h3 className="text-sm font-semibold text-ink">三大营养素比例</h3>
@@ -655,7 +663,7 @@ function PlanRulePanel() {
   ];
 
   return (
-    <div className="mt-3 rounded-md border border-line bg-panel p-3">
+    <div className="mx-4 mt-3 rounded-md border border-line bg-panel p-3">
       <div className="mb-3 flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
         <div>
           <h3 className="text-sm font-semibold text-ink">凯圣王三分化饮食规则</h3>
@@ -689,7 +697,7 @@ function ProfilePanel({ profile, updateProfile }: ProfilePanelProps) {
   return (
     <section className="panel p-4">
       <div className="mb-4 flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-md bg-accent/10 text-accent">
+        <div className="flex h-10 w-10 items-center justify-center rounded-md bg-blue-50 text-accent ring-1 ring-blue-100">
           <Utensils size={20} />
         </div>
         <div>
@@ -712,25 +720,25 @@ function ProfilePanel({ profile, updateProfile }: ProfilePanelProps) {
           </label>
           <label>
             <span className="metric-label mb-1 block">年龄</span>
-            <input className="field w-full" type="number" value={profile.age} onChange={(event) => numberInput("age", event.target.value)} />
+            <input className="field w-full" inputMode="numeric" type="number" value={profile.age} onChange={(event) => numberInput("age", event.target.value)} />
           </label>
           <label>
             <span className="metric-label mb-1 block">身高 cm</span>
-            <input className="field w-full" type="number" value={profile.heightCm} onChange={(event) => numberInput("heightCm", event.target.value)} />
+            <input className="field w-full" inputMode="decimal" type="number" value={profile.heightCm} onChange={(event) => numberInput("heightCm", event.target.value)} />
           </label>
           <label>
             <span className="metric-label mb-1 block">体重 kg</span>
-            <input className="field w-full" type="number" value={profile.weightKg} onChange={(event) => numberInput("weightKg", event.target.value)} />
+            <input className="field w-full" inputMode="decimal" type="number" value={profile.weightKg} onChange={(event) => numberInput("weightKg", event.target.value)} />
           </label>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <label>
             <span className="metric-label mb-1 block">日常活动系数</span>
-            <input className="field w-full" step="0.01" type="number" value={profile.activityFactor} onChange={(event) => numberInput("activityFactor", event.target.value)} />
+            <input className="field w-full" inputMode="decimal" step="0.01" type="number" value={profile.activityFactor} onChange={(event) => numberInput("activityFactor", event.target.value)} />
           </label>
           <label>
             <span className="metric-label mb-1 block">运动消耗 kcal</span>
-            <input className="field w-full" type="number" value={profile.exerciseKcal} onChange={(event) => numberInput("exerciseKcal", event.target.value)} />
+            <input className="field w-full" inputMode="numeric" type="number" value={profile.exerciseKcal} onChange={(event) => numberInput("exerciseKcal", event.target.value)} />
           </label>
           <label>
             <span className="metric-label mb-1 block">蛋白 g/kg</span>
@@ -740,6 +748,7 @@ function ProfilePanel({ profile, updateProfile }: ProfilePanelProps) {
               max="2.2"
               step="0.1"
               type="number"
+              inputMode="decimal"
               value={getProteinPerKg(profile)}
               onChange={(event) => numberInput("proteinPerKg", event.target.value)}
             />
@@ -806,7 +815,7 @@ function MealEditor({
 
   return (
     <section className="panel overflow-hidden">
-      <div className="flex flex-col gap-3 border-b border-line p-4 xl:flex-row xl:items-center xl:justify-between">
+      <div className="flex flex-col gap-3 border-b border-line bg-blue-50/50 p-4 xl:flex-row xl:items-center xl:justify-between">
         <div>
           <h3 className="text-lg font-semibold text-ink">{meal.name}</h3>
           <p className="text-sm text-muted">
@@ -819,6 +828,7 @@ function MealEditor({
             <input
               className="field h-9 w-24"
               type="number"
+              inputMode="numeric"
               min="0"
               step="1"
               value={round(meal.ratio * 100, 0)}
@@ -839,17 +849,17 @@ function MealEditor({
             {meal.locked ? <Lock size={16} /> : <Unlock size={16} />}
             {meal.locked ? "整餐已锁" : "锁定整餐"}
           </button>
-          <button className="btn-secondary h-9" type="button" onClick={onAddFood}>
+          <button className="btn-secondary h-11" type="button" onClick={onAddFood}>
             <Plus size={16} />
             添加食物
           </button>
-          <button className="btn-secondary h-9" type="button" onClick={onSaveMealTemplate}>
+          <button className="btn-secondary h-11" type="button" onClick={onSaveMealTemplate}>
             <Save size={16} />
             保存本餐模板
           </button>
           <div className="flex w-full gap-2 sm:w-auto">
             <select
-              className="field h-9 min-w-0 flex-1 sm:w-44"
+              className="field h-11 min-w-0 flex-1 sm:w-44"
               value={selectedTemplateId}
               onChange={(event) => setSelectedTemplateId(event.target.value)}
             >
@@ -861,7 +871,7 @@ function MealEditor({
               ))}
             </select>
             <button
-              className="btn-secondary h-9"
+              className="btn-secondary h-11"
               type="button"
               disabled={!selectedTemplateId}
               onClick={() => {
@@ -933,6 +943,7 @@ function MealEditor({
                     <input
                       className="field w-full"
                       type="number"
+                      inputMode="decimal"
                       value={entry.grams}
                       onChange={(event) =>
                         onUpdateEntry(entry.id, (current) => ({
@@ -952,6 +963,7 @@ function MealEditor({
                     <input
                       className="field w-full"
                       type="number"
+                      inputMode="decimal"
                       value={entry.minGrams ?? ""}
                       onChange={(event) =>
                         onUpdateEntry(entry.id, (current) => ({
@@ -966,6 +978,7 @@ function MealEditor({
                     <input
                       className="field w-full"
                       type="number"
+                      inputMode="decimal"
                       value={entry.maxGrams ?? ""}
                       placeholder={defaultBounds ? `${defaultBounds.maxGrams}` : ""}
                       onChange={(event) =>
@@ -1067,6 +1080,7 @@ function MealEditor({
                       <input
                         className="field h-9 w-24"
                         type="number"
+                        inputMode="decimal"
                         value={entry.grams}
                         onChange={(event) =>
                           onUpdateEntry(entry.id, (current) => ({
@@ -1082,6 +1096,7 @@ function MealEditor({
                       <input
                         className="field h-9 w-24"
                         type="number"
+                        inputMode="decimal"
                         value={entry.minGrams ?? ""}
                         onChange={(event) =>
                           onUpdateEntry(entry.id, (current) => ({
@@ -1095,6 +1110,7 @@ function MealEditor({
                       <input
                         className="field h-9 w-24"
                         type="number"
+                        inputMode="decimal"
                         value={entry.maxGrams ?? ""}
                         placeholder={defaultBounds ? `${defaultBounds.maxGrams}` : ""}
                         onChange={(event) =>

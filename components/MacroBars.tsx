@@ -20,9 +20,9 @@ interface MacroBarsProps {
 }
 
 const colors = {
-  kcal: "#f97316",
+  kcal: "#1e40af",
   carbs: "#d97706",
-  protein: "#2563eb",
+  protein: "#0f766e",
   fat: "#b42318"
 };
 
@@ -92,7 +92,7 @@ export function MacroBars({ result, meals }: MacroBarsProps) {
       <div className="panel p-4">
         <div className="mb-3 flex items-center justify-between gap-3">
           <h3 className="font-semibold text-ink">当天摄入对比</h3>
-          <span className="text-xs text-muted">热量与宏量营养素</span>
+          <span className="rounded-md bg-blue-50 px-2 py-1 text-xs font-semibold text-accent">目标 / 当前 / 差额</span>
         </div>
         <div className="h-[280px]">
           <ResponsiveContainer width="100%" height="100%">
@@ -100,7 +100,7 @@ export function MacroBars({ result, meals }: MacroBarsProps) {
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               {isNarrow ? <XAxis dataKey="name" /> : <XAxis type="number" />}
               {isNarrow ? <YAxis /> : <YAxis dataKey="name" type="category" width={54} />}
-              <Tooltip />
+              <Tooltip contentStyle={{ borderColor: "#dbeafe", borderRadius: 8, boxShadow: "0 10px 32px rgba(30,64,175,0.10)" }} />
               <Legend />
               <Bar dataKey="kcal" fill={colors.kcal} name="热量 kcal" />
               {commonBars}
@@ -112,7 +112,7 @@ export function MacroBars({ result, meals }: MacroBarsProps) {
       <div className="panel p-4">
         <div className="mb-3 flex items-center justify-between gap-3">
           <h3 className="font-semibold text-ink">每餐当前摄入</h3>
-          <span className="text-xs text-muted">桌面横向 / 移动竖向</span>
+          <span className="rounded-md bg-blue-50 px-2 py-1 text-xs font-semibold text-accent">按餐次拆分</span>
         </div>
         <div className="h-[280px]">
           <ResponsiveContainer width="100%" height="100%">
@@ -120,7 +120,7 @@ export function MacroBars({ result, meals }: MacroBarsProps) {
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
               {isNarrow ? <XAxis dataKey="name" /> : <XAxis type="number" />}
               {isNarrow ? <YAxis /> : <YAxis dataKey="name" type="category" width={84} />}
-              <Tooltip />
+              <Tooltip contentStyle={{ borderColor: "#dbeafe", borderRadius: 8, boxShadow: "0 10px 32px rgba(30,64,175,0.10)" }} />
               <Legend />
               {commonBars}
             </BarChart>

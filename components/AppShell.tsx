@@ -16,11 +16,11 @@ interface AppShellProps {
   initialView: ViewName;
 }
 
-const navItems: Array<{ id: ViewName; label: string; icon: typeof Dumbbell }> = [
-  { id: "planner", label: "当天计划", icon: Dumbbell },
-  { id: "foods", label: "食物库", icon: Library },
-  { id: "history", label: "历史记录", icon: CalendarClock },
-  { id: "login", label: "登录", icon: LogIn }
+const navItems: Array<{ id: ViewName; label: string; shortLabel: string; icon: typeof Dumbbell }> = [
+  { id: "planner", label: "当天计划", shortLabel: "计划", icon: Dumbbell },
+  { id: "foods", label: "食物库", shortLabel: "食物", icon: Library },
+  { id: "history", label: "历史记录", shortLabel: "历史", icon: CalendarClock },
+  { id: "login", label: "登录", shortLabel: "登录", icon: LogIn }
 ];
 
 export function AppShell({ initialView }: AppShellProps) {
@@ -74,30 +74,32 @@ export function AppShell({ initialView }: AppShellProps) {
     setView("login");
   }
 
+  const userStatus = configured ? (user ? `已登录：${user.email}` : "Supabase 在线模式") : "本地演示模式";
+
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-[1440px] flex-col px-3 py-3 pb-24 md:px-6 md:py-6 md:pb-6">
-      <header className="sticky top-3 z-20 mb-4 flex flex-col gap-3 rounded-lg border border-line bg-white/95 px-4 py-3 shadow-soft backdrop-blur lg:flex-row lg:items-center lg:justify-between">
+    <main className="mx-auto flex min-h-dvh w-full max-w-[1480px] flex-col px-3 py-3 pb-28 md:px-6 md:py-5 md:pb-6">
+      <a className="skip-link" href="#main-content">跳到主要内容</a>
+      <header className="sticky top-3 z-20 mb-4 rounded-lg border border-line bg-white/95 px-3 py-3 shadow-soft backdrop-blur md:px-4">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-accent text-white">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-accent text-white shadow-[0_10px_24px_rgba(30,64,175,0.22)]">
             <BarChart3 size={22} />
           </div>
           <div className="min-w-0">
             <h1 className="text-lg font-semibold text-ink md:text-xl">健身营养计划</h1>
-            <p className="truncate text-sm text-muted">
-              {configured ? (user ? `已登录：${user.email}` : "Supabase 在线模式") : "本地演示模式：配置 Supabase 后在线保存"}
-            </p>
+            <p className="truncate text-sm text-muted">{userStatus}</p>
           </div>
         </div>
 
-        <div className="grid grid-cols-4 gap-2 lg:flex lg:flex-wrap lg:items-center">
+        <div className="hidden items-center gap-2 md:flex">
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = view === item.id;
             return (
               <button
                 key={item.id}
-                className={`btn h-11 px-2 ${
-                  active ? "border-accent bg-accent text-white" : "border-line bg-white text-ink hover:bg-panel"
+                className={`btn h-11 px-3 ${
+                  active ? "border-accent bg-accent text-white" : "border-line bg-white text-ink hover:bg-blue-50"
                 }`}
                 type="button"
                 onClick={() => setView(item.id)}
@@ -108,16 +110,29 @@ export function AppShell({ initialView }: AppShellProps) {
               </button>
             );
           })}
-          <button className="btn-secondary col-span-2 h-10 lg:col-span-1 lg:h-11" type="button" onClick={refreshFoods} title="刷新食物库">
+          <button className="btn-secondary h-11" type="button" onClick={refreshFoods} title="刷新食物库">
             <RefreshCw size={16} className={loadingFoods ? "animate-spin" : ""} />
             <span>刷新</span>
           </button>
           {user ? (
-            <button className="btn-secondary col-span-2 h-10 lg:col-span-1 lg:h-11" type="button" onClick={signOut} title="退出登录">
+            <button className="btn-secondary h-11" type="button" onClick={signOut} title="退出登录">
               <LogOut size={16} />
               <span>退出</span>
             </button>
           ) : null}
+        </div>
+        <div className="flex gap-2 md:hidden">
+          <button className="btn-secondary h-11 flex-1" type="button" onClick={refreshFoods} title="刷新食物库">
+            <RefreshCw size={16} className={loadingFoods ? "animate-spin" : ""} />
+            <span>刷新数据</span>
+          </button>
+          {user ? (
+            <button className="btn-secondary h-11 flex-1" type="button" onClick={signOut} title="退出登录">
+              <LogOut size={16} />
+              <span>退出</span>
+            </button>
+          ) : null}
+        </div>
         </div>
       </header>
 
@@ -126,7 +141,7 @@ export function AppShell({ initialView }: AppShellProps) {
       ) : null}
 
       {authReady ? (
-        <div className="space-y-4">
+        <div id="main-content" className="space-y-4">
           <div className={view === "login" ? "animate-view" : "hidden"}>
             <AuthPanel user={user} onSignedIn={setUser} />
           </div>
@@ -141,6 +156,27 @@ export function AppShell({ initialView }: AppShellProps) {
           </div>
         </div>
       ) : null}
+
+      <nav className="fixed inset-x-3 bottom-3 z-30 grid grid-cols-4 gap-2 rounded-lg border border-line bg-white/95 p-2 shadow-soft backdrop-blur md:hidden" aria-label="主导航">
+        {navItems.map((item) => {
+          const Icon = item.icon;
+          const active = view === item.id;
+          return (
+            <button
+              key={item.id}
+              className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-md border px-2 text-xs font-semibold transition-colors ${
+                active ? "border-accent bg-accent text-white" : "border-transparent text-muted hover:bg-blue-50 hover:text-ink"
+              }`}
+              type="button"
+              onClick={() => setView(item.id)}
+              aria-current={active ? "page" : undefined}
+            >
+              <Icon size={17} />
+              <span>{item.shortLabel}</span>
+            </button>
+          );
+        })}
+      </nav>
     </main>
   );
 }

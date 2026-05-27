@@ -4,7 +4,7 @@
 
 :root {
   color-scheme: light;
-  background: #f3f6f8;
+  background: #f8fafc;
 }
 
 * {
@@ -18,7 +18,11 @@ body {
 
 body {
   margin: 0;
-  background: #f3f6f8;
+  background:
+    linear-gradient(#e8eef8 1px, transparent 1px),
+    linear-gradient(90deg, #e8eef8 1px, transparent 1px),
+    #f8fafc;
+  background-size: 32px 32px;
   color: #0f172a;
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
@@ -47,23 +51,27 @@ select {
 }
 
 .focus-ring {
-  @apply focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent;
+  @apply focus:outline-none focus:ring-2 focus:ring-accent/25 focus:border-accent;
 }
 
 .field {
-  @apply h-11 rounded-md border border-line bg-white px-3 text-sm text-ink focus-ring;
+  @apply h-11 rounded-md border border-line bg-white px-3 text-sm text-ink shadow-[inset_0_1px_0_rgba(15,23,42,0.03)] focus-ring;
 }
 
 .btn {
-  @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
+  @apply inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-md border px-3 text-sm font-semibold active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
 }
 
 .btn-primary {
-  @apply btn border-accent bg-accent text-white hover:bg-orange-600;
+  @apply btn border-accent bg-accent text-white hover:bg-blue-800;
+}
+
+.btn-cta {
+  @apply btn border-amber bg-amber text-white hover:opacity-90;
 }
 
 .btn-secondary {
-  @apply btn border-line bg-white text-ink hover:bg-panel;
+  @apply btn border-line bg-white text-ink hover:border-blue-200 hover:bg-blue-50;
 }
 
 .btn-danger {
@@ -71,11 +79,15 @@ select {
 }
 
 .panel {
-  @apply rounded-lg border border-line bg-white shadow-soft;
+  @apply rounded-lg border border-line bg-white/95 shadow-soft;
 }
 
 .metric-label {
-  @apply text-xs font-medium uppercase tracking-normal text-muted;
+  @apply text-xs font-semibold uppercase tracking-normal text-muted;
+}
+
+.skip-link {
+  @apply fixed left-3 top-3 z-50 -translate-y-16 rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white transition-transform focus:translate-y-0;
 }
 
 .scrollbar-thin {

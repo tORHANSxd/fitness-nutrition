@@ -10,16 +10,16 @@ const config: Config = {
     extend: {
       colors: {
         ink: "#0f172a",
-        muted: "#64748b",
+        muted: "#475569",
         panel: "#f8fafc",
-        line: "#d6dde8",
-        accent: "#f97316",
+        line: "#dbeafe",
+        accent: "#1e40af",
         success: "#16a34a",
-        amber: "#b45309",
+        amber: "#d97706",
         rose: "#b42318"
       },
       boxShadow: {
-        soft: "0 8px 24px rgba(15, 23, 42, 0.08)"
+        soft: "0 10px 32px rgba(30, 64, 175, 0.08)"
       }
     }
   },

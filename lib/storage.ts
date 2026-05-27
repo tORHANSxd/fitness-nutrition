@@ -4,11 +4,18 @@ import type { User } from "@supabase/supabase-js";
 import { builtinFoods } from "@/lib/foods";
 import { calculateFoodKcalPer100g } from "@/lib/nutrition";
 import { foodToOverrideRow, foodToRow, getSupabaseClient, mapFoodOverrideRow, mapFoodRow, mapPlanRow } from "@/lib/supabase";
-import type { FoodItem, MealPlan, NutritionResult, SavedPlan, UserProfile } from "@/lib/types";
+import type { FoodItem, MealPlan, NutritionResult, PlannerDraft, PlannerTemplates, SavedPlan, UserProfile } from "@/lib/types";
 
 const privateFoodsKey = "fitness-nutrition-private-foods";
 const publicFoodOverridesKey = "fitness-nutrition-public-food-overrides";
 const savedPlansKey = "fitness-nutrition-saved-plans";
+const plannerDraftsKey = "fitness-nutrition-planner-drafts";
+const plannerTemplatesKey = "fitness-nutrition-planner-templates";
+
+const emptyPlannerTemplates: PlannerTemplates = {
+  mealTemplates: [],
+  dayTemplates: []
+};
 
 function readLocal<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") {
@@ -29,6 +36,53 @@ function writeLocal<T>(key: string, value: T) {
   if (typeof window !== "undefined") {
     window.localStorage.setItem(key, JSON.stringify(value));
   }
+}
+
+export function getPlannerStorageUserId(user: User | null): string {
+  return user?.id ?? "local";
+}
+
+export function loadPlannerDraft(user: User | null): PlannerDraft | null {
+  const drafts = readLocal<Record<string, PlannerDraft>>(plannerDraftsKey, {});
+  return drafts[getPlannerStorageUserId(user)] ?? null;
+}
+
+export function savePlannerDraft(profile: UserProfile, meals: MealPlan[], user: User | null): PlannerDraft {
+  const drafts = readLocal<Record<string, PlannerDraft>>(plannerDraftsKey, {});
+  const draft: PlannerDraft = {
+    profile,
+    meals,
+    updatedAt: new Date().toISOString()
+  };
+  writeLocal(plannerDraftsKey, {
+    ...drafts,
+    [getPlannerStorageUserId(user)]: draft
+  });
+  return draft;
+}
+
+export function loadPlannerTemplates(user: User | null): PlannerTemplates {
+  const templatesByUser = readLocal<Record<string, PlannerTemplates>>(plannerTemplatesKey, {});
+  const templates = templatesByUser[getPlannerStorageUserId(user)];
+  return templates
+    ? {
+        mealTemplates: templates.mealTemplates ?? [],
+        dayTemplates: templates.dayTemplates ?? []
+      }
+    : emptyPlannerTemplates;
+}
+
+export function savePlannerTemplates(user: User | null, templates: PlannerTemplates): PlannerTemplates {
+  const templatesByUser = readLocal<Record<string, PlannerTemplates>>(plannerTemplatesKey, {});
+  const nextTemplates = {
+    mealTemplates: templates.mealTemplates.slice(0, 24),
+    dayTemplates: templates.dayTemplates.slice(0, 12)
+  };
+  writeLocal(plannerTemplatesKey, {
+    ...templatesByUser,
+    [getPlannerStorageUserId(user)]: nextTemplates
+  });
+  return nextTemplates;
 }
 
 function isPublicFood(food: Pick<FoodItem, "id" | "source">) {

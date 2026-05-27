@@ -107,4 +107,32 @@ export interface SavedPlan {
   createdAt: string;
 }
 
+export interface PlannerDraft {
+  profile: UserProfile;
+  meals: MealPlan[];
+  updatedAt: string;
+}
+
+export interface MealTemplate {
+  id: string;
+  name: string;
+  sourceMealName: string;
+  mealRatio: number;
+  mealLocked: boolean;
+  entries: MealFoodEntry[];
+  createdAt: string;
+}
+
+export interface DayTemplate {
+  id: string;
+  name: string;
+  meals: MealPlan[];
+  createdAt: string;
+}
+
+export interface PlannerTemplates {
+  mealTemplates: MealTemplate[];
+  dayTemplates: DayTemplate[];
+}
+
 export type FoodFormState = Omit<FoodItem, "id" | "source" | "userId">;

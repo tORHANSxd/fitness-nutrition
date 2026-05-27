@@ -75,8 +75,8 @@ export function AppShell({ initialView }: AppShellProps) {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-[1440px] flex-col px-4 py-4 md:px-6 md:py-6">
-      <header className="mb-4 flex flex-col gap-3 rounded-lg border border-line bg-white px-4 py-3 shadow-soft lg:flex-row lg:items-center lg:justify-between">
+    <main className="mx-auto flex min-h-dvh w-full max-w-[1440px] flex-col px-3 py-3 pb-24 md:px-6 md:py-6 md:pb-6">
+      <header className="sticky top-3 z-20 mb-4 flex flex-col gap-3 rounded-lg border border-line bg-white/95 px-4 py-3 shadow-soft backdrop-blur lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-accent text-white">
             <BarChart3 size={22} />
@@ -89,31 +89,31 @@ export function AppShell({ initialView }: AppShellProps) {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="grid grid-cols-4 gap-2 lg:flex lg:flex-wrap lg:items-center">
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = view === item.id;
             return (
               <button
                 key={item.id}
-                className={`btn h-9 ${
-                  active ? "border-accent bg-accent text-white" : "border-line bg-white text-ink hover:bg-slate-50"
+                className={`btn h-11 px-2 ${
+                  active ? "border-accent bg-accent text-white" : "border-line bg-white text-ink hover:bg-panel"
                 }`}
                 type="button"
                 onClick={() => setView(item.id)}
                 title={item.label}
               >
                 <Icon size={16} />
-                <span>{item.label}</span>
+                <span className="min-w-0 truncate">{item.label}</span>
               </button>
             );
           })}
-          <button className="btn-secondary h-9" type="button" onClick={refreshFoods} title="刷新食物库">
+          <button className="btn-secondary col-span-2 h-10 lg:col-span-1 lg:h-11" type="button" onClick={refreshFoods} title="刷新食物库">
             <RefreshCw size={16} className={loadingFoods ? "animate-spin" : ""} />
             <span>刷新</span>
           </button>
           {user ? (
-            <button className="btn-secondary h-9" type="button" onClick={signOut} title="退出登录">
+            <button className="btn-secondary col-span-2 h-10 lg:col-span-1 lg:h-11" type="button" onClick={signOut} title="退出登录">
               <LogOut size={16} />
               <span>退出</span>
             </button>
@@ -125,15 +125,22 @@ export function AppShell({ initialView }: AppShellProps) {
         <section className="panel flex min-h-[420px] items-center justify-center text-muted">正在初始化...</section>
       ) : null}
 
-      {authReady && view === "login" ? <AuthPanel user={user} onSignedIn={setUser} /> : null}
-      {authReady && view === "planner" ? (
-        <NutritionPlanner foods={foods} user={user} onFoodsChanged={refreshFoods} />
+      {authReady ? (
+        <div className="space-y-4">
+          <div className={view === "login" ? "animate-view" : "hidden"}>
+            <AuthPanel user={user} onSignedIn={setUser} />
+          </div>
+          <div className={view === "planner" ? "animate-view" : "hidden"}>
+            <NutritionPlanner foods={foods} user={user} onFoodsChanged={refreshFoods} />
+          </div>
+          <div className={view === "foods" ? "animate-view" : "hidden"}>
+            <FoodLibrary foods={foods} user={user} onFoodsChanged={refreshFoods} onFoodsUpdated={setFoods} />
+          </div>
+          <div className={view === "history" ? "animate-view" : "hidden"}>
+            <HistoryView user={user} />
+          </div>
+        </div>
       ) : null}
-      {authReady && view === "foods" ? (
-        <FoodLibrary foods={foods} user={user} onFoodsChanged={refreshFoods} onFoodsUpdated={setFoods} />
-      ) : null}
-      {authReady && view === "history" ? <HistoryView user={user} /> : null}
     </main>
   );
 }
-

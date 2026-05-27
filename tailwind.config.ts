@@ -9,16 +9,17 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        ink: "#17202a",
+        ink: "#0f172a",
         muted: "#64748b",
-        panel: "#f6f8fb",
-        line: "#d8dee8",
-        accent: "#0f8b8d",
-        amber: "#c77800",
+        panel: "#f8fafc",
+        line: "#d6dde8",
+        accent: "#f97316",
+        success: "#16a34a",
+        amber: "#b45309",
         rose: "#b42318"
       },
       boxShadow: {
-        soft: "0 10px 30px rgba(23, 32, 42, 0.08)"
+        soft: "0 8px 24px rgba(15, 23, 42, 0.08)"
       }
     }
   },
@@ -26,4 +27,3 @@ const config: Config = {
 };
 
 export default config;
-

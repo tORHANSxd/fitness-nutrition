@@ -11,7 +11,7 @@ import {
   Utensils,
   Wand2
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { MacroBars } from "@/components/MacroBars";
 import { MetricCard } from "@/components/MetricCard";
 import { defaultProfile, createStarterMeals } from "@/lib/demoState";
@@ -33,8 +33,19 @@ import {
   trainingTimeLabels,
   workoutLabels
 } from "@/lib/nutrition";
-import { savePlan } from "@/lib/storage";
-import type { FoodItem, MacroRatio, MacroTotals, MealFoodEntry, MealPlan, UserProfile, WorkoutType } from "@/lib/types";
+import { loadPlannerDraft, loadPlannerTemplates, savePlan, savePlannerDraft, savePlannerTemplates } from "@/lib/storage";
+import type {
+  DayTemplate,
+  FoodItem,
+  MacroRatio,
+  MacroTotals,
+  MealFoodEntry,
+  MealPlan,
+  MealTemplate,
+  PlannerTemplates,
+  UserProfile,
+  WorkoutType
+} from "@/lib/types";
 
 interface NutritionPlannerProps {
   foods: FoodItem[];
@@ -45,6 +56,8 @@ interface NutritionPlannerProps {
 export function NutritionPlanner({ foods, user }: NutritionPlannerProps) {
   const [profile, setProfile] = useState<UserProfile>(defaultProfile);
   const [meals, setMeals] = useState<MealPlan[]>(() => createStarterMeals(defaultProfile));
+  const [templates, setTemplates] = useState<PlannerTemplates>({ mealTemplates: [], dayTemplates: [] });
+  const [hydrated, setHydrated] = useState(false);
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const foodsById = useMemo(() => new Map(foods.map((food) => [food.id, food])), [foods]);
@@ -53,6 +66,22 @@ export function NutritionPlanner({ foods, user }: NutritionPlannerProps) {
     () => new Map(result.mealRecommendations.map((recommendation) => [recommendation.mealId, recommendation])),
     [result.mealRecommendations]
   );
+
+  useEffect(() => {
+    const draft = loadPlannerDraft(user);
+    const nextProfile = draft?.profile ?? { ...defaultProfile, planDate: new Date().toISOString().slice(0, 10) };
+    setProfile(nextProfile);
+    setMeals(draft?.meals ?? createStarterMeals(nextProfile));
+    setTemplates(loadPlannerTemplates(user));
+    setHydrated(true);
+  }, [user]);
+
+  useEffect(() => {
+    if (!hydrated) {
+      return;
+    }
+    savePlannerDraft(profile, meals, user);
+  }, [hydrated, meals, profile, user]);
 
   function syncMealShape(nextProfile: UserProfile) {
     const defaults = createDefaultMeals(nextProfile);
@@ -163,6 +192,92 @@ export function NutritionPlanner({ foods, user }: NutritionPlannerProps) {
     setMeals((current) => normalizeMealRatios(current));
   }
 
+  function cloneEntries(entries: MealFoodEntry[]): MealFoodEntry[] {
+    return entries.map((entry) => ({
+      ...entry,
+      id: crypto.randomUUID()
+    }));
+  }
+
+  function cloneMealsForUse(sourceMeals: MealPlan[]): MealPlan[] {
+    return sourceMeals.map((meal) => ({
+      ...meal,
+      entries: cloneEntries(meal.entries)
+    }));
+  }
+
+  function persistTemplates(nextTemplates: PlannerTemplates) {
+    setTemplates(savePlannerTemplates(user, nextTemplates));
+  }
+
+  function saveMealTemplate(meal: MealPlan) {
+    const template: MealTemplate = {
+      id: crypto.randomUUID(),
+      name: `${meal.name}模板 ${templates.mealTemplates.length + 1}`,
+      sourceMealName: meal.name,
+      mealRatio: meal.ratio,
+      mealLocked: meal.locked,
+      entries: cloneEntries(meal.entries),
+      createdAt: new Date().toISOString()
+    };
+    persistTemplates({
+      ...templates,
+      mealTemplates: [template, ...templates.mealTemplates]
+    });
+    setMessage(`已保存单餐模板：${template.name}`);
+  }
+
+  function applyMealTemplate(mealId: string, templateId: string) {
+    const template = templates.mealTemplates.find((item) => item.id === templateId);
+    if (!template) {
+      return;
+    }
+    updateMeal(mealId, (meal) => ({
+      ...meal,
+      ratio: template.mealRatio,
+      locked: template.mealLocked,
+      entries: cloneEntries(template.entries)
+    }));
+    setMessage(`已套用单餐模板：${template.name}`);
+  }
+
+  function saveDayTemplate() {
+    const template: DayTemplate = {
+      id: crypto.randomUUID(),
+      name: `${profile.planDate} 全天模板`,
+      meals: cloneMealsForUse(meals),
+      createdAt: new Date().toISOString()
+    };
+    persistTemplates({
+      ...templates,
+      dayTemplates: [template, ...templates.dayTemplates]
+    });
+    setMessage(`已保存全天模板：${template.name}`);
+  }
+
+  function applyDayTemplate(templateId: string) {
+    const template = templates.dayTemplates.find((item) => item.id === templateId);
+    if (!template) {
+      return;
+    }
+    setMeals(cloneMealsForUse(template.meals));
+    setMessage(`已套用全天模板：${template.name}`);
+  }
+
+  function deleteMealTemplate(templateId: string) {
+    persistTemplates({
+      ...templates,
+      mealTemplates: templates.mealTemplates.filter((template) => template.id !== templateId)
+    });
+  }
+
+  function deleteDayTemplate(templateId: string) {
+    persistTemplates({
+      ...templates,
+      dayTemplates: templates.dayTemplates.filter((template) => template.id !== templateId)
+    });
+  }
+
   return (
     <section className="space-y-4">
       <div className="grid gap-4 xl:grid-cols-[360px_1fr]">
@@ -236,6 +351,13 @@ export function NutritionPlanner({ foods, user }: NutritionPlannerProps) {
             ) : null}
           </section>
           <MacroBars result={result} meals={meals} />
+          <TemplatePanel
+            templates={templates}
+            onApplyDayTemplate={applyDayTemplate}
+            onDeleteDayTemplate={deleteDayTemplate}
+            onDeleteMealTemplate={deleteMealTemplate}
+            onSaveDayTemplate={saveDayTemplate}
+          />
         </div>
       </div>
 
@@ -247,12 +369,105 @@ export function NutritionPlanner({ foods, user }: NutritionPlannerProps) {
             foods={foods}
             foodsById={foodsById}
             recommendation={recommendationsByMeal.get(meal.id)}
+            mealTemplates={templates.mealTemplates}
             onAddFood={() => addFoodToMeal(meal.id)}
+            onApplyMealTemplate={(templateId) => applyMealTemplate(meal.id, templateId)}
             onRemoveEntry={(entryId) => removeEntry(meal.id, entryId)}
+            onSaveMealTemplate={() => saveMealTemplate(meal)}
             onUpdateMeal={(mapper) => updateMeal(meal.id, mapper)}
             onUpdateEntry={(entryId, mapper) => updateEntry(meal.id, entryId, mapper)}
           />
         ))}
+      </div>
+    </section>
+  );
+}
+
+interface TemplatePanelProps {
+  templates: PlannerTemplates;
+  onSaveDayTemplate: () => void;
+  onApplyDayTemplate: (templateId: string) => void;
+  onDeleteDayTemplate: (templateId: string) => void;
+  onDeleteMealTemplate: (templateId: string) => void;
+}
+
+function TemplatePanel({
+  templates,
+  onApplyDayTemplate,
+  onDeleteDayTemplate,
+  onDeleteMealTemplate,
+  onSaveDayTemplate
+}: TemplatePanelProps) {
+  return (
+    <section className="panel p-4">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-ink">饮食模板</h2>
+          <p className="text-sm text-muted">单餐模板保留食物搭配和锁定克重；全天模板保留当天所有餐次。</p>
+        </div>
+        <button className="btn-primary w-full md:w-auto" type="button" onClick={onSaveDayTemplate}>
+          <Save size={16} />
+          保存全天模板
+        </button>
+      </div>
+
+      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+        <div className="rounded-md border border-line bg-panel p-3">
+          <div className="mb-2 flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-ink">每一天的模板</h3>
+            <span className="text-xs text-muted">{templates.dayTemplates.length} 个</span>
+          </div>
+          <div className="grid gap-2">
+            {templates.dayTemplates.length === 0 ? (
+              <p className="rounded-md bg-white p-3 text-sm text-muted">还没有全天模板。</p>
+            ) : (
+              templates.dayTemplates.map((template) => (
+                <div key={template.id} className="flex flex-col gap-2 rounded-md border border-line bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <div className="font-medium text-ink">{template.name}</div>
+                    <div className="text-xs text-muted">{template.meals.length} 餐 · {new Date(template.createdAt).toLocaleString("zh-CN")}</div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button className="btn-secondary h-9" type="button" onClick={() => onApplyDayTemplate(template.id)}>
+                      <Check size={16} />
+                      使用
+                    </button>
+                    <button className="btn-danger h-9 px-2" type="button" onClick={() => onDeleteDayTemplate(template.id)} title="删除全天模板">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-md border border-line bg-panel p-3">
+          <div className="mb-2 flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-ink">每一餐的模板</h3>
+            <span className="text-xs text-muted">{templates.mealTemplates.length} 个</span>
+          </div>
+          <div className="grid gap-2">
+            {templates.mealTemplates.length === 0 ? (
+              <p className="rounded-md bg-white p-3 text-sm text-muted">还没有单餐模板，可在每一餐标题区保存。</p>
+            ) : (
+              templates.mealTemplates.map((template) => {
+                const lockedCount = template.entries.filter((entry) => entry.locked).length;
+                return (
+                  <div key={template.id} className="flex items-center justify-between gap-2 rounded-md border border-line bg-white p-3">
+                    <div>
+                      <div className="font-medium text-ink">{template.name}</div>
+                      <div className="text-xs text-muted">{template.sourceMealName} · {template.entries.length} 种食物 · {lockedCount} 个锁定</div>
+                    </div>
+                    <button className="btn-danger h-9 px-2" type="button" onClick={() => onDeleteMealTemplate(template.id)} title="删除单餐模板">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
       </div>
     </section>
   );
@@ -565,8 +780,11 @@ interface MealEditorProps {
   foods: FoodItem[];
   foodsById: Map<string, FoodItem>;
   recommendation: ReturnType<typeof buildNutritionResult>["mealRecommendations"][number] | undefined;
+  mealTemplates: MealTemplate[];
   onAddFood: () => void;
+  onApplyMealTemplate: (templateId: string) => void;
   onRemoveEntry: (entryId: string) => void;
+  onSaveMealTemplate: () => void;
   onUpdateMeal: (mapper: (meal: MealPlan) => MealPlan) => void;
   onUpdateEntry: (entryId: string, mapper: (entry: MealFoodEntry) => MealFoodEntry) => void;
 }
@@ -576,11 +794,16 @@ function MealEditor({
   foods,
   foodsById,
   recommendation,
+  mealTemplates,
   onAddFood,
+  onApplyMealTemplate,
   onRemoveEntry,
+  onSaveMealTemplate,
   onUpdateMeal,
   onUpdateEntry
 }: MealEditorProps) {
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
+
   return (
     <section className="panel overflow-hidden">
       <div className="flex flex-col gap-3 border-b border-line p-4 xl:flex-row xl:items-center xl:justify-between">
@@ -620,6 +843,36 @@ function MealEditor({
             <Plus size={16} />
             添加食物
           </button>
+          <button className="btn-secondary h-9" type="button" onClick={onSaveMealTemplate}>
+            <Save size={16} />
+            保存本餐模板
+          </button>
+          <div className="flex w-full gap-2 sm:w-auto">
+            <select
+              className="field h-9 min-w-0 flex-1 sm:w-44"
+              value={selectedTemplateId}
+              onChange={(event) => setSelectedTemplateId(event.target.value)}
+            >
+              <option value="">选择单餐模板</option>
+              {mealTemplates.map((template) => (
+                <option key={template.id} value={template.id}>
+                  {template.name}
+                </option>
+              ))}
+            </select>
+            <button
+              className="btn-secondary h-9"
+              type="button"
+              disabled={!selectedTemplateId}
+              onClick={() => {
+                onApplyMealTemplate(selectedTemplateId);
+                setSelectedTemplateId("");
+              }}
+            >
+              <Check size={16} />
+              使用
+            </button>
+          </div>
         </div>
       </div>
 
@@ -636,7 +889,125 @@ function MealEditor({
         </>
       ) : null}
 
-      <div className="scrollbar-thin overflow-x-auto">
+      <div className="grid gap-3 p-3 md:hidden">
+        {meal.entries.length === 0 ? (
+          <p className="rounded-md border border-dashed border-line bg-panel p-4 text-center text-sm text-muted">
+            这一餐还没有食物。添加食物后系统会实时推荐克重。
+          </p>
+        ) : (
+          meal.entries.map((entry) => {
+            const food = foodsById.get(entry.foodId);
+            const recommendedGrams = recommendation?.recommendedEntries[entry.id] ?? entry.grams;
+            const defaultBounds = food ? getDefaultMealEntrySettings(food, meal) : null;
+            const totals = food ? calculateFoodTotals(food, entry.grams) : { kcal: 0, carbs: 0, protein: 0, fat: 0 };
+
+            return (
+              <div key={entry.id} className="rounded-md border border-line bg-white p-3">
+                <label>
+                  <span className="metric-label mb-1 block">食物</span>
+                  <select
+                    className="field w-full"
+                    value={entry.foodId}
+                    onChange={(event) =>
+                      onUpdateEntry(entry.id, (current) => ({
+                        ...current,
+                        foodId: event.target.value,
+                        ...(() => {
+                          const nextFood = foodsById.get(event.target.value);
+                          return nextFood ? getDefaultMealEntrySettings(nextFood, meal) : {};
+                        })()
+                      }))
+                    }
+                  >
+                    {foods.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name} · {item.category}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {food ? <div className="mt-1 text-xs text-muted">{convertWeightLabel(food, entry.grams)}</div> : null}
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <label>
+                    <span className="metric-label mb-1 block">克重</span>
+                    <input
+                      className="field w-full"
+                      type="number"
+                      value={entry.grams}
+                      onChange={(event) =>
+                        onUpdateEntry(entry.id, (current) => ({
+                          ...current,
+                          grams: Number(event.target.value),
+                          locked: true
+                        }))
+                      }
+                    />
+                  </label>
+                  <div className="rounded-md bg-panel p-2">
+                    <div className="metric-label">推荐</div>
+                    <div className="font-semibold text-accent">{round(recommendedGrams, 1)} g</div>
+                  </div>
+                  <label>
+                    <span className="metric-label mb-1 block">最小</span>
+                    <input
+                      className="field w-full"
+                      type="number"
+                      value={entry.minGrams ?? ""}
+                      onChange={(event) =>
+                        onUpdateEntry(entry.id, (current) => ({
+                          ...current,
+                          minGrams: event.target.value === "" ? null : Number(event.target.value)
+                        }))
+                      }
+                    />
+                  </label>
+                  <label>
+                    <span className="metric-label mb-1 block">最大</span>
+                    <input
+                      className="field w-full"
+                      type="number"
+                      value={entry.maxGrams ?? ""}
+                      placeholder={defaultBounds ? `${defaultBounds.maxGrams}` : ""}
+                      onChange={(event) =>
+                        onUpdateEntry(entry.id, (current) => ({
+                          ...current,
+                          maxGrams: event.target.value === "" ? null : Number(event.target.value)
+                        }))
+                      }
+                    />
+                  </label>
+                </div>
+                <div className="mt-3 grid grid-cols-4 gap-2 text-center text-xs">
+                  <div className="rounded-md bg-panel p-2"><div className="metric-label">热量</div><div>{round(totals.kcal, 0)}</div></div>
+                  <div className="rounded-md bg-panel p-2"><div className="metric-label">碳水</div><div>{round(totals.carbs)}</div></div>
+                  <div className="rounded-md bg-panel p-2"><div className="metric-label">蛋白</div><div>{round(totals.protein)}</div></div>
+                  <div className="rounded-md bg-panel p-2"><div className="metric-label">脂肪</div><div>{round(totals.fat)}</div></div>
+                </div>
+                <div className="mt-3 flex gap-2">
+                  <button
+                    className={entry.locked ? "btn-primary h-9 flex-1" : "btn-secondary h-9 flex-1"}
+                    type="button"
+                    onClick={() =>
+                      onUpdateEntry(entry.id, (current) => ({
+                        ...current,
+                        locked: !current.locked
+                      }))
+                    }
+                  >
+                    {entry.locked ? <Lock size={16} /> : <Unlock size={16} />}
+                    {entry.locked ? "已锁定" : "未锁定"}
+                  </button>
+                  <button className="btn-danger h-9 px-3" type="button" onClick={() => onRemoveEntry(entry.id)} title="删除食物">
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      <div className="scrollbar-thin hidden overflow-x-auto md:block">
         <table className="w-full min-w-[1080px] text-left text-sm">
           <thead className="bg-panel text-xs uppercase tracking-normal text-muted">
             <tr>

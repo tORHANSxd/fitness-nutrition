@@ -1,7 +1,16 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { createStarterMeals, defaultProfile } from "@/lib/demoState";
 import { builtinFoods } from "@/lib/foods";
 import { calculateFoodKcalPer100g } from "@/lib/nutrition";
-import { deleteFood, loadFoods, saveFood } from "@/lib/storage";
+import {
+  deleteFood,
+  loadFoods,
+  loadPlannerDraft,
+  loadPlannerTemplates,
+  saveFood,
+  savePlannerDraft,
+  savePlannerTemplates
+} from "@/lib/storage";
 import type { FoodItem } from "@/lib/types";
 
 describe("food storage", () => {
@@ -59,5 +68,34 @@ describe("food storage", () => {
 
     expect(customRows).toHaveLength(1);
     expect(customRows[0].kcalPer100g).toBe(calculateFoodKcalPer100g(updatedFood));
+  });
+
+  it("stores planner drafts and templates under the local user bucket", () => {
+    const meals = createStarterMeals(defaultProfile);
+    const mealTemplate = {
+      id: "meal-template",
+      name: "午餐模板",
+      sourceMealName: "午餐",
+      mealRatio: meals[0].ratio,
+      mealLocked: meals[0].locked,
+      entries: meals[0].entries,
+      createdAt: "2026-05-27T00:00:00.000Z"
+    };
+    const dayTemplate = {
+      id: "day-template",
+      name: "全天模板",
+      meals,
+      createdAt: "2026-05-27T00:00:00.000Z"
+    };
+
+    savePlannerDraft(defaultProfile, meals, null);
+    savePlannerTemplates(null, {
+      mealTemplates: [mealTemplate],
+      dayTemplates: [dayTemplate]
+    });
+
+    expect(loadPlannerDraft(null)?.profile.weightKg).toBe(defaultProfile.weightKg);
+    expect(loadPlannerTemplates(null).mealTemplates[0].entries[0].grams).toBe(meals[0].entries[0].grams);
+    expect(loadPlannerTemplates(null).dayTemplates[0].meals).toHaveLength(meals.length);
   });
 });

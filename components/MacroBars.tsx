@@ -20,7 +20,7 @@ interface MacroBarsProps {
 }
 
 const colors = {
-  kcal: "#0f8b8d",
+  kcal: "#f97316",
   carbs: "#d97706",
   protein: "#2563eb",
   fat: "#b42318"
@@ -130,4 +130,3 @@ export function MacroBars({ result, meals }: MacroBarsProps) {
     </div>
   );
 }
-

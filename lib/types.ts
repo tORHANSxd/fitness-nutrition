@@ -7,7 +7,7 @@ export type WorkoutType = "chest" | "back" | "legs" | "rest";
 export type CarbDayType = "high" | "mid" | "low";
 export type TrainingTime = "morning" | "afternoon" | "evening";
 export type NutritionGoal = "cut" | "maintain" | "bulk";
-export type ViewName = "planner" | "foods" | "history" | "login";
+export type ViewName = "planner" | "templates" | "foods" | "history" | "login";
 
 export interface MacroTotals {
   kcal: number;

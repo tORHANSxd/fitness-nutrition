@@ -28,3 +28,5 @@
 - 2026-05-22 09:59:00 GitNexus analyze --force 完成，索引 299 symbols、567 relationships、24 flows。
 - 2026-05-22 10:07:00 修复浏览器扩展注入 html 属性造成的 hydration mismatch 提示；验证 lint、test、build 和浏览器控制台 error=0。
 - 2026-05-22 10:28:00 优先补齐三大营养素需求：每日显示目标/当前比例，每餐显示碳水、蛋白、脂肪目标、当前和盈亏；验证 lint、test、build 通过。
+- 2026-06-01 16:36:00 已完成 GitNexus 全量索引和影响分析，准备修改营养求解、分餐分页显示与模板独立管理。
+- 2026-06-01 17:14:00 已完成营养求解、分餐分页、模板管理页和认证初始化兜底修改；验证通过：npm run test、npm run lint、npm run build；Playwright 生成桌面/移动截图到 output/playwright。

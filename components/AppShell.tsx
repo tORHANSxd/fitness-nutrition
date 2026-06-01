@@ -1,16 +1,17 @@
 "use client";
 
 import type { User } from "@supabase/supabase-js";
-import { BarChart3, CalendarClock, Dumbbell, Library, LogIn, LogOut, RefreshCw } from "lucide-react";
+import { BarChart3, CalendarClock, Dumbbell, LayoutTemplate, Library, LogIn, LogOut, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { AuthPanel } from "@/components/AuthPanel";
 import { FoodLibrary } from "@/components/FoodLibrary";
 import { HistoryView } from "@/components/HistoryView";
 import { NutritionPlanner } from "@/components/NutritionPlanner";
+import { TemplateManager } from "@/components/TemplateManager";
 import { builtinFoods } from "@/lib/foods";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase";
-import { loadFoods } from "@/lib/storage";
-import type { FoodItem, ViewName } from "@/lib/types";
+import { loadFoods, loadPlannerTemplates, savePlannerTemplates } from "@/lib/storage";
+import type { FoodItem, PlannerTemplates, ViewName } from "@/lib/types";
 
 interface AppShellProps {
   initialView: ViewName;
@@ -18,6 +19,7 @@ interface AppShellProps {
 
 const navItems: Array<{ id: ViewName; label: string; shortLabel: string; icon: typeof Dumbbell }> = [
   { id: "planner", label: "当天计划", shortLabel: "计划", icon: Dumbbell },
+  { id: "templates", label: "模板管理", shortLabel: "模板", icon: LayoutTemplate },
   { id: "foods", label: "食物库", shortLabel: "食物", icon: Library },
   { id: "history", label: "历史记录", shortLabel: "历史", icon: CalendarClock },
   { id: "login", label: "登录", shortLabel: "登录", icon: LogIn }
@@ -27,6 +29,7 @@ export function AppShell({ initialView }: AppShellProps) {
   const [view, setView] = useState<ViewName>(initialView);
   const [user, setUser] = useState<User | null>(null);
   const [foods, setFoods] = useState<FoodItem[]>(builtinFoods);
+  const [templates, setTemplates] = useState<PlannerTemplates>({ mealTemplates: [], dayTemplates: [] });
   const [loadingFoods, setLoadingFoods] = useState(false);
   const [authReady, setAuthReady] = useState(false);
   const configured = isSupabaseConfigured();
@@ -47,16 +50,36 @@ export function AppShell({ initialView }: AppShellProps) {
       return;
     }
 
-    supabase.auth.getUser().then(({ data }) => {
-      setUser(data.user);
-      setAuthReady(true);
+    let mounted = true;
+    const authFallback = new Promise<{ data: { user: User | null } }>((resolve) => {
+      window.setTimeout(() => resolve({ data: { user: null } }), 3000);
     });
+
+    Promise.race([supabase.auth.getUser(), authFallback])
+      .then(({ data }) => {
+        if (mounted) {
+          setUser(data.user);
+        }
+      })
+      .catch(() => {
+        if (mounted) {
+          setUser(null);
+        }
+      })
+      .finally(() => {
+        if (mounted) {
+          setAuthReady(true);
+        }
+      });
 
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
     });
 
-    return () => data.subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      data.subscription.unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
@@ -64,6 +87,14 @@ export function AppShell({ initialView }: AppShellProps) {
       setFoods(builtinFoods);
     });
   }, [refreshFoods]);
+
+  useEffect(() => {
+    setTemplates(loadPlannerTemplates(user));
+  }, [user]);
+
+  function persistTemplates(nextTemplates: PlannerTemplates) {
+    setTemplates(savePlannerTemplates(user, nextTemplates));
+  }
 
   async function signOut() {
     const supabase = getSupabaseClient();
@@ -146,7 +177,10 @@ export function AppShell({ initialView }: AppShellProps) {
             <AuthPanel user={user} onSignedIn={setUser} />
           </div>
           <div className={view === "planner" ? "animate-view" : "hidden"}>
-            <NutritionPlanner foods={foods} user={user} onFoodsChanged={refreshFoods} />
+            <NutritionPlanner foods={foods} templates={templates} user={user} onFoodsChanged={refreshFoods} onTemplatesChanged={persistTemplates} />
+          </div>
+          <div className={view === "templates" ? "animate-view" : "hidden"}>
+            <TemplateManager templates={templates} onTemplatesChanged={persistTemplates} />
           </div>
           <div className={view === "foods" ? "animate-view" : "hidden"}>
             <FoodLibrary foods={foods} user={user} onFoodsChanged={refreshFoods} onFoodsUpdated={setFoods} />
@@ -157,7 +191,7 @@ export function AppShell({ initialView }: AppShellProps) {
         </div>
       ) : null}
 
-      <nav className="fixed inset-x-3 bottom-3 z-30 grid grid-cols-4 gap-2 rounded-lg border border-line bg-white/95 p-2 shadow-soft backdrop-blur md:hidden" aria-label="主导航">
+      <nav className="fixed inset-x-3 bottom-3 z-30 grid grid-cols-5 gap-2 rounded-lg border border-line bg-white/95 p-2 shadow-soft backdrop-blur md:hidden" aria-label="主导航">
         {navItems.map((item) => {
           const Icon = item.icon;
           const active = view === item.id;

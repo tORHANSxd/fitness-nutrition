@@ -587,11 +587,17 @@ describe("meal solving", () => {
 
     expect(lunchTotals.kcal).toBeLessThanOrEqual(lunchTarget.kcal + lunchKcalTolerance);
     expect(nonSupplementRecommendedGrams(lunch, result, foods)).toBeLessThanOrEqual(950);
-    expect(Math.abs(preWorkout.deficit.kcal)).toBeGreaterThan(120);
-    expect(result.conflicts.some((item) => item.includes("训练前加餐 有锁定项"))).toBe(true);
+    expect(Math.abs(preWorkout.deficit.kcal)).toBeLessThan(20);
+    expect(result.recommendedRemaining.carbs).toBeGreaterThanOrEqual(-5);
+    expect(result.recommendedRemaining.carbs).toBeLessThanOrEqual(10);
+    expect(result.recommendedRemaining.protein).toBeGreaterThanOrEqual(-5);
+    expect(result.recommendedRemaining.protein).toBeLessThanOrEqual(10);
+    expect(result.recommendedRemaining.fat).toBeGreaterThanOrEqual(-5);
+    expect(result.recommendedRemaining.fat).toBeLessThanOrEqual(10);
+    expect(result.conflicts.some((item) => item.includes("训练前加餐 有锁定项"))).toBe(false);
   });
 
-  it("keeps displayed meal targets proportional to the daily standard after solver redistribution", () => {
+  it("dynamically redistributes displayed meal targets after solver balancing", () => {
     const userProfile: UserProfile = {
       ...defaultProfile,
       planDate: "2026-05-22"
@@ -609,8 +615,10 @@ describe("meal solving", () => {
     );
 
     expect(round(result.dailyTarget.protein, 1)).toBe(round(userProfile.weightKg * getProteinPerKg(userProfile), 1));
-    expect(round(result.mealRecommendations[0].target.protein, 1)).toBe(round(result.dailyTarget.protein * meals[0].ratio, 1));
-    expect(round(result.mealRecommendations[1].target.carbs, 1)).toBe(round(result.dailyTarget.carbs * 0.35, 1));
+    expect(round(result.mealRecommendations[0].target.protein, 1)).not.toBe(round(result.dailyTarget.protein * meals[0].ratio, 1));
+    expect(Math.abs(result.recommendedRemaining.carbs)).toBeLessThanOrEqual(5);
+    expect(Math.abs(result.recommendedRemaining.protein)).toBeLessThanOrEqual(5);
+    expect(Math.abs(result.recommendedRemaining.fat)).toBeLessThanOrEqual(5);
     expect(Math.abs(targetTotals.kcal - result.dailyTarget.kcal)).toBeLessThan(1);
     expect(round(targetTotals.carbs, 1)).toBe(round(result.dailyTarget.carbs, 1));
     expect(round(targetTotals.protein, 1)).toBe(round(result.dailyTarget.protein, 1));

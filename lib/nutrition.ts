@@ -28,14 +28,21 @@ const macroWeights: Record<keyof MacroTotals, number> = {
 };
 
 const dailyFitWeights: Record<keyof MacroTotals, number> = {
-  kcal: 2,
-  protein: 2.4,
-  carbs: 1.5,
+  kcal: 1.2,
+  protein: 4,
+  carbs: 3.6,
   fat: 1
 };
 
 const macroKeys: Array<keyof MacroTotals> = ["kcal", "carbs", "protein", "fat"];
 const macroRatioKeys: Array<keyof MacroRatio> = ["carbs", "protein", "fat"];
+const nutritionKeys: Array<keyof MacroRatio> = ["carbs", "protein", "fat"];
+const dailyMacroBand = { deficit: 10, surplus: 5 };
+const dailyMacroBandWeights: Record<keyof MacroRatio, number> = {
+  carbs: 18,
+  protein: 24,
+  fat: 12
+};
 
 const carbCycleDistribution: Record<CarbDayType, { daysPerWeek: number; carbShare: number; fatShare: number }> = {
   high: { daysPerWeek: 2, carbShare: 0.5, fatShare: 0.15 },
@@ -376,7 +383,7 @@ function supplementPresenceFloor(food: FoodItem, portionRule: FoodPortionRule) {
     return 20;
   }
   if (isCookingOil(food)) {
-    return 5;
+    return 0;
   }
   if (
     isSupplementNamed(food, "肌酸") ||
@@ -616,6 +623,26 @@ function macroFitScore(
     const ratio = (total[key] - target[key]) / scale;
     return score + weights[key] * ratio * ratio;
   }, 0);
+}
+
+function dailyMacroBandScore(total: MacroTotals, target: MacroTotals) {
+  return nutritionKeys.reduce((score, key) => {
+    const difference = total[key] - target[key];
+    const allowed = difference < 0 ? dailyMacroBand.deficit : dailyMacroBand.surplus;
+    const excess = Math.abs(difference) - allowed;
+    if (excess <= 0) {
+      return score;
+    }
+    const ratio = excess / allowed;
+    return score + dailyMacroBandWeights[key] * ratio * ratio;
+  }, 0);
+}
+
+function isDailyMacroBandAligned(total: MacroTotals, target: MacroTotals) {
+  return nutritionKeys.every((key) => {
+    const difference = total[key] - target[key];
+    return difference >= -dailyMacroBand.deficit && difference <= dailyMacroBand.surplus;
+  });
 }
 
 function buildMealSolverModels(
@@ -976,13 +1003,16 @@ function refineDailyRecommendations(
     }, zeroTotals);
 
   const scoreState = () => {
+    const dailyTotals = calculateRecommendedTotals();
     let score =
-      macroFitScore(calculateRecommendedTotals(), dailyTarget, dailyFitWeights, {
+      macroFitScore(dailyTotals, dailyTarget, dailyFitWeights, {
         kcal: 120,
         carbs: 12,
         protein: 10,
         fat: 8
-      }) * 250;
+      }) *
+        220 +
+      dailyMacroBandScore(dailyTotals, dailyTarget) * 360;
 
     for (const meal of meals) {
       const mealEntries = solvedEntriesByMealId.get(meal.id) ?? Object.fromEntries(meal.entries.map((entry) => [entry.id, entry.grams]));
@@ -1017,6 +1047,48 @@ function refineDailyRecommendations(
   const recommendedTotals = calculateRecommendedTotals();
 
   return { solvedEntriesByMealId, recommendedTotals };
+}
+
+function buildDynamicMealTargets(
+  meals: MealPlan[],
+  dailyTarget: MacroTotals,
+  solvedEntriesByMealId: Map<string, Record<string, number>>,
+  fallbackTargetsByMealId: Map<string, MacroTotals>,
+  foodsById: Map<string, FoodItem>
+) {
+  const recommendedByMeal = new Map(
+    meals.map((meal) => {
+      const entries = solvedEntriesByMealId.get(meal.id) ?? Object.fromEntries(meal.entries.map((entry) => [entry.id, entry.grams]));
+      return [meal.id, calculateTotalsFromEntries(meal.entries, entries, foodsById)];
+    })
+  );
+  const recommendedTotals = meals.reduce(
+    (total, meal) => addTotals(total, recommendedByMeal.get(meal.id) ?? zeroTotals),
+    zeroTotals
+  );
+
+  return new Map(
+    meals.map((meal) => {
+      const recommended = recommendedByMeal.get(meal.id) ?? zeroTotals;
+      const fallback = fallbackTargetsByMealId.get(meal.id) ?? zeroTotals;
+      const targetForKey = (key: keyof MacroTotals) => {
+        const total = recommendedTotals[key];
+        if (total <= 0 || dailyTarget[key] <= 0) {
+          return fallback[key];
+        }
+        return dailyTarget[key] * (recommended[key] / total);
+      };
+      return [
+        meal.id,
+        {
+          kcal: targetForKey("kcal"),
+          carbs: targetForKey("carbs"),
+          protein: targetForKey("protein"),
+          fat: targetForKey("fat")
+        }
+      ];
+    })
+  );
 }
 
 function deficitMessage(label: string, deficit: MacroTotals) {
@@ -1068,10 +1140,18 @@ export function buildNutritionResult(profile: UserProfile, meals: MealPlan[], fo
     mealTargetsById,
     foodsById
   );
+  const dynamicMealTargetsById = buildDynamicMealTargets(meals, dailyTarget, solvedEntriesByMealId, mealTargetsById, foodsById);
+
+  if (!isDailyMacroBandAligned(recommendedTotals, dailyTarget)) {
+    const remaining = subtractTotals(dailyTarget, recommendedTotals);
+    conflicts.push(
+      `全天推荐仍未进入克数容忍带：碳水 ${round(remaining.carbs)}g，蛋白 ${round(remaining.protein)}g，脂肪 ${round(remaining.fat)}g；检查食材种类、上下限或锁定项`
+    );
+  }
 
   const mealRecommendations = meals.map((meal) => {
     const mealActual = calculateMealTotals(meal, foodsById);
-    const mealTarget = mealTargetsById.get(meal.id) ?? mealActual;
+    const mealTarget = dynamicMealTargetsById.get(meal.id) ?? mealTargetsById.get(meal.id) ?? mealActual;
     const recommendedEntries = solvedEntriesByMealId.get(meal.id) ?? Object.fromEntries(meal.entries.map((entry) => [entry.id, entry.grams]));
     const recommendedTotals = calculateTotalsFromEntries(meal.entries, recommendedEntries, foodsById);
     const deficit = subtractTotals(mealTarget, recommendedTotals);

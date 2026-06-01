@@ -33,7 +33,8 @@ import {
   trainingTimeLabels,
   workoutLabels
 } from "@/lib/nutrition";
-import { loadPlannerDraft, loadPlannerTemplates, savePlan, savePlannerDraft, savePlannerTemplates } from "@/lib/storage";
+import { loadPlannerDraft, savePlan, savePlannerDraft } from "@/lib/storage";
+import { buildAutoTemplateName } from "@/lib/templates";
 import type {
   DayTemplate,
   FoodItem,
@@ -49,14 +50,17 @@ import type {
 
 interface NutritionPlannerProps {
   foods: FoodItem[];
+  templates: PlannerTemplates;
   user: User | null;
   onFoodsChanged: () => Promise<void>;
+  onTemplatesChanged: (templates: PlannerTemplates) => void;
 }
 
-export function NutritionPlanner({ foods, user }: NutritionPlannerProps) {
+export function NutritionPlanner({ foods, templates, user, onTemplatesChanged }: NutritionPlannerProps) {
   const [profile, setProfile] = useState<UserProfile>(defaultProfile);
   const [meals, setMeals] = useState<MealPlan[]>(() => createStarterMeals(defaultProfile));
-  const [templates, setTemplates] = useState<PlannerTemplates>({ mealTemplates: [], dayTemplates: [] });
+  const [activeMealId, setActiveMealId] = useState(meals[0]?.id ?? "");
+  const [selectedDayTemplateId, setSelectedDayTemplateId] = useState("");
   const [hydrated, setHydrated] = useState(false);
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
@@ -71,8 +75,9 @@ export function NutritionPlanner({ foods, user }: NutritionPlannerProps) {
     const draft = loadPlannerDraft(user);
     const nextProfile = draft?.profile ?? { ...defaultProfile, planDate: new Date().toISOString().slice(0, 10) };
     setProfile(nextProfile);
-    setMeals(draft?.meals ?? createStarterMeals(nextProfile));
-    setTemplates(loadPlannerTemplates(user));
+    const nextMeals = draft?.meals ?? createStarterMeals(nextProfile);
+    setMeals(nextMeals);
+    setActiveMealId(nextMeals[0]?.id ?? "");
     setHydrated(true);
   }, [user]);
 
@@ -82,6 +87,16 @@ export function NutritionPlanner({ foods, user }: NutritionPlannerProps) {
     }
     savePlannerDraft(profile, meals, user);
   }, [hydrated, meals, profile, user]);
+
+  useEffect(() => {
+    if (meals.length === 0) {
+      setActiveMealId("");
+      return;
+    }
+    if (!meals.some((meal) => meal.id === activeMealId)) {
+      setActiveMealId(meals[0].id);
+    }
+  }, [activeMealId, meals]);
 
   function syncMealShape(nextProfile: UserProfile) {
     const defaults = createDefaultMeals(nextProfile);
@@ -207,13 +222,15 @@ export function NutritionPlanner({ foods, user }: NutritionPlannerProps) {
   }
 
   function persistTemplates(nextTemplates: PlannerTemplates) {
-    setTemplates(savePlannerTemplates(user, nextTemplates));
+    onTemplatesChanged(nextTemplates);
   }
 
-  function saveMealTemplate(meal: MealPlan) {
+  function saveMealTemplate(meal: MealPlan, draftName?: string) {
+    const sequence = templates.mealTemplates.length + 1;
+    const trimmedName = draftName?.trim();
     const template: MealTemplate = {
       id: crypto.randomUUID(),
-      name: `${meal.name}模板 ${templates.mealTemplates.length + 1}`,
+      name: trimmedName || buildAutoTemplateName(meal.entries, foodsById, sequence, `${meal.name}模板`),
       sourceMealName: meal.name,
       mealRatio: meal.ratio,
       mealLocked: meal.locked,
@@ -241,10 +258,19 @@ export function NutritionPlanner({ foods, user }: NutritionPlannerProps) {
     setMessage(`已套用单餐模板：${template.name}`);
   }
 
-  function saveDayTemplate() {
+  function saveDayTemplate(draftName?: string) {
+    const sequence = templates.dayTemplates.length + 1;
+    const trimmedName = draftName?.trim();
     const template: DayTemplate = {
       id: crypto.randomUUID(),
-      name: `${profile.planDate} 全天模板`,
+      name:
+        trimmedName ||
+        buildAutoTemplateName(
+          meals.flatMap((meal) => meal.entries),
+          foodsById,
+          sequence,
+          "全天模板"
+        ),
       meals: cloneMealsForUse(meals),
       createdAt: new Date().toISOString()
     };
@@ -264,19 +290,7 @@ export function NutritionPlanner({ foods, user }: NutritionPlannerProps) {
     setMessage(`已套用全天模板：${template.name}`);
   }
 
-  function deleteMealTemplate(templateId: string) {
-    persistTemplates({
-      ...templates,
-      mealTemplates: templates.mealTemplates.filter((template) => template.id !== templateId)
-    });
-  }
-
-  function deleteDayTemplate(templateId: string) {
-    persistTemplates({
-      ...templates,
-      dayTemplates: templates.dayTemplates.filter((template) => template.id !== templateId)
-    });
-  }
+  const activeMeal = meals.find((meal) => meal.id === activeMealId) ?? meals[0];
 
   return (
     <section className="space-y-5">
@@ -356,127 +370,95 @@ export function NutritionPlanner({ foods, user }: NutritionPlannerProps) {
             ) : null}
           </section>
           <MacroBars result={result} meals={meals} />
-          <TemplatePanel
-            templates={templates}
-            onApplyDayTemplate={applyDayTemplate}
-            onDeleteDayTemplate={deleteDayTemplate}
-            onDeleteMealTemplate={deleteMealTemplate}
-            onSaveDayTemplate={saveDayTemplate}
-          />
         </div>
         <div className="order-2 xl:order-1">
           <ProfilePanel profile={profile} updateProfile={updateProfile} />
         </div>
       </div>
 
-      <div className="grid gap-4">
-        {meals.map((meal) => (
+      <section className="panel overflow-hidden">
+        <div className="flex flex-col gap-3 border-b border-line bg-blue-50/60 p-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-ink">分餐计划</h2>
+            <p className="text-sm text-muted">每次只显示一餐；全天求解会动态调配各餐推荐比例。</p>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-[minmax(0,220px)_minmax(0,220px)_auto_auto]">
+            <select className="field w-full" value={activeMeal?.id ?? ""} onChange={(event) => setActiveMealId(event.target.value)}>
+              {meals.map((meal) => {
+                const recommendation = recommendationsByMeal.get(meal.id);
+                return (
+                  <option key={meal.id} value={meal.id}>
+                    {meal.name} · {round(recommendation?.target.kcal ?? 0, 0)} kcal
+                  </option>
+                );
+              })}
+            </select>
+            <select className="field w-full" value={selectedDayTemplateId} onChange={(event) => setSelectedDayTemplateId(event.target.value)}>
+              <option value="">选择全天模板</option>
+              {templates.dayTemplates.map((template) => (
+                <option key={template.id} value={template.id}>
+                  {template.name}
+                </option>
+              ))}
+            </select>
+            <button
+              className="btn-secondary"
+              type="button"
+              disabled={!selectedDayTemplateId}
+              onClick={() => {
+                applyDayTemplate(selectedDayTemplateId);
+                setSelectedDayTemplateId("");
+              }}
+            >
+              <Check size={16} />
+              使用全天模板
+            </button>
+            <button className="btn-secondary" type="button" onClick={() => saveDayTemplate()}>
+              <Save size={16} />
+              保存全天模板
+            </button>
+          </div>
+        </div>
+        <div className="grid gap-2 border-b border-line bg-panel p-3 sm:grid-cols-2 lg:grid-cols-4">
+          {meals.map((meal) => {
+            const recommendation = recommendationsByMeal.get(meal.id);
+            const active = meal.id === activeMeal?.id;
+            return (
+              <button
+                key={meal.id}
+                className={`flex min-h-16 flex-col items-start justify-center rounded-md border px-3 py-2 text-left transition-colors ${
+                  active ? "border-accent bg-accent text-white" : "border-line bg-white text-ink hover:bg-blue-50"
+                }`}
+                type="button"
+                onClick={() => setActiveMealId(meal.id)}
+              >
+                <span className="text-sm font-semibold">{meal.name}</span>
+                <span className={active ? "text-xs text-blue-50" : "text-xs text-muted"}>
+                  推荐 {round(recommendation?.target.carbs ?? 0, 0)}g 碳水 / {round(recommendation?.target.protein ?? 0, 0)}g 蛋白
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="p-0">
+          {activeMeal ? (
           <MealEditor
-            key={meal.id}
-            meal={meal}
+            key={activeMeal.id}
+            meal={activeMeal}
             foods={foods}
             foodsById={foodsById}
-            recommendation={recommendationsByMeal.get(meal.id)}
+            recommendation={recommendationsByMeal.get(activeMeal.id)}
             mealTemplates={templates.mealTemplates}
-            onAddFood={() => addFoodToMeal(meal.id)}
-            onApplyMealTemplate={(templateId) => applyMealTemplate(meal.id, templateId)}
-            onRemoveEntry={(entryId) => removeEntry(meal.id, entryId)}
-            onSaveMealTemplate={() => saveMealTemplate(meal)}
-            onUpdateMeal={(mapper) => updateMeal(meal.id, mapper)}
-            onUpdateEntry={(entryId, mapper) => updateEntry(meal.id, entryId, mapper)}
+            onAddFood={() => addFoodToMeal(activeMeal.id)}
+            onApplyMealTemplate={(templateId) => applyMealTemplate(activeMeal.id, templateId)}
+            onRemoveEntry={(entryId) => removeEntry(activeMeal.id, entryId)}
+            onSaveMealTemplate={(templateName) => saveMealTemplate(activeMeal, templateName)}
+            onUpdateMeal={(mapper) => updateMeal(activeMeal.id, mapper)}
+            onUpdateEntry={(entryId, mapper) => updateEntry(activeMeal.id, entryId, mapper)}
           />
-        ))}
-      </div>
-    </section>
-  );
-}
-
-interface TemplatePanelProps {
-  templates: PlannerTemplates;
-  onSaveDayTemplate: () => void;
-  onApplyDayTemplate: (templateId: string) => void;
-  onDeleteDayTemplate: (templateId: string) => void;
-  onDeleteMealTemplate: (templateId: string) => void;
-}
-
-function TemplatePanel({
-  templates,
-  onApplyDayTemplate,
-  onDeleteDayTemplate,
-  onDeleteMealTemplate,
-  onSaveDayTemplate
-}: TemplatePanelProps) {
-  return (
-    <section className="panel overflow-hidden xl:sticky xl:top-28 xl:self-start">
-      <div className="flex flex-col gap-3 border-b border-line bg-blue-50/70 p-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-ink">饮食模板</h2>
-          <p className="text-sm text-muted">单餐模板保留食物搭配和锁定克重；全天模板保留当天所有餐次。</p>
+          ) : null}
         </div>
-        <button className="btn-primary h-11 w-full md:w-auto" type="button" onClick={onSaveDayTemplate}>
-          <Save size={16} />
-          保存全天模板
-        </button>
-      </div>
-
-      <div className="grid gap-3 p-4 lg:grid-cols-2">
-        <div className="rounded-md border border-line bg-panel p-3">
-          <div className="mb-2 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-ink">每一天的模板</h3>
-            <span className="rounded-md bg-white px-2 py-1 text-xs font-semibold text-accent ring-1 ring-blue-100">{templates.dayTemplates.length} 个</span>
-          </div>
-          <div className="grid gap-2">
-            {templates.dayTemplates.length === 0 ? (
-              <p className="rounded-md border border-dashed border-line bg-white p-3 text-sm text-muted">还没有全天模板。</p>
-            ) : (
-              templates.dayTemplates.map((template) => (
-                <div key={template.id} className="flex flex-col gap-2 rounded-md border border-line bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <div className="font-medium text-ink">{template.name}</div>
-                    <div className="text-xs text-muted">{template.meals.length} 餐 · {new Date(template.createdAt).toLocaleString("zh-CN")}</div>
-                  </div>
-                  <div className="flex gap-2">
-                    <button className="btn-secondary h-9" type="button" onClick={() => onApplyDayTemplate(template.id)}>
-                      <Check size={16} />
-                      使用
-                    </button>
-                    <button className="btn-danger h-9 px-2" type="button" onClick={() => onDeleteDayTemplate(template.id)} title="删除全天模板">
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        <div className="rounded-md border border-line bg-panel p-3">
-          <div className="mb-2 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-ink">每一餐的模板</h3>
-            <span className="rounded-md bg-white px-2 py-1 text-xs font-semibold text-accent ring-1 ring-blue-100">{templates.mealTemplates.length} 个</span>
-          </div>
-          <div className="grid gap-2">
-            {templates.mealTemplates.length === 0 ? (
-              <p className="rounded-md border border-dashed border-line bg-white p-3 text-sm text-muted">还没有单餐模板，可在每一餐标题区保存。</p>
-            ) : (
-              templates.mealTemplates.map((template) => {
-                const lockedCount = template.entries.filter((entry) => entry.locked).length;
-                return (
-                  <div key={template.id} className="flex items-center justify-between gap-2 rounded-md border border-line bg-white p-3">
-                    <div>
-                      <div className="font-medium text-ink">{template.name}</div>
-                      <div className="text-xs text-muted">{template.sourceMealName} · {template.entries.length} 种食物 · {lockedCount} 个锁定</div>
-                    </div>
-                    <button className="btn-danger h-9 px-2" type="button" onClick={() => onDeleteMealTemplate(template.id)} title="删除单餐模板">
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </div>
-      </div>
+      </section>
     </section>
   );
 }
@@ -793,7 +775,7 @@ interface MealEditorProps {
   onAddFood: () => void;
   onApplyMealTemplate: (templateId: string) => void;
   onRemoveEntry: (entryId: string) => void;
-  onSaveMealTemplate: () => void;
+  onSaveMealTemplate: (templateName?: string) => void;
   onUpdateMeal: (mapper: (meal: MealPlan) => MealPlan) => void;
   onUpdateEntry: (entryId: string, mapper: (entry: MealFoodEntry) => MealFoodEntry) => void;
 }
@@ -812,9 +794,10 @@ function MealEditor({
   onUpdateEntry
 }: MealEditorProps) {
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  const [templateName, setTemplateName] = useState("");
 
   return (
-    <section className="panel overflow-hidden">
+    <section className="overflow-hidden bg-white">
       <div className="flex flex-col gap-3 border-b border-line bg-blue-50/50 p-4 xl:flex-row xl:items-center xl:justify-between">
         <div>
           <h3 className="text-lg font-semibold text-ink">{meal.name}</h3>
@@ -853,10 +836,25 @@ function MealEditor({
             <Plus size={16} />
             添加食物
           </button>
-          <button className="btn-secondary h-11" type="button" onClick={onSaveMealTemplate}>
-            <Save size={16} />
-            保存本餐模板
-          </button>
+          <div className="flex w-full gap-2 sm:w-auto">
+            <input
+              className="field h-11 min-w-0 flex-1 sm:w-44"
+              value={templateName}
+              onChange={(event) => setTemplateName(event.target.value)}
+              placeholder="模板名可空"
+            />
+            <button
+              className="btn-secondary h-11"
+              type="button"
+              onClick={() => {
+                onSaveMealTemplate(templateName);
+                setTemplateName("");
+              }}
+            >
+              <Save size={16} />
+              保存本餐
+            </button>
+          </div>
           <div className="flex w-full gap-2 sm:w-auto">
             <select
               className="field h-11 min-w-0 flex-1 sm:w-44"

@@ -293,21 +293,21 @@ export function NutritionPlanner({ foods, templates, user, onTemplatesChanged }:
   const activeMeal = meals.find((meal) => meal.id === activeMealId) ?? meals[0];
 
   return (
-    <section className="space-y-5">
+    <section className="animate-fade-up space-y-5">
       <div className="grid gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
         <div className="order-1 space-y-4 xl:order-2">
           <section className="panel overflow-hidden">
-            <div className="border-b border-line bg-blue-50/70 p-4 md:p-5">
+            <div className="border-b border-line bg-surface/80 p-4 md:p-5">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-xl font-semibold text-ink">实时目标</h2>
-                    <span className="rounded-md bg-white px-2.5 py-1 text-xs font-semibold text-accent ring-1 ring-blue-100">
+                    <h2 className="text-gradient text-xl font-semibold">实时目标</h2>
+                    <span className="rounded-md bg-accent/20 px-2.5 py-1 text-xs font-semibold text-accent ring-1 ring-accent/30">
                       {carbDayLabels[result.carbDayType]}
                     </span>
                   </div>
                   <p className="mt-1 text-sm text-muted">
-                    凯圣王减脂 · {workoutLabels[profile.workoutType]} · {trainingTimeLabels[profile.trainingTime]} · {profile.planDate}
+                    张老师五分化 · {workoutLabels[profile.workoutType]} · {trainingTimeLabels[profile.trainingTime]} · {profile.planDate}
                   </p>
                 </div>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
@@ -327,23 +327,37 @@ export function NutritionPlanner({ foods, templates, user, onTemplatesChanged }:
               </div>
             </div>
             <div className="grid gap-3 p-4 sm:grid-cols-2 md:grid-cols-4 2xl:grid-cols-7">
-              <MetricCard label="BMR" value={result.bmr} unit="kcal" />
-              <MetricCard label="维持热量" value={result.tdee} unit="kcal" tone="accent" />
-              <MetricCard label="计划均热量" value={result.cycleAverageTarget.kcal} unit="kcal" tone="accent" />
-              <MetricCard label="当日目标热量" value={result.dailyTarget.kcal} unit="kcal" tone="accent" />
-              <MetricCard
-                label={result.plannedCalorieDelta < 0 ? "计划缺口" : result.plannedCalorieDelta > 0 ? "计划盈余" : "计划差额"}
-                value={Math.abs(result.plannedCalorieDelta)}
-                unit="kcal"
-                tone={result.plannedCalorieDelta < 0 ? "normal" : "accent"}
-              />
-              <MetricCard label="当前摄入" value={result.actualTotals.kcal} unit="kcal" />
-              <MetricCard
-                label="剩余目标"
-                value={result.remaining.kcal}
-                unit="kcal"
-                tone={result.remaining.kcal < 0 ? "danger" : "normal"}
-              />
+              <div className="animate-fade-up hover-lift" style={{ animationDelay: "0ms" }}>
+                <MetricCard label="BMR" value={result.bmr} unit="kcal" />
+              </div>
+              <div className="animate-fade-up hover-lift" style={{ animationDelay: "60ms" }}>
+                <MetricCard label="维持热量" value={result.tdee} unit="kcal" tone="accent" />
+              </div>
+              <div className="animate-fade-up hover-lift" style={{ animationDelay: "120ms" }}>
+                <MetricCard label="计划均热量" value={result.cycleAverageTarget.kcal} unit="kcal" tone="accent" />
+              </div>
+              <div className="animate-fade-up hover-lift" style={{ animationDelay: "180ms" }}>
+                <MetricCard label="当日目标热量" value={result.dailyTarget.kcal} unit="kcal" tone="accent" />
+              </div>
+              <div className="animate-fade-up hover-lift" style={{ animationDelay: "240ms" }}>
+                <MetricCard
+                  label={result.plannedCalorieDelta < 0 ? "计划缺口" : result.plannedCalorieDelta > 0 ? "计划盈余" : "计划差额"}
+                  value={Math.abs(result.plannedCalorieDelta)}
+                  unit="kcal"
+                  tone={result.plannedCalorieDelta < 0 ? "normal" : "accent"}
+                />
+              </div>
+              <div className="animate-fade-up hover-lift" style={{ animationDelay: "300ms" }}>
+                <MetricCard label="当前摄入" value={result.actualTotals.kcal} unit="kcal" />
+              </div>
+              <div className="animate-fade-up hover-lift" style={{ animationDelay: "360ms" }}>
+                <MetricCard
+                  label="剩余目标"
+                  value={result.remaining.kcal}
+                  unit="kcal"
+                  tone={result.remaining.kcal < 0 ? "danger" : "normal"}
+                />
+              </div>
             </div>
             <DailyBalancePanel
               actual={result.actualTotals}
@@ -358,7 +372,7 @@ export function NutritionPlanner({ foods, templates, user, onTemplatesChanged }:
               targetRatio={result.targetRatio}
             />
             <PlanRulePanel />
-            {message ? <p className="mx-4 mt-3 rounded-md bg-blue-50 p-3 text-sm font-medium text-accent">{message}</p> : null}
+            {message ? <p className="mx-4 mt-3 rounded-md bg-accent/10 p-3 text-sm font-medium text-accent ring-1 ring-accent/20">{message}</p> : null}
             {result.conflicts.length > 0 ? (
               <div className="mx-4 mt-3 space-y-2 pb-4">
                 {result.conflicts.map((conflict) => (
@@ -377,9 +391,9 @@ export function NutritionPlanner({ foods, templates, user, onTemplatesChanged }:
       </div>
 
       <section className="panel overflow-hidden">
-        <div className="flex flex-col gap-3 border-b border-line bg-blue-50/60 p-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-col gap-3 border-b border-line bg-surface/80 p-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-ink">分餐计划</h2>
+            <h2 className="text-gradient text-lg font-semibold">分餐计划</h2>
             <p className="text-sm text-muted">每次只显示一餐；全天求解会动态调配各餐推荐比例。</p>
           </div>
           <div className="grid gap-2 sm:grid-cols-[minmax(0,220px)_minmax(0,220px)_auto_auto]">
@@ -419,21 +433,23 @@ export function NutritionPlanner({ foods, templates, user, onTemplatesChanged }:
             </button>
           </div>
         </div>
-        <div className="grid gap-2 border-b border-line bg-panel p-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-2 border-b border-line bg-surface/60 p-3 sm:grid-cols-2 lg:grid-cols-4">
           {meals.map((meal) => {
             const recommendation = recommendationsByMeal.get(meal.id);
             const active = meal.id === activeMeal?.id;
             return (
               <button
                 key={meal.id}
-                className={`flex min-h-16 flex-col items-start justify-center rounded-md border px-3 py-2 text-left transition-colors ${
-                  active ? "border-accent bg-accent text-white" : "border-line bg-white text-ink hover:bg-blue-50"
+                className={`flex min-h-16 flex-col items-start justify-center rounded-md border px-3 py-2 text-left transition-all ${
+                  active
+                    ? "border-accent bg-accent shadow-glow text-white"
+                    : "border-line bg-surface/60 text-ink hover:border-accent/50 hover:bg-surface"
                 }`}
                 type="button"
                 onClick={() => setActiveMealId(meal.id)}
               >
                 <span className="text-sm font-semibold">{meal.name}</span>
-                <span className={active ? "text-xs text-blue-50" : "text-xs text-muted"}>
+                <span className={active ? "text-xs text-white/70" : "text-xs text-muted"}>
                   推荐 {round(recommendation?.target.carbs ?? 0, 0)}g 碳水 / {round(recommendation?.target.protein ?? 0, 0)}g 蛋白
                 </span>
               </button>
@@ -471,7 +487,7 @@ interface DailyBalancePanelProps {
 
 function DailyBalancePanel({ actual, recommended, target }: DailyBalancePanelProps) {
   return (
-    <div className="mx-4 my-3 rounded-md border border-line bg-panel p-3">
+    <div className="mx-4 my-3 rounded-xl border border-line bg-surface/60 p-3 backdrop-blur hover-lift">
       <div className="mb-3 flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
         <div>
           <h3 className="text-sm font-semibold text-ink">当日热量与三大营养素盈亏</h3>
@@ -503,7 +519,7 @@ function DailyBalanceCard({
   unit: string;
 }) {
   return (
-    <div className="rounded-md border border-line bg-white p-3">
+    <div className="rounded-md border border-line bg-surface/70 p-3 backdrop-blur">
       <div className="flex items-center justify-between gap-2">
         <span className="metric-label">{label}</span>
         <span className="text-xs text-muted">目标 {round(target, unit === "kcal" ? 0 : 1)}{unit}</span>
@@ -542,7 +558,7 @@ function DailyBalanceBar({
           {balanceLabel} {round(Math.abs(balance), roundedDigits)}{unit}
         </span>
       </div>
-      <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+      <div className="h-2 overflow-hidden rounded-full bg-surface">
         <div className={`h-full rounded-full ${barColor}`} style={{ width: `${Math.min(Math.max(ratio, 0), 100)}%` }} />
       </div>
     </div>
@@ -564,7 +580,7 @@ function MacroRatioPanel({ actualRatio, carbDayType, carbDayLabel, recommendedRa
   const recommendedStatus = `${recommendedCheck.cycleAligned ? "公式贴合" : "公式偏离"} / ${recommendedCheck.goalAligned ? "参考内" : "参考外"}`;
 
   return (
-    <div className="mx-4 mt-3 rounded-md border border-line bg-panel p-3">
+    <div className="mx-4 mt-3 rounded-xl border border-line bg-surface/60 p-3 backdrop-blur hover-lift">
       <div className="mb-2 flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
         <div>
           <h3 className="text-sm font-semibold text-ink">三大营养素比例</h3>
@@ -615,10 +631,10 @@ function MacroRatioRow({
   target: number;
 }) {
   return (
-    <div className="rounded-md border border-line bg-white p-3">
+    <div className="rounded-md border border-line bg-surface/70 p-3 backdrop-blur">
       <div className="metric-label">{label}</div>
       <div className="mt-1 flex items-end gap-2">
-        <span className="text-lg font-semibold text-ink">{round(target, 0)}%</span>
+        <span className="text-lg font-semibold text-accent">{round(target, 0)}%</span>
         <span className="pb-0.5 text-xs text-muted">
           当前 {round(actual, 0)}% / 推荐 {round(recommended, 0)}%
         </span>
@@ -626,8 +642,8 @@ function MacroRatioRow({
       <p className="mt-1 text-xs text-muted">
         {round(range.min, 0)}%-{round(range.max, 0)}% 参考区间
       </p>
-      <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
-        <div className="h-full rounded-full bg-accent" style={{ width: `${Math.min(Math.max(target, 0), 100)}%` }} />
+      <div className="mt-2 h-2 overflow-hidden rounded-full bg-surface">
+        <div className="h-full rounded-full bg-accent shadow-glow" style={{ width: `${Math.min(Math.max(target, 0), 100)}%` }} />
       </div>
     </div>
   );
@@ -635,30 +651,30 @@ function MacroRatioRow({
 
 function PlanRulePanel() {
   const weeklyPlan = [
-    ["周一", "推：胸肩三头", "中碳"],
-    ["周二", "拉：背二头", "中碳"],
-    ["周三", "腿：深蹲硬拉", "高碳"],
-    ["周四", "休息", "低碳"],
-    ["周五", "推/拉或轻训", "中碳"],
-    ["周六", "腿或强度次高", "高碳"],
+    ["周一", "胸（卧推飞鸟）", "低碳"],
+    ["周二", "背（引体划船）", "低碳"],
+    ["周三", "腿（深蹲硬拉）", "高碳"],
+    ["周四", "肩（推举侧平举）", "低碳"],
+    ["周五", "手臂（弯举臂屈伸）", "低碳"],
+    ["周六", "休息", "低碳"],
     ["周日", "休息", "低碳"]
   ];
 
   return (
-    <div className="mx-4 mt-3 rounded-md border border-line bg-panel p-3">
+    <div className="mx-4 mt-3 rounded-xl border border-line bg-surface/60 p-3 backdrop-blur hover-lift">
       <div className="mb-3 flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
         <div>
-          <h3 className="text-sm font-semibold text-ink">凯圣王三分化饮食规则</h3>
-          <p className="text-xs text-muted">腿日高碳；推拉常规中碳；完全休息低碳。训练日碳水集中在训前和训后，低碳日不做力量训练。</p>
+          <h3 className="text-gradient text-sm font-semibold">心平气和的张老师 五分化碳循环</h3>
+          <p className="text-xs text-muted">仅腿日高碳、其余6天低碳，一周五练两休，高碳日碳水集中训练前后。</p>
         </div>
         <span className="text-xs text-muted">16/8进食窗口；绿叶蔬菜不限量；高碳日严控油脂和劣质碳水。</span>
       </div>
       <div className="grid gap-2 md:grid-cols-7">
         {weeklyPlan.map(([day, workout, carbDay]) => (
-          <div key={day} className="rounded-md border border-line bg-white p-2">
+          <div key={day} className="rounded-md border border-line bg-surface/70 p-2 backdrop-blur transition-all hover:border-accent/40">
             <div className="text-xs font-semibold text-ink">{day}</div>
             <div className="mt-1 min-h-8 text-xs text-muted">{workout}</div>
-            <div className="mt-2 text-xs font-semibold text-accent">{carbDay}</div>
+            <div className={`mt-2 text-xs font-semibold ${carbDay === "高碳" ? "text-gradient animate-glow-pulse" : "text-muted"}`}>{carbDay}</div>
           </div>
         ))}
       </div>
@@ -679,7 +695,7 @@ function ProfilePanel({ profile, updateProfile }: ProfilePanelProps) {
   return (
     <section className="panel p-4">
       <div className="mb-4 flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-md bg-blue-50 text-accent ring-1 ring-blue-100">
+        <div className="flex h-10 w-10 items-center justify-center rounded-md bg-accent/10 text-accent ring-1 ring-accent/30">
           <Utensils size={20} />
         </div>
         <div>
@@ -797,8 +813,8 @@ function MealEditor({
   const [templateName, setTemplateName] = useState("");
 
   return (
-    <section className="overflow-hidden bg-white">
-      <div className="flex flex-col gap-3 border-b border-line bg-blue-50/50 p-4 xl:flex-row xl:items-center xl:justify-between">
+    <section className="overflow-hidden bg-surface">
+      <div className="flex flex-col gap-3 border-b border-line bg-surface/70 p-4 xl:flex-row xl:items-center xl:justify-between">
         <div>
           <h3 className="text-lg font-semibold text-ink">{meal.name}</h3>
           <p className="text-sm text-muted">
@@ -910,7 +926,7 @@ function MealEditor({
             const totals = food ? calculateFoodTotals(food, entry.grams) : { kcal: 0, carbs: 0, protein: 0, fat: 0 };
 
             return (
-              <div key={entry.id} className="rounded-md border border-line bg-white p-3">
+              <div key={entry.id} className="rounded-md border border-line bg-surface/70 p-3 backdrop-blur">
                 <label>
                   <span className="metric-label mb-1 block">食物</span>
                   <select
@@ -1020,7 +1036,7 @@ function MealEditor({
 
       <div className="scrollbar-thin hidden overflow-x-auto md:block">
         <table className="w-full min-w-[1080px] text-left text-sm">
-          <thead className="bg-panel text-xs uppercase tracking-normal text-muted">
+          <thead className="bg-surface/80 text-xs uppercase tracking-normal text-muted">
             <tr>
               <th className="px-4 py-3">食物</th>
               <th className="px-4 py-3">克重</th>
@@ -1050,7 +1066,7 @@ function MealEditor({
                 const totals = food ? calculateFoodTotals(food, entry.grams) : { kcal: 0, carbs: 0, protein: 0, fat: 0 };
 
                 return (
-                  <tr key={entry.id} className="border-t border-line">
+                  <tr key={entry.id} className="border-t border-line transition-colors hover:bg-accent/5">
                     <td className="px-4 py-3">
                       <select
                         className="field h-9 w-52"
@@ -1089,7 +1105,7 @@ function MealEditor({
                         }
                       />
                     </td>
-                    <td className="px-4 py-3 font-medium text-accent">{round(recommendedGrams, 1)} g</td>
+                    <td className="px-4 py-3 font-bold text-accent">{round(recommendedGrams, 1)} g</td>
                     <td className="px-4 py-3">
                       <input
                         className="field h-9 w-24"
@@ -1167,7 +1183,7 @@ function LockedMealGapNotice({
 
   const direction = recommendation.deficit.kcal > 0 ? "仍亏" : "仍盈";
   return (
-    <p className="border-b border-line bg-amber-50 px-4 py-2 text-sm font-medium text-amber-800">
+    <p className="border-b border-line bg-amber/10 px-4 py-2 text-sm font-medium text-amber ring-inset ring-amber/20">
       锁定项使本餐推荐后{direction} {round(Math.abs(recommendation.deficit.kcal), 0)} kcal，系统会保留该差额，避免其他餐被过度拉高或压低。
     </p>
   );
@@ -1183,7 +1199,7 @@ interface MealMacroBalanceProps {
 
 function MealMacroBalance({ actual, actualDeficit, actualRatio, target, targetRatio }: MealMacroBalanceProps) {
   return (
-    <div className="grid gap-2 border-b border-line bg-panel p-4 md:grid-cols-3">
+    <div className="grid gap-2 border-b border-line bg-surface/60 p-4 md:grid-cols-3">
       <MacroBalanceCard
         actual={actual.carbs}
         actualRatio={actualRatio.carbs}
@@ -1232,7 +1248,7 @@ function MacroBalanceCard({
   const tone = isSurplus ? "text-rose" : "text-accent";
 
   return (
-    <div className="rounded-md border border-line bg-white p-3">
+    <div className="rounded-md border border-line bg-surface/70 p-3 backdrop-blur">
       <div className="flex items-center justify-between gap-2">
         <span className="metric-label">{label}</span>
         <span className={`text-sm font-semibold ${tone}`}>

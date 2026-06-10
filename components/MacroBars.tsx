@@ -20,11 +20,22 @@ interface MacroBarsProps {
 }
 
 const colors = {
-  kcal: "#1e40af",
-  carbs: "#d97706",
-  protein: "#0f766e",
-  fat: "#b42318"
+  kcal: "#5b8cff",
+  carbs: "#f59e0b",
+  protein: "#22d3ee",
+  fat: "#a855f7"
 };
+
+const tooltipStyle = {
+  backgroundColor: "rgba(13,17,38,0.92)",
+  borderColor: "rgba(91,140,255,0.25)",
+  borderRadius: 10,
+  boxShadow: "0 8px 32px rgba(91,140,255,0.18)",
+  color: "#c9d0e8"
+};
+
+const gridStyle = { stroke: "rgba(151,163,214,0.12)", strokeDasharray: "3 3" };
+const axisStyle = { fill: "rgba(151,163,214,0.55)", fontSize: 12 };
 
 export function MacroBars({ result, meals }: MacroBarsProps) {
   const [isNarrow, setIsNarrow] = useState(false);
@@ -83,45 +94,45 @@ export function MacroBars({ result, meals }: MacroBarsProps) {
     <>
       <Bar dataKey="carbs" stackId="macro" fill={colors.carbs} name="碳水 g" />
       <Bar dataKey="protein" stackId="macro" fill={colors.protein} name="蛋白 g" />
-      <Bar dataKey="fat" stackId="macro" fill={colors.fat} name="脂肪 g" />
+      <Bar dataKey="fat" stackId="macro" fill={colors.fat} name="脂肪 g" radius={[3, 3, 3, 3]} />
     </>
   );
 
   return (
     <div className="grid gap-4 xl:grid-cols-2">
-      <div className="panel p-4">
+      <div className="panel hover-lift p-4">
         <div className="mb-3 flex items-center justify-between gap-3">
           <h3 className="font-semibold text-ink">当天摄入对比</h3>
-          <span className="rounded-md bg-blue-50 px-2 py-1 text-xs font-semibold text-accent">目标 / 当前 / 差额</span>
+          <span className="rounded-md bg-accent/15 px-2 py-1 text-xs font-semibold text-accent">目标 / 当前 / 差额</span>
         </div>
         <div className="h-[280px]">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={dayData} layout={isNarrow ? "horizontal" : "vertical"} margin={{ left: 8, right: 18 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              {isNarrow ? <XAxis dataKey="name" /> : <XAxis type="number" />}
-              {isNarrow ? <YAxis /> : <YAxis dataKey="name" type="category" width={54} />}
-              <Tooltip contentStyle={{ borderColor: "#dbeafe", borderRadius: 8, boxShadow: "0 10px 32px rgba(30,64,175,0.10)" }} />
-              <Legend />
-              <Bar dataKey="kcal" fill={colors.kcal} name="热量 kcal" />
+              <CartesianGrid {...gridStyle} />
+              {isNarrow ? <XAxis dataKey="name" tick={axisStyle} axisLine={false} tickLine={false} /> : <XAxis type="number" tick={axisStyle} axisLine={false} tickLine={false} />}
+              {isNarrow ? <YAxis tick={axisStyle} axisLine={false} tickLine={false} /> : <YAxis dataKey="name" type="category" width={54} tick={axisStyle} axisLine={false} tickLine={false} />}
+              <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "rgba(91,140,255,0.06)" }} />
+              <Legend wrapperStyle={{ color: "rgba(151,163,214,0.75)", fontSize: 12 }} />
+              <Bar dataKey="kcal" fill={colors.kcal} name="热量 kcal" radius={[3, 3, 3, 3]} />
               {commonBars}
             </BarChart>
           </ResponsiveContainer>
         </div>
       </div>
 
-      <div className="panel p-4">
+      <div className="panel hover-lift p-4">
         <div className="mb-3 flex items-center justify-between gap-3">
           <h3 className="font-semibold text-ink">每餐当前摄入</h3>
-          <span className="rounded-md bg-blue-50 px-2 py-1 text-xs font-semibold text-accent">按餐次拆分</span>
+          <span className="rounded-md bg-accent/15 px-2 py-1 text-xs font-semibold text-accent">按餐次拆分</span>
         </div>
         <div className="h-[280px]">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={mealData} layout={isNarrow ? "horizontal" : "vertical"} margin={{ left: 8, right: 18 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              {isNarrow ? <XAxis dataKey="name" /> : <XAxis type="number" />}
-              {isNarrow ? <YAxis /> : <YAxis dataKey="name" type="category" width={84} />}
-              <Tooltip contentStyle={{ borderColor: "#dbeafe", borderRadius: 8, boxShadow: "0 10px 32px rgba(30,64,175,0.10)" }} />
-              <Legend />
+              <CartesianGrid {...gridStyle} />
+              {isNarrow ? <XAxis dataKey="name" tick={axisStyle} axisLine={false} tickLine={false} /> : <XAxis type="number" tick={axisStyle} axisLine={false} tickLine={false} />}
+              {isNarrow ? <YAxis tick={axisStyle} axisLine={false} tickLine={false} /> : <YAxis dataKey="name" type="category" width={84} tick={axisStyle} axisLine={false} tickLine={false} />}
+              <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "rgba(91,140,255,0.06)" }} />
+              <Legend wrapperStyle={{ color: "rgba(151,163,214,0.75)", fontSize: 12 }} />
               {commonBars}
             </BarChart>
           </ResponsiveContainer>

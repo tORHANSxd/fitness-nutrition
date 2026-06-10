@@ -44,10 +44,14 @@ const dailyMacroBandWeights: Record<keyof MacroRatio, number> = {
   fat: 12
 };
 
+// 张老师五分化碳循环：每周仅 1 天高碳（腿日），其余 6 天低碳。
+// 周碳水总量 W×2×7、周脂肪总量 W×0.8×7 在两类碳日间重分配，保持周均不变。
+// 高碳日 = 周碳水 30% / 周脂肪 9%（≈4.2g/kg 碳水、0.5g/kg 脂肪），干净饮食可达成。
+// 低碳日 = 周碳水 70% 摊 6 天 / 周脂肪 91% 摊 6 天（≈1.63g/kg 碳水、0.85g/kg 脂肪）。
 const carbCycleDistribution: Record<CarbDayType, { daysPerWeek: number; carbShare: number; fatShare: number }> = {
-  high: { daysPerWeek: 2, carbShare: 0.5, fatShare: 0.15 },
-  mid: { daysPerWeek: 3, carbShare: 0.35, fatShare: 0.35 },
-  low: { daysPerWeek: 2, carbShare: 0.15, fatShare: 0.5 }
+  high: { daysPerWeek: 1, carbShare: 0.3, fatShare: 0.09 },
+  mid: { daysPerWeek: 6, carbShare: 0.7, fatShare: 0.91 },
+  low: { daysPerWeek: 6, carbShare: 0.7, fatShare: 0.91 }
 };
 
 const easyFatGainBaseCarbsPerKg = 2;
@@ -148,7 +152,7 @@ const categoryGramWeights: Record<FoodCategory, number> = {
 };
 
 export const carbCycleMacroSource =
-  "凯圣王碳循环：每周固定2高碳+3中碳+2低碳，蛋白每日固定W×1.6-2.2g；碳水周总量W×2×7，脂肪周总量W×0.8×7；高碳日=周碳水25%/周脂肪7.5%，中碳日=周碳水11.67%/周脂肪11.67%，低碳日=周碳水7.5%/周脂肪25%。";
+  "张老师五分化碳循环：一周5练（胸/背/腿/肩/手臂）+2休息，仅腿日1天高碳、其余6天低碳；蛋白每日固定W×1.6-2.2g；碳水周总量W×2×7，脂肪周总量W×0.8×7；高碳日=周碳水30%/周脂肪9%（≈4.2g/kg碳水），低碳日=周碳水70%÷6/周脂肪91%÷6（≈1.63g/kg碳水、0.85g/kg脂肪）。";
 
 export const foodPortionSource =
   "分类份量参考中国居民平衡膳食餐盘和健康餐盘法：主餐保留可见蛋白份量，主食、蔬果、蛋白按餐盘结构评分；补剂和坚果按健身常用单次份量设上限。";
@@ -160,9 +164,11 @@ export const macroRatioCheckSource =
   "配比检查：按当前体重公式反推的目标供能占比±5个百分点判断碳水、蛋白、脂肪是否贴合。";
 
 export const workoutLabels: Record<WorkoutType, string> = {
-  chest: "推：胸肩三头",
-  back: "拉：背二头",
+  chest: "胸：卧推飞鸟",
+  back: "背：引体划船",
   legs: "腿：深蹲硬拉",
+  shoulders: "肩：推举侧平举",
+  arms: "手臂：弯举臂屈伸",
   rest: "休息日"
 };
 
@@ -485,13 +491,11 @@ export function calculatePlannedCalorieDelta(profile: UserProfile) {
 }
 
 export function getCarbDayType(workoutType: WorkoutType): CarbDayType {
+  // 张老师五分化：腿日为唯一高碳日（糖原消耗最大），其余训练日与休息日均低碳。
   if (workoutType === "legs") {
     return "high";
   }
-  if (workoutType === "rest") {
-    return "low";
-  }
-  return "mid";
+  return "low";
 }
 
 export function calculateDailyTarget(profile: UserProfile): MacroTotals {

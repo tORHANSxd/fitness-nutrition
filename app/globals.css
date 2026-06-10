@@ -3,8 +3,10 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: light;
-  background: #f8fafc;
+  color-scheme: dark;
+  --bg: #070b1a;
+  --glass: rgba(18, 24, 48, 0.62);
+  --glass-line: rgba(140, 160, 255, 0.14);
 }
 
 * {
@@ -18,15 +20,31 @@ body {
 
 body {
   margin: 0;
-  background:
-    linear-gradient(#e8eef8 1px, transparent 1px),
-    linear-gradient(90deg, #e8eef8 1px, transparent 1px),
-    #f8fafc;
-  background-size: 32px 32px;
-  color: #0f172a;
+  color: #e8ecff;
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", "Microsoft YaHei", sans-serif;
+  /* 深色霓虹背景：底色 + 多层霓虹光晕 + 细网格，固定不随滚动 */
+  background:
+    radial-gradient(900px 500px at 12% -8%, rgba(91, 140, 255, 0.22), transparent 60%),
+    radial-gradient(820px 480px at 92% 4%, rgba(168, 85, 247, 0.18), transparent 60%),
+    radial-gradient(700px 520px at 70% 108%, rgba(34, 211, 238, 0.14), transparent 60%),
+    linear-gradient(180deg, #080d20 0%, #070b1a 100%);
+  background-attachment: fixed;
+}
+
+/* 细网格叠层（固定） */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    linear-gradient(rgba(140, 160, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(140, 160, 255, 0.05) 1px, transparent 1px);
+  background-size: 38px 38px;
+  mask-image: radial-gradient(circle at 50% 30%, black, transparent 85%);
 }
 
 button,
@@ -37,9 +55,10 @@ select {
 
 button {
   transition:
-    background-color 160ms ease,
-    border-color 160ms ease,
-    color 160ms ease,
+    background-color 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease,
+    box-shadow 220ms ease,
     opacity 160ms ease,
     transform 160ms ease;
   touch-action: manipulation;
@@ -50,40 +69,56 @@ select {
   min-width: 0;
 }
 
+select option {
+  background: #0d1326;
+  color: #e8ecff;
+}
+
 .focus-ring {
-  @apply focus:outline-none focus:ring-2 focus:ring-accent/25 focus:border-accent;
+  @apply focus:outline-none focus:ring-2 focus:ring-accent/45 focus:border-accent;
 }
 
 .field {
-  @apply h-11 rounded-md border border-line bg-white px-3 text-sm text-ink shadow-[inset_0_1px_0_rgba(15,23,42,0.03)] focus-ring;
+  @apply h-11 rounded-lg border border-line bg-[#0c1226]/80 px-3 text-sm text-ink shadow-[inset_0_1px_0_rgba(140,160,255,0.06)] backdrop-blur placeholder:text-muted/60 focus-ring;
 }
 
 .btn {
-  @apply inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-md border px-3 text-sm font-semibold active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
+  @apply inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border px-3.5 text-sm font-semibold transition-transform active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50;
 }
 
 .btn-primary {
-  @apply btn border-accent bg-accent text-white hover:bg-blue-800;
+  @apply btn border-accent/60 bg-accent text-white shadow-[0_8px_24px_-8px_rgba(91,140,255,0.8)] hover:-translate-y-0.5 hover:shadow-[0_12px_34px_-8px_rgba(91,140,255,0.95)];
 }
 
 .btn-cta {
-  @apply btn border-amber bg-amber text-white hover:opacity-90;
+  @apply btn border-transparent bg-neon-grad text-[#07112a] shadow-[0_10px_30px_-8px_rgba(34,211,238,0.7)] hover:-translate-y-0.5 hover:shadow-glow-neon;
 }
 
 .btn-secondary {
-  @apply btn border-line bg-white text-ink hover:border-blue-200 hover:bg-blue-50;
+  @apply btn border-line bg-white/[0.04] text-ink backdrop-blur hover:border-accent/50 hover:bg-accent/10 hover:text-white;
 }
 
 .btn-danger {
-  @apply btn border-rose/30 bg-rose/10 text-rose hover:bg-rose/15;
+  @apply btn border-rose/40 bg-rose/10 text-rose hover:bg-rose/20 hover:text-white;
 }
 
+/* 玻璃拟态卡片 */
 .panel {
-  @apply rounded-lg border border-line bg-white/95 shadow-soft;
+  @apply relative rounded-2xl border border-[color:var(--glass-line)] bg-[color:var(--glass)] shadow-soft backdrop-blur-xl;
 }
 
 .metric-label {
-  @apply text-xs font-semibold uppercase tracking-normal text-muted;
+  @apply text-[11px] font-semibold uppercase tracking-[0.12em] text-muted;
+}
+
+/* 霓虹渐变文字 */
+.text-gradient {
+  @apply bg-neon-grad bg-clip-text text-transparent;
+}
+
+/* hover 抬升 */
+.hover-lift {
+  @apply transition-transform duration-200 hover:-translate-y-1;
 }
 
 .skip-link {
@@ -92,17 +127,17 @@ select {
 
 .scrollbar-thin {
   scrollbar-width: thin;
-  scrollbar-color: #cbd5e1 transparent;
+  scrollbar-color: rgba(91, 140, 255, 0.4) transparent;
 }
 
 .animate-view {
-  animation: view-in 180ms ease-out;
+  animation: view-in 220ms ease-out;
 }
 
 @keyframes view-in {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
@@ -115,6 +150,7 @@ select {
   *::before,
   *::after {
     animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;
     transition-duration: 1ms !important;
   }

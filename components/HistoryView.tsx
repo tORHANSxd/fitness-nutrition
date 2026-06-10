@@ -53,7 +53,7 @@ export function HistoryView({ user }: HistoryViewProps) {
       {message ? <p className="m-4 rounded-md bg-rose/10 p-3 text-sm text-rose">{message}</p> : null}
       <div className="scrollbar-thin overflow-x-auto">
         <table className="w-full min-w-[860px] text-left text-sm">
-          <thead className="bg-panel text-xs uppercase tracking-normal text-muted">
+          <thead className="bg-surface/80 text-xs uppercase tracking-normal text-muted">
             <tr>
               <th className="px-4 py-3">日期</th>
               <th className="px-4 py-3">训练</th>
@@ -73,8 +73,12 @@ export function HistoryView({ user }: HistoryViewProps) {
                 </td>
               </tr>
             ) : (
-              plans.map((plan) => (
-                <tr key={plan.id} className="border-t border-line">
+              plans.map((plan, index) => (
+                <tr
+                  key={plan.id}
+                  className="border-t border-line animate-fade-up transition-colors hover:bg-accent/5"
+                  style={{ animationDelay: `${index * 40}ms` }}
+                >
                   <td className="px-4 py-3 font-medium text-ink">{plan.planDate}</td>
                   <td className="px-4 py-3">{workoutLabels[plan.profile.workoutType]}</td>
                   <td className="px-4 py-3">{carbDayLabels[plan.result.carbDayType]}</td>

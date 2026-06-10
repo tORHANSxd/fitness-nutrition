@@ -116,7 +116,7 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated }: Foo
     <section className="grid gap-4 xl:grid-cols-[420px_1fr]">
       <div className="panel p-4">
         <div className="mb-4">
-          <h2 className="text-lg font-semibold text-ink">{editingFood ? "编辑食物" : "新增食物"}</h2>
+          <h2 className="text-lg font-semibold text-gradient">{editingFood ? "编辑食物" : "新增食物"}</h2>
           <p className="text-sm text-muted">
             {editingFood?.source === "public"
               ? "公共食物会保存为你的覆盖值，不影响其他用户。"
@@ -158,7 +158,7 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated }: Foo
           <div className="grid grid-cols-2 gap-3">
             <div>
               <span className="metric-label mb-1 block">热量 kcal/100g</span>
-              <div className="field flex w-full items-center bg-slate-50 text-muted">
+              <div className="field flex w-full items-center bg-surface/60 text-muted">
                 {round(formKcalPer100g, 1)}
               </div>
             </div>
@@ -202,14 +202,18 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated }: Foo
               </button>
             ) : null}
           </div>
-          {message ? <p className="rounded-md bg-panel p-3 text-sm text-ink">{message}</p> : null}
+          {message ? (
+            <p className={`rounded-md border p-3 text-sm ${message.includes("失败") || message.includes("不能") ? "border-rose/30 bg-rose/10 text-rose" : "border-line bg-surface/80 text-ink"}`}>
+              {message}
+            </p>
+          ) : null}
         </div>
       </div>
 
       <div className="panel overflow-hidden">
         <div className="flex flex-col gap-3 border-b border-line p-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-ink">食物库</h2>
+            <h2 className="text-lg font-semibold text-gradient">食物库</h2>
             <p className="text-sm text-muted">公共库与本人自定义食物合并显示。</p>
           </div>
           <select className="field w-full md:w-40" value={filter} onChange={(event) => setFilter(event.target.value as typeof filter)}>
@@ -223,7 +227,7 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated }: Foo
         </div>
         <div className="scrollbar-thin overflow-x-auto">
           <table className="w-full min-w-[860px] text-left text-sm">
-            <thead className="bg-panel text-xs uppercase tracking-normal text-muted">
+            <thead className="bg-surface/80 text-xs uppercase tracking-normal text-muted">
               <tr>
                 <th className="px-4 py-3">食物</th>
                 <th className="px-4 py-3">分类</th>
@@ -238,7 +242,7 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated }: Foo
             </thead>
             <tbody>
               {visibleFoods.map((food) => (
-                <tr key={food.id} className="border-t border-line">
+                <tr key={food.id} className="border-t border-line transition-colors hover:bg-accent/5">
                   <td className="px-4 py-3 font-medium text-ink">{food.name}</td>
                   <td className="px-4 py-3">{food.category}</td>
                   <td className="px-4 py-3">{round(calculateFoodKcalPer100g(food), 1)} kcal</td>

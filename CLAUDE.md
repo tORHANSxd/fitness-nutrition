@@ -1,3 +1,33 @@
+# fitness_nutrition — 项目说明（自 codex AGENTS.md 迁移，2026-06-10）
+
+请始终使用中文回复。
+
+need_git:true
+
+本项目需要 Git 存档。代码修改后必须用 `local-git-remote` skill 提交到本地裸仓库远端：
+
+`D:\Workspace\git\fitness_nutrition.git`
+
+提交信息格式（中文）：`YYYY-MM-DD HH:mm:ss {修改内容}`。每次 Git 保存后，最终总结开头需报告：提交哈希、提交名、远端地址、工作区状态。
+
+## 技术栈
+
+Next.js 16 (App Router) + React 19 + TypeScript + Tailwind 3 + Supabase + recharts + lucide-react。Supabase 未配置时自动回退 localStorage（demo 模式）。测试：vitest。
+
+## 功能模块（重构必须全部保留）
+
+- 当天计划 planner：身体/训练表单 → 碳循环目标 → 分餐求解器（`lib/nutrition.ts`，克数精确到 0.1g，硬性容忍带亏10g/盈5g）→ 应用推荐 → 保存计划
+- 模板管理 templates：单餐模板 / 全天模板
+- 食物库 foods：公共+用户食材 CRUD、能量校验
+- 历史记录 history：已保存计划
+- 登录 login：Supabase 邮箱认证
+- 双存储 storage：Supabase / localStorage 回退
+
+## 核心约定
+
+- 求解器逻辑（`lib/nutrition.ts`）与 UI 解耦，重构皮肤不应改动数学；改碳循环规则要同步更新 `tests/nutrition.test.ts`。
+- 所有克数、营养素展示保留 1 位小数（`round(v, 1)`）。
+
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 

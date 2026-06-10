@@ -61,32 +61,32 @@ export function AuthPanel({ user, onSignedIn }: AuthPanelProps) {
             <ShieldCheck size={20} />
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-ink">账户与在线保存</h2>
+            <h2 className="text-lg font-semibold text-gradient">账户与在线保存</h2>
             <p className="text-sm text-muted">邮箱密码登录后，食物库和每日计划写入 Supabase。</p>
           </div>
         </div>
         <div className="grid gap-3 text-sm text-ink md:grid-cols-3">
-          <div className="rounded-md border border-line bg-panel p-3">RLS 限制每个用户只能读写自己的私有食物和计划。</div>
-          <div className="rounded-md border border-line bg-panel p-3">公共食物库与私有食物库合并显示，私有食物仅本人可见。</div>
-          <div className="rounded-md border border-line bg-panel p-3">未配置 Supabase 时，功能可预览，数据保存在浏览器本地。</div>
+          <div className="rounded-xl border border-line bg-surface/70 backdrop-blur p-3">RLS 限制每个用户只能读写自己的私有食物和计划。</div>
+          <div className="rounded-xl border border-line bg-surface/70 backdrop-blur p-3">公共食物库与私有食物库合并显示，私有食物仅本人可见。</div>
+          <div className="rounded-xl border border-line bg-surface/70 backdrop-blur p-3">未配置 Supabase 时，功能可预览，数据保存在浏览器本地。</div>
         </div>
       </div>
 
       <div className="panel p-5">
         <div className="mb-4">
-          <h2 className="text-lg font-semibold text-ink">{user ? "已登录" : mode === "login" ? "登录" : "注册"}</h2>
+          <h2 className="text-lg font-semibold text-gradient">{user ? "已登录" : mode === "login" ? "登录" : "注册"}</h2>
           <p className="text-sm text-muted">
             {configured ? (user ? user.email : "输入邮箱和密码继续") : "请先配置 .env.local 中的 Supabase 环境变量"}
           </p>
         </div>
 
         {user ? (
-          <div className="rounded-md border border-line bg-panel p-3 text-sm text-ink">当前账户：{user.email}</div>
+          <div className="rounded-md border border-line bg-surface/70 p-3 text-sm text-ink">当前账户：{user.email}</div>
         ) : (
           <div className="space-y-3">
             <label className="block">
               <span className="metric-label mb-1 block">邮箱</span>
-              <span className="flex items-center gap-2 rounded-md border border-line bg-white px-3">
+              <span className="flex items-center gap-2 rounded-md border border-line bg-surface px-3">
                 <Mail size={16} className="text-muted" />
                 <input
                   className="h-10 flex-1 border-0 bg-transparent text-sm outline-none"
@@ -99,7 +99,7 @@ export function AuthPanel({ user, onSignedIn }: AuthPanelProps) {
             </label>
             <label className="block">
               <span className="metric-label mb-1 block">密码</span>
-              <span className="flex items-center gap-2 rounded-md border border-line bg-white px-3">
+              <span className="flex items-center gap-2 rounded-md border border-line bg-surface px-3">
                 <KeyRound size={16} className="text-muted" />
                 <input
                   className="h-10 flex-1 border-0 bg-transparent text-sm outline-none"
@@ -123,7 +123,11 @@ export function AuthPanel({ user, onSignedIn }: AuthPanelProps) {
           </div>
         )}
 
-        {message ? <p className="mt-3 rounded-md bg-panel p-3 text-sm text-ink">{message}</p> : null}
+        {message ? (
+          <p className={`mt-3 rounded-md border p-3 text-sm ${message.includes("成功") ? "border-accent/30 bg-accent/10 text-accent" : "border-line bg-surface/80 text-ink"}`}>
+            {message}
+          </p>
+        ) : null}
       </div>
     </section>
   );

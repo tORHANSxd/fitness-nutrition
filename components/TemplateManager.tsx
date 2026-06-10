@@ -41,8 +41,8 @@ export function TemplateManager({ templates, onTemplatesChanged }: TemplateManag
   return (
     <section className="space-y-4">
       <div className="panel overflow-hidden">
-        <div className="border-b border-line bg-blue-50/70 p-4">
-          <h2 className="text-xl font-semibold text-ink">模板管理</h2>
+        <div className="border-b border-line bg-surface/80 p-4">
+          <h2 className="text-xl font-semibold text-gradient">模板管理</h2>
           <p className="mt-1 text-sm text-muted">集中重命名单餐模板和全天模板，删除后不会影响已保存的历史计划。</p>
         </div>
         <div className="grid gap-4 p-4 xl:grid-cols-2">
@@ -53,7 +53,7 @@ export function TemplateManager({ templates, onTemplatesChanged }: TemplateManag
             title="全天模板"
           >
             {templates.dayTemplates.map((template) => (
-              <div key={template.id} className="rounded-md border border-line bg-white p-3">
+              <div key={template.id} className="rounded-xl border border-line bg-surface/70 backdrop-blur p-3 hover-lift">
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                   <label className="min-w-0 flex-1">
                     <span className="metric-label mb-1 flex items-center gap-1">
@@ -82,7 +82,7 @@ export function TemplateManager({ templates, onTemplatesChanged }: TemplateManag
             {templates.mealTemplates.map((template) => {
               const lockedCount = template.entries.filter((entry) => entry.locked).length;
               return (
-                <div key={template.id} className="rounded-md border border-line bg-white p-3">
+                <div key={template.id} className="rounded-xl border border-line bg-surface/70 backdrop-blur p-3 hover-lift">
                   <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <label className="min-w-0 flex-1">
                       <span className="metric-label mb-1 flex items-center gap-1">
@@ -126,15 +126,15 @@ function TemplateList({
     <section className="rounded-md border border-line bg-panel p-3">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-blue-50 text-accent ring-1 ring-blue-100">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-accent/10 text-accent ring-1 ring-accent/20">
             <Icon size={18} />
           </div>
           <h3 className="text-base font-semibold text-ink">{title}</h3>
         </div>
-        <span className="rounded-md bg-white px-2 py-1 text-xs font-semibold text-accent ring-1 ring-blue-100">{count} 个</span>
+        <span className="rounded-md bg-surface px-2 py-1 text-xs font-semibold text-accent ring-1 ring-accent/20">{count} 个</span>
       </div>
       <div className="grid gap-2">
-        {count === 0 ? <p className="rounded-md border border-dashed border-line bg-white p-3 text-sm text-muted">{emptyText}</p> : children}
+        {count === 0 ? <p className="rounded-md border border-dashed border-line bg-surface/50 p-3 text-sm text-muted">{emptyText}</p> : children}
       </div>
     </section>
   );

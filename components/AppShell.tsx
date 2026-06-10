@@ -108,16 +108,16 @@ export function AppShell({ initialView }: AppShellProps) {
   const userStatus = configured ? (user ? `已登录：${user.email}` : "Supabase 在线模式") : "本地演示模式";
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-[1480px] flex-col px-3 py-3 pb-28 md:px-6 md:py-5 md:pb-6">
+    <main className="relative z-10 mx-auto flex min-h-dvh w-full max-w-[1480px] flex-col px-3 py-3 pb-28 md:px-6 md:py-5 md:pb-6">
       <a className="skip-link" href="#main-content">跳到主要内容</a>
-      <header className="sticky top-3 z-20 mb-4 rounded-lg border border-line bg-white/95 px-3 py-3 shadow-soft backdrop-blur md:px-4">
+      <header className="sticky top-3 z-20 mb-4 rounded-lg border border-line bg-surface/80 px-3 py-3 shadow-soft backdrop-blur md:px-4">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-accent text-white shadow-[0_10px_24px_rgba(30,64,175,0.22)]">
+          <div className="flex h-11 w-11 shrink-0 animate-glow-pulse items-center justify-center rounded-md bg-neon-grad text-white shadow-glow">
             <BarChart3 size={22} />
           </div>
           <div className="min-w-0">
-            <h1 className="text-lg font-semibold text-ink md:text-xl">健身营养计划</h1>
+            <h1 className="text-gradient text-lg font-semibold md:text-xl">健身营养计划</h1>
             <p className="truncate text-sm text-muted">{userStatus}</p>
           </div>
         </div>
@@ -130,7 +130,7 @@ export function AppShell({ initialView }: AppShellProps) {
               <button
                 key={item.id}
                 className={`btn h-11 px-3 ${
-                  active ? "border-accent bg-accent text-white" : "border-line bg-white text-ink hover:bg-blue-50"
+                  active ? "border-accent bg-accent text-white shadow-glow" : "border-line bg-surface text-ink hover:bg-accent/10"
                 }`}
                 type="button"
                 onClick={() => setView(item.id)}
@@ -168,7 +168,9 @@ export function AppShell({ initialView }: AppShellProps) {
       </header>
 
       {!authReady ? (
-        <section className="panel flex min-h-[420px] items-center justify-center text-muted">正在初始化...</section>
+        <section className="panel flex min-h-[420px] items-center justify-center text-muted">
+          <span className="animate-glow-pulse">正在初始化...</span>
+        </section>
       ) : null}
 
       {authReady ? (
@@ -191,20 +193,23 @@ export function AppShell({ initialView }: AppShellProps) {
         </div>
       ) : null}
 
-      <nav className="fixed inset-x-3 bottom-3 z-30 grid grid-cols-5 gap-2 rounded-lg border border-line bg-white/95 p-2 shadow-soft backdrop-blur md:hidden" aria-label="主导航">
+      <nav className="fixed inset-x-3 bottom-3 z-30 grid grid-cols-5 gap-2 rounded-lg border border-line bg-surface/80 p-2 shadow-soft backdrop-blur md:hidden" aria-label="主导航">
         {navItems.map((item) => {
           const Icon = item.icon;
           const active = view === item.id;
           return (
             <button
               key={item.id}
-              className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-md border px-2 text-xs font-semibold transition-colors ${
-                active ? "border-accent bg-accent text-white" : "border-transparent text-muted hover:bg-blue-50 hover:text-ink"
+              className={`relative flex min-h-14 flex-col items-center justify-center gap-1 rounded-md border px-2 text-xs font-semibold transition-colors ${
+                active ? "border-accent bg-accent text-white shadow-glow" : "border-transparent text-muted hover:bg-accent/10 hover:text-ink"
               }`}
               type="button"
               onClick={() => setView(item.id)}
               aria-current={active ? "page" : undefined}
             >
+              {active && (
+                <span className="absolute inset-x-2 top-0 h-0.5 rounded-full bg-neon-grad shadow-glow-neon" />
+              )}
               <Icon size={17} />
               <span>{item.shortLabel}</span>
             </button>

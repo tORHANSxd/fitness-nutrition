@@ -326,8 +326,8 @@ export function NutritionPlanner({ foods, templates, user, onTemplatesChanged }:
               </div>
             </div>
 
-            {/* stat 网格：7 指标，无独立卡片投影，细线分隔 */}
-            <div className="grid grid-cols-2 divide-x divide-y divide-line sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 xl:divide-y-0">
+            {/* stat 网格：7 指标，无独立卡片投影，细线分隔（列数受限以免窄列内中文标签竖排/溢出） */}
+            <div className="grid grid-cols-2 divide-x divide-y divide-line sm:grid-cols-3 xl:grid-cols-4">
               <div className="px-4 py-3">
                 <MetricCard label="BMR" value={result.bmr} unit="kcal" />
               </div>
@@ -361,8 +361,8 @@ export function NutritionPlanner({ foods, templates, user, onTemplatesChanged }:
               </div>
             </div>
 
-            {/* bento 式横向三区：盈亏 + 宏比 + 周计划 */}
-            <div className="grid gap-3 border-t border-line p-4 xl:grid-cols-[1fr_auto_1.6fr]">
+            {/* 盈亏 + 宏比 + 周计划：在窄的右栏内纵向堆叠，避免横向三列挤压溢出 */}
+            <div className="grid gap-3 border-t border-line p-4">
               <DailyBalancePanel
                 actual={result.actualTotals}
                 recommended={result.recommendedTotals}

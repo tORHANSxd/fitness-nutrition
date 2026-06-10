@@ -106,116 +106,147 @@ export function AppShell({ initialView }: AppShellProps) {
   }
 
   const userStatus = configured ? (user ? `已登录：${user.email}` : "Supabase 在线模式") : "本地演示模式";
+  const activeLabel = navItems.find((item) => item.id === view)?.label ?? "当天计划";
+  const today = new Date().toLocaleDateString("zh-CN", { year: "numeric", month: "long", day: "numeric", weekday: "long" });
 
   return (
-    <main className="relative z-10 mx-auto flex min-h-dvh w-full max-w-[1480px] flex-col px-3 py-3 pb-28 md:px-6 md:py-5 md:pb-6">
+    <div className="relative z-10 min-h-dvh lg:pl-64">
       <a className="skip-link" href="#main-content">跳到主要内容</a>
-      <header className="sticky top-3 z-20 mb-4 rounded-lg border border-line bg-surface/80 px-3 py-3 shadow-soft backdrop-blur md:px-4">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-11 w-11 shrink-0 animate-glow-pulse items-center justify-center rounded-md bg-neon-grad text-white shadow-glow">
-            <BarChart3 size={22} />
+
+      {/* 桌面：固定左侧边栏 */}
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-line bg-surface/70 px-4 py-6 backdrop-blur-xl lg:flex">
+        <div className="flex items-center gap-3 px-1">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent/[0.12] text-accent ring-1 ring-accent/25">
+            <BarChart3 size={20} />
           </div>
-          <div className="min-w-0">
-            <h1 className="text-gradient text-lg font-semibold md:text-xl">健身营养计划</h1>
-            <p className="truncate text-sm text-muted">{userStatus}</p>
+          <div className="min-w-0 leading-tight">
+            <div className="text-[15px] font-semibold tracking-tight text-ink">健身营养</div>
+            <div className="text-xs text-muted">碳循环计划器</div>
           </div>
         </div>
 
-        <div className="hidden items-center gap-2 md:flex">
+        <nav className="mt-8 flex flex-col gap-1" aria-label="主导航">
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = view === item.id;
             return (
               <button
                 key={item.id}
-                className={`btn h-11 px-3 ${
-                  active ? "border-accent bg-accent text-white shadow-glow" : "border-line bg-surface text-ink hover:bg-accent/10"
+                className={`group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                  active ? "bg-accent/[0.12] text-accent" : "text-muted hover:bg-white/[0.04] hover:text-ink"
                 }`}
                 type="button"
                 onClick={() => setView(item.id)}
-                title={item.label}
+                aria-current={active ? "page" : undefined}
               >
-                <Icon size={16} />
-                <span className="min-w-0 truncate">{item.label}</span>
+                {active ? <span className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-accent" /> : null}
+                <Icon size={18} className="shrink-0" />
+                <span className="truncate">{item.label}</span>
               </button>
             );
           })}
-          <button className="btn-secondary h-11" type="button" onClick={refreshFoods} title="刷新食物库">
-            <RefreshCw size={16} className={loadingFoods ? "animate-spin" : ""} />
-            <span>刷新</span>
-          </button>
-          {user ? (
-            <button className="btn-secondary h-11" type="button" onClick={signOut} title="退出登录">
-              <LogOut size={16} />
-              <span>退出</span>
-            </button>
-          ) : null}
-        </div>
-        <div className="flex gap-2 md:hidden">
-          <button className="btn-secondary h-11 flex-1" type="button" onClick={refreshFoods} title="刷新食物库">
+        </nav>
+
+        <div className="mt-auto flex flex-col gap-2 pt-6">
+          <div className="rounded-lg border border-line bg-base/50 px-3 py-2.5">
+            <div className="flex items-center gap-2">
+              <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${configured && user ? "bg-accent" : "bg-muted"}`} />
+              <span className="truncate text-xs text-muted">{userStatus}</span>
+            </div>
+          </div>
+          <button className="btn-secondary h-10 justify-start px-3" type="button" onClick={refreshFoods} title="刷新食物库">
             <RefreshCw size={16} className={loadingFoods ? "animate-spin" : ""} />
             <span>刷新数据</span>
           </button>
           {user ? (
-            <button className="btn-secondary h-11 flex-1" type="button" onClick={signOut} title="退出登录">
+            <button className="btn-secondary h-10 justify-start px-3" type="button" onClick={signOut} title="退出登录">
               <LogOut size={16} />
-              <span>退出</span>
+              <span>退出登录</span>
             </button>
           ) : null}
         </div>
+      </aside>
+
+      {/* 移动/平板：顶部细 bar */}
+      <header className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-line bg-base/80 px-4 py-3 backdrop-blur-xl lg:hidden">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent/[0.12] text-accent ring-1 ring-accent/25">
+            <BarChart3 size={18} />
+          </div>
+          <div className="min-w-0">
+            <div className="text-sm font-semibold tracking-tight text-ink">{activeLabel}</div>
+            <div className="truncate text-[11px] text-muted">{userStatus}</div>
+          </div>
+        </div>
+        <div className="flex shrink-0 gap-2">
+          <button className="btn-secondary h-9 px-3" type="button" onClick={refreshFoods} title="刷新食物库">
+            <RefreshCw size={16} className={loadingFoods ? "animate-spin" : ""} />
+          </button>
+          {user ? (
+            <button className="btn-secondary h-9 px-3" type="button" onClick={signOut} title="退出登录">
+              <LogOut size={16} />
+            </button>
+          ) : null}
         </div>
       </header>
 
-      {!authReady ? (
-        <section className="panel flex min-h-[420px] items-center justify-center text-muted">
-          <span className="animate-glow-pulse">正在初始化...</span>
-        </section>
-      ) : null}
-
-      {authReady ? (
-        <div id="main-content" className="space-y-4">
-          <div className={view === "login" ? "animate-view" : "hidden"}>
-            <AuthPanel user={user} onSignedIn={setUser} />
+      <main className="mx-auto w-full max-w-[1240px] px-4 py-6 pb-28 md:px-8 lg:pb-12">
+        {/* 桌面页头 */}
+        <div className="mb-6 hidden items-end justify-between gap-4 lg:flex">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-ink">{activeLabel}</h1>
+            <p className="mt-1 text-sm text-muted">{userStatus}</p>
           </div>
-          <div className={view === "planner" ? "animate-view" : "hidden"}>
-            <NutritionPlanner foods={foods} templates={templates} user={user} onFoodsChanged={refreshFoods} onTemplatesChanged={persistTemplates} />
-          </div>
-          <div className={view === "templates" ? "animate-view" : "hidden"}>
-            <TemplateManager templates={templates} onTemplatesChanged={persistTemplates} />
-          </div>
-          <div className={view === "foods" ? "animate-view" : "hidden"}>
-            <FoodLibrary foods={foods} user={user} onFoodsChanged={refreshFoods} onFoodsUpdated={setFoods} />
-          </div>
-          <div className={view === "history" ? "animate-view" : "hidden"}>
-            <HistoryView user={user} />
-          </div>
+          <p className="text-sm text-muted">{today}</p>
         </div>
-      ) : null}
 
-      <nav className="fixed inset-x-3 bottom-3 z-30 grid grid-cols-5 gap-2 rounded-lg border border-line bg-surface/80 p-2 shadow-soft backdrop-blur md:hidden" aria-label="主导航">
+        {!authReady ? (
+          <section className="panel flex min-h-[420px] items-center justify-center text-muted">正在初始化…</section>
+        ) : null}
+
+        {authReady ? (
+          <div id="main-content">
+            <div className={view === "login" ? "animate-view" : "hidden"}>
+              <AuthPanel user={user} onSignedIn={setUser} />
+            </div>
+            <div className={view === "planner" ? "animate-view" : "hidden"}>
+              <NutritionPlanner foods={foods} templates={templates} user={user} onFoodsChanged={refreshFoods} onTemplatesChanged={persistTemplates} />
+            </div>
+            <div className={view === "templates" ? "animate-view" : "hidden"}>
+              <TemplateManager templates={templates} onTemplatesChanged={persistTemplates} />
+            </div>
+            <div className={view === "foods" ? "animate-view" : "hidden"}>
+              <FoodLibrary foods={foods} user={user} onFoodsChanged={refreshFoods} onFoodsUpdated={setFoods} />
+            </div>
+            <div className={view === "history" ? "animate-view" : "hidden"}>
+              <HistoryView user={user} />
+            </div>
+          </div>
+        ) : null}
+      </main>
+
+      {/* 移动端底部导航 */}
+      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 gap-1 border-t border-line bg-base/85 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl lg:hidden" aria-label="主导航">
         {navItems.map((item) => {
           const Icon = item.icon;
           const active = view === item.id;
           return (
             <button
               key={item.id}
-              className={`relative flex min-h-14 flex-col items-center justify-center gap-1 rounded-md border px-2 text-xs font-semibold transition-colors ${
-                active ? "border-accent bg-accent text-white shadow-glow" : "border-transparent text-muted hover:bg-accent/10 hover:text-ink"
+              className={`relative flex min-h-12 flex-col items-center justify-center gap-1 rounded-lg px-2 text-[11px] font-medium transition-colors ${
+                active ? "text-accent" : "text-muted hover:text-ink"
               }`}
               type="button"
               onClick={() => setView(item.id)}
               aria-current={active ? "page" : undefined}
             >
-              {active && (
-                <span className="absolute inset-x-2 top-0 h-0.5 rounded-full bg-neon-grad shadow-glow-neon" />
-              )}
-              <Icon size={17} />
+              {active ? <span className="absolute inset-x-4 top-0 h-0.5 rounded-full bg-accent" /> : null}
+              <Icon size={18} />
               <span>{item.shortLabel}</span>
             </button>
           );
         })}
       </nav>
-    </main>
+    </div>
   );
 }

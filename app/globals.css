@@ -4,9 +4,8 @@
 
 :root {
   color-scheme: dark;
-  --bg: #070b1a;
-  --glass: rgba(18, 24, 48, 0.62);
-  --glass-line: rgba(140, 160, 255, 0.14);
+  --base: #0a0c0f;
+  --hairline: rgba(255, 255, 255, 0.06);
 }
 
 * {
@@ -20,20 +19,20 @@ body {
 
 body {
   margin: 0;
-  color: #e8ecff;
+  color: #e7ebf2;
   font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-    "Segoe UI", "Microsoft YaHei", sans-serif;
-  /* 深色霓虹背景：底色 + 多层霓虹光晕 + 细网格，固定不随滚动 */
+    "Geist", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+  /* 精致深色：off-black 底 + 单一极淡强调色光晕（顶部），无 AI 多彩 mesh */
   background:
-    radial-gradient(900px 500px at 12% -8%, rgba(91, 140, 255, 0.22), transparent 60%),
-    radial-gradient(820px 480px at 92% 4%, rgba(168, 85, 247, 0.18), transparent 60%),
-    radial-gradient(700px 520px at 70% 108%, rgba(34, 211, 238, 0.14), transparent 60%),
-    linear-gradient(180deg, #080d20 0%, #070b1a 100%);
+    radial-gradient(720px 420px at 18% -10%, rgba(62, 207, 142, 0.07), transparent 60%),
+    #0a0c0f;
   background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
-/* 细网格叠层（固定） */
+/* 极淡网格叠层（克制，不喧宾夺主） */
 body::before {
   content: "";
   position: fixed;
@@ -41,10 +40,10 @@ body::before {
   pointer-events: none;
   z-index: 0;
   background-image:
-    linear-gradient(rgba(140, 160, 255, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(140, 160, 255, 0.05) 1px, transparent 1px);
-  background-size: 38px 38px;
-  mask-image: radial-gradient(circle at 50% 30%, black, transparent 85%);
+    linear-gradient(rgba(255, 255, 255, 0.022) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.022) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(circle at 50% 0%, black, transparent 80%);
 }
 
 button,
@@ -55,12 +54,12 @@ select {
 
 button {
   transition:
-    background-color 180ms ease,
-    border-color 180ms ease,
-    color 180ms ease,
-    box-shadow 220ms ease,
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    box-shadow 200ms ease,
     opacity 160ms ease,
-    transform 160ms ease;
+    transform 140ms ease;
   touch-action: manipulation;
 }
 
@@ -70,74 +69,76 @@ select {
 }
 
 select option {
-  background: #0d1326;
-  color: #e8ecff;
+  background: #0f1318;
+  color: #e7ebf2;
 }
 
 .focus-ring {
-  @apply focus:outline-none focus:ring-2 focus:ring-accent/45 focus:border-accent;
+  @apply focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent/60;
 }
 
 .field {
-  @apply h-11 rounded-lg border border-line bg-[#0c1226]/80 px-3 text-sm text-ink shadow-[inset_0_1px_0_rgba(140,160,255,0.06)] backdrop-blur placeholder:text-muted/60 focus-ring;
+  @apply h-11 rounded-lg border border-line bg-base/60 px-3 text-sm text-ink shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] placeholder:text-muted/55 focus-ring;
 }
 
 .btn {
   @apply inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border px-3.5 text-sm font-semibold transition-transform active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50;
 }
 
+/* 主操作：强调色实底 + 深色文字 */
 .btn-primary {
-  @apply btn border-accent/60 bg-accent text-white shadow-[0_8px_24px_-8px_rgba(91,140,255,0.8)] hover:-translate-y-0.5 hover:shadow-[0_12px_34px_-8px_rgba(91,140,255,0.95)];
+  @apply btn border-transparent bg-accent text-accent-ink hover:bg-[#4ad79a] hover:-translate-y-px;
 }
 
+/* 次强操作（如"应用推荐"）：强调色描边幽灵按钮，建立层级差异 */
 .btn-cta {
-  @apply btn border-transparent bg-neon-grad text-[#07112a] shadow-[0_10px_30px_-8px_rgba(34,211,238,0.7)] hover:-translate-y-0.5 hover:shadow-glow-neon;
+  @apply btn border-accent/45 bg-accent/10 text-accent hover:bg-accent/[0.16] hover:-translate-y-px;
 }
 
+/* 次操作：幽灵 + 细描边 */
 .btn-secondary {
-  @apply btn border-line bg-white/[0.04] text-ink backdrop-blur hover:border-accent/50 hover:bg-accent/10 hover:text-white;
+  @apply btn border-line bg-white/[0.03] text-ink hover:border-line hover:bg-white/[0.06];
 }
 
 .btn-danger {
-  @apply btn border-rose/40 bg-rose/10 text-rose hover:bg-rose/20 hover:text-white;
+  @apply btn border-rose/35 bg-rose/10 text-rose hover:bg-rose/[0.16];
 }
 
-/* 玻璃拟态卡片 */
+/* 卡片：实底抬升 + 发丝描边 + 柔和投影（非玻璃、非发光） */
 .panel {
-  @apply relative rounded-2xl border border-[color:var(--glass-line)] bg-[color:var(--glass)] shadow-soft backdrop-blur-xl;
+  @apply rounded-xl border border-line bg-surface shadow-soft;
 }
 
 .metric-label {
-  @apply text-[11px] font-semibold uppercase tracking-[0.12em] text-muted;
+  @apply text-[11px] font-semibold uppercase tracking-[0.1em] text-muted;
 }
 
-/* 霓虹渐变文字 */
+/* 旧 .text-gradient 降级：干净 off-white 强标题，无渐变字 */
 .text-gradient {
-  @apply bg-neon-grad bg-clip-text text-transparent;
+  @apply font-semibold tracking-tight text-ink;
 }
 
-/* hover 抬升 */
 .hover-lift {
-  @apply transition-transform duration-200 hover:-translate-y-1;
+  @apply transition-transform duration-200 hover:-translate-y-0.5;
 }
 
 .skip-link {
-  @apply fixed left-3 top-3 z-50 -translate-y-16 rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white transition-transform focus:translate-y-0;
+  @apply fixed left-3 top-3 z-50 -translate-y-16 rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-ink transition-transform focus:translate-y-0;
 }
 
 .scrollbar-thin {
   scrollbar-width: thin;
-  scrollbar-color: rgba(91, 140, 255, 0.4) transparent;
+  scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
 }
 
 .animate-view {
-  animation: view-in 220ms ease-out;
+  animation: view-in 200ms ease-out;
 }
 
 @keyframes view-in {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(6px);
   }
   to {
     opacity: 1;

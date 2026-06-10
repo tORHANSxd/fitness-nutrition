@@ -19,23 +19,25 @@ interface MacroBarsProps {
   meals: MealPlan[];
 }
 
+// 精致深色数据色：强调色 emerald + 去饱和的辅助色系（无霓虹蓝/青/紫）
 const colors = {
-  kcal: "#5b8cff",
-  carbs: "#f59e0b",
-  protein: "#22d3ee",
-  fat: "#a855f7"
+  kcal: "#3ecf8e",
+  carbs: "#e0a23a",
+  protein: "#6b96c4",
+  fat: "#cf7e8e"
 };
 
 const tooltipStyle = {
-  backgroundColor: "rgba(13,17,38,0.92)",
-  borderColor: "rgba(91,140,255,0.25)",
+  backgroundColor: "rgba(15,19,24,0.96)",
+  borderColor: "rgba(255,255,255,0.10)",
   borderRadius: 10,
-  boxShadow: "0 8px 32px rgba(91,140,255,0.18)",
-  color: "#c9d0e8"
+  boxShadow: "0 16px 40px -18px rgba(0,0,0,0.7)",
+  color: "#c7cdd9"
 };
 
-const gridStyle = { stroke: "rgba(151,163,214,0.12)", strokeDasharray: "3 3" };
-const axisStyle = { fill: "rgba(151,163,214,0.55)", fontSize: 12 };
+const gridStyle = { stroke: "rgba(255,255,255,0.06)", strokeDasharray: "3 3" };
+const axisStyle = { fill: "rgba(138,147,163,0.65)", fontSize: 12 };
+const cursorFill = { fill: "rgba(255,255,255,0.04)" };
 
 export function MacroBars({ result, meals }: MacroBarsProps) {
   const [isNarrow, setIsNarrow] = useState(false);
@@ -100,10 +102,10 @@ export function MacroBars({ result, meals }: MacroBarsProps) {
 
   return (
     <div className="grid gap-4 xl:grid-cols-2">
-      <div className="panel hover-lift p-4">
+      <div className="panel p-4">
         <div className="mb-3 flex items-center justify-between gap-3">
-          <h3 className="font-semibold text-ink">当天摄入对比</h3>
-          <span className="rounded-md bg-accent/15 px-2 py-1 text-xs font-semibold text-accent">目标 / 当前 / 差额</span>
+          <h3 className="font-semibold tracking-tight text-ink">当天摄入对比</h3>
+          <span className="rounded-full border border-line bg-base/40 px-2.5 py-0.5 text-xs font-medium text-muted">目标 / 当前 / 差额</span>
         </div>
         <div className="h-[280px]">
           <ResponsiveContainer width="100%" height="100%">
@@ -111,7 +113,7 @@ export function MacroBars({ result, meals }: MacroBarsProps) {
               <CartesianGrid {...gridStyle} />
               {isNarrow ? <XAxis dataKey="name" tick={axisStyle} axisLine={false} tickLine={false} /> : <XAxis type="number" tick={axisStyle} axisLine={false} tickLine={false} />}
               {isNarrow ? <YAxis tick={axisStyle} axisLine={false} tickLine={false} /> : <YAxis dataKey="name" type="category" width={54} tick={axisStyle} axisLine={false} tickLine={false} />}
-              <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "rgba(91,140,255,0.06)" }} />
+              <Tooltip contentStyle={tooltipStyle} cursor={cursorFill} />
               <Legend wrapperStyle={{ color: "rgba(151,163,214,0.75)", fontSize: 12 }} />
               <Bar dataKey="kcal" fill={colors.kcal} name="热量 kcal" radius={[3, 3, 3, 3]} />
               {commonBars}
@@ -120,10 +122,10 @@ export function MacroBars({ result, meals }: MacroBarsProps) {
         </div>
       </div>
 
-      <div className="panel hover-lift p-4">
+      <div className="panel p-4">
         <div className="mb-3 flex items-center justify-between gap-3">
-          <h3 className="font-semibold text-ink">每餐当前摄入</h3>
-          <span className="rounded-md bg-accent/15 px-2 py-1 text-xs font-semibold text-accent">按餐次拆分</span>
+          <h3 className="font-semibold tracking-tight text-ink">每餐当前摄入</h3>
+          <span className="rounded-full border border-line bg-base/40 px-2.5 py-0.5 text-xs font-medium text-muted">按餐次拆分</span>
         </div>
         <div className="h-[280px]">
           <ResponsiveContainer width="100%" height="100%">
@@ -131,7 +133,7 @@ export function MacroBars({ result, meals }: MacroBarsProps) {
               <CartesianGrid {...gridStyle} />
               {isNarrow ? <XAxis dataKey="name" tick={axisStyle} axisLine={false} tickLine={false} /> : <XAxis type="number" tick={axisStyle} axisLine={false} tickLine={false} />}
               {isNarrow ? <YAxis tick={axisStyle} axisLine={false} tickLine={false} /> : <YAxis dataKey="name" type="category" width={84} tick={axisStyle} axisLine={false} tickLine={false} />}
-              <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "rgba(91,140,255,0.06)" }} />
+              <Tooltip contentStyle={tooltipStyle} cursor={cursorFill} />
               <Legend wrapperStyle={{ color: "rgba(151,163,214,0.75)", fontSize: 12 }} />
               {commonBars}
             </BarChart>

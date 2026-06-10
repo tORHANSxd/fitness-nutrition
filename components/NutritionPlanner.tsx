@@ -297,49 +297,50 @@ export function NutritionPlanner({ foods, templates, user, onTemplatesChanged }:
       <div className="grid gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
         <div className="order-1 space-y-4 xl:order-2">
           <section className="panel overflow-hidden">
-            <div className="border-b border-line bg-surface/80 p-4 md:p-5">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-gradient text-xl font-semibold">实时目标</h2>
-                    <span className="rounded-md bg-accent/20 px-2.5 py-1 text-xs font-semibold text-accent ring-1 ring-accent/30">
-                      {carbDayLabels[result.carbDayType]}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-sm text-muted">
-                    张老师五分化 · {workoutLabels[profile.workoutType]} · {trainingTimeLabels[profile.trainingTime]} · {profile.planDate}
-                  </p>
+            {/* 指挥台顶栏：标题+碳日标签 左，主操作 右 */}
+            <div className="border-b border-line bg-surface/80 px-5 py-3.5">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <h2 className="text-base font-semibold tracking-tight text-ink">今日指挥台</h2>
+                  <span className="rounded-full border border-accent/40 bg-accent/10 px-2.5 py-0.5 text-xs font-medium text-accent">
+                    {carbDayLabels[result.carbDayType]}
+                  </span>
+                  <span className="hidden text-xs text-muted sm:inline">
+                    {workoutLabels[profile.workoutType]} · {trainingTimeLabels[profile.trainingTime]} · {profile.planDate}
+                  </span>
                 </div>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                  <button className="btn-secondary" type="button" onClick={normalizeRatios}>
-                    <Check size={16} />
-                    归一餐次比例
+                <div className="flex flex-wrap items-center gap-2">
+                  <button className="btn-secondary h-9 px-3 text-xs" type="button" onClick={normalizeRatios}>
+                    <Check size={14} />
+                    归一比例
                   </button>
-                  <button className="btn-cta" type="button" onClick={applyRecommendations}>
-                    <Wand2 size={16} />
+                  <button className="btn-cta h-9 px-3 text-xs" type="button" onClick={applyRecommendations}>
+                    <Wand2 size={14} />
                     应用推荐
                   </button>
-                  <button className="btn-primary" type="button" onClick={persistPlan} disabled={saving}>
-                    <Save size={16} />
+                  <button className="btn-primary h-9 px-3 text-xs" type="button" onClick={persistPlan} disabled={saving}>
+                    <Save size={14} />
                     {saving ? "保存中" : "保存计划"}
                   </button>
                 </div>
               </div>
             </div>
-            <div className="grid gap-3 p-4 sm:grid-cols-2 md:grid-cols-4 2xl:grid-cols-7">
-              <div className="animate-fade-up hover-lift" style={{ animationDelay: "0ms" }}>
+
+            {/* stat 网格：7 指标，无独立卡片投影，细线分隔 */}
+            <div className="grid grid-cols-2 divide-x divide-y divide-line sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 xl:divide-y-0">
+              <div className="px-4 py-3">
                 <MetricCard label="BMR" value={result.bmr} unit="kcal" />
               </div>
-              <div className="animate-fade-up hover-lift" style={{ animationDelay: "60ms" }}>
+              <div className="px-4 py-3">
                 <MetricCard label="维持热量" value={result.tdee} unit="kcal" tone="accent" />
               </div>
-              <div className="animate-fade-up hover-lift" style={{ animationDelay: "120ms" }}>
+              <div className="px-4 py-3">
                 <MetricCard label="计划均热量" value={result.cycleAverageTarget.kcal} unit="kcal" tone="accent" />
               </div>
-              <div className="animate-fade-up hover-lift" style={{ animationDelay: "180ms" }}>
-                <MetricCard label="当日目标热量" value={result.dailyTarget.kcal} unit="kcal" tone="accent" />
+              <div className="px-4 py-3">
+                <MetricCard label="当日目标" value={result.dailyTarget.kcal} unit="kcal" tone="accent" />
               </div>
-              <div className="animate-fade-up hover-lift" style={{ animationDelay: "240ms" }}>
+              <div className="px-4 py-3">
                 <MetricCard
                   label={result.plannedCalorieDelta < 0 ? "计划缺口" : result.plannedCalorieDelta > 0 ? "计划盈余" : "计划差额"}
                   value={Math.abs(result.plannedCalorieDelta)}
@@ -347,10 +348,10 @@ export function NutritionPlanner({ foods, templates, user, onTemplatesChanged }:
                   tone={result.plannedCalorieDelta < 0 ? "normal" : "accent"}
                 />
               </div>
-              <div className="animate-fade-up hover-lift" style={{ animationDelay: "300ms" }}>
+              <div className="px-4 py-3">
                 <MetricCard label="当前摄入" value={result.actualTotals.kcal} unit="kcal" />
               </div>
-              <div className="animate-fade-up hover-lift" style={{ animationDelay: "360ms" }}>
+              <div className="px-4 py-3">
                 <MetricCard
                   label="剩余目标"
                   value={result.remaining.kcal}
@@ -359,24 +360,29 @@ export function NutritionPlanner({ foods, templates, user, onTemplatesChanged }:
                 />
               </div>
             </div>
-            <DailyBalancePanel
-              actual={result.actualTotals}
-              recommended={result.recommendedTotals}
-              target={result.dailyTarget}
-            />
-            <MacroRatioPanel
-              actualRatio={result.actualRatio}
-              carbDayType={result.carbDayType}
-              carbDayLabel={carbDayLabels[result.carbDayType]}
-              recommendedRatio={calculateMacroRatio(result.recommendedTotals)}
-              targetRatio={result.targetRatio}
-            />
-            <PlanRulePanel />
-            {message ? <p className="mx-4 mt-3 rounded-md bg-accent/10 p-3 text-sm font-medium text-accent ring-1 ring-accent/20">{message}</p> : null}
+
+            {/* bento 式横向三区：盈亏 + 宏比 + 周计划 */}
+            <div className="grid gap-3 border-t border-line p-4 xl:grid-cols-[1fr_auto_1.6fr]">
+              <DailyBalancePanel
+                actual={result.actualTotals}
+                recommended={result.recommendedTotals}
+                target={result.dailyTarget}
+              />
+              <MacroRatioPanel
+                actualRatio={result.actualRatio}
+                carbDayType={result.carbDayType}
+                carbDayLabel={carbDayLabels[result.carbDayType]}
+                recommendedRatio={calculateMacroRatio(result.recommendedTotals)}
+                targetRatio={result.targetRatio}
+              />
+              <PlanRulePanel />
+            </div>
+
+            {message ? <p className="mx-4 mb-3 rounded-lg border border-accent/20 bg-accent/10 px-4 py-2.5 text-sm font-medium text-accent">{message}</p> : null}
             {result.conflicts.length > 0 ? (
-              <div className="mx-4 mt-3 space-y-2 pb-4">
+              <div className="mx-4 mb-3 space-y-1.5">
                 {result.conflicts.map((conflict) => (
-                  <p key={conflict} className="rounded-md bg-rose/10 p-3 text-sm text-rose">
+                  <p key={conflict} className="rounded-lg border border-rose/20 bg-rose/10 px-4 py-2.5 text-sm text-rose">
                     {conflict}
                   </p>
                 ))}
@@ -391,12 +397,12 @@ export function NutritionPlanner({ foods, templates, user, onTemplatesChanged }:
       </div>
 
       <section className="panel overflow-hidden">
-        <div className="flex flex-col gap-3 border-b border-line bg-surface/80 p-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-col gap-3 border-b border-line bg-surface/80 px-5 py-3.5 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h2 className="text-gradient text-lg font-semibold">分餐计划</h2>
-            <p className="text-sm text-muted">每次只显示一餐；全天求解会动态调配各餐推荐比例。</p>
+            <h2 className="text-base font-semibold tracking-tight text-ink">分餐计划</h2>
+            <p className="text-xs text-muted">每次只显示一餐；全天求解会动态调配各餐推荐比例。</p>
           </div>
-          <div className="grid gap-2 sm:grid-cols-[minmax(0,220px)_minmax(0,220px)_auto_auto]">
+          <div className="grid gap-2 sm:grid-cols-[minmax(0,200px)_minmax(0,200px)_auto_auto]">
             <select className="field w-full" value={activeMeal?.id ?? ""} onChange={(event) => setActiveMealId(event.target.value)}>
               {meals.map((meal) => {
                 const recommendation = recommendationsByMeal.get(meal.id);
@@ -433,24 +439,28 @@ export function NutritionPlanner({ foods, templates, user, onTemplatesChanged }:
             </button>
           </div>
         </div>
-        <div className="grid gap-2 border-b border-line bg-surface/60 p-3 sm:grid-cols-2 lg:grid-cols-4">
+        {/* segmented 餐次标签：底部 accent 指示线，无外发光 */}
+        <div className="flex gap-0 overflow-x-auto border-b border-line bg-surface/60">
           {meals.map((meal) => {
             const recommendation = recommendationsByMeal.get(meal.id);
             const active = meal.id === activeMeal?.id;
             return (
               <button
                 key={meal.id}
-                className={`flex min-h-16 flex-col items-start justify-center rounded-md border px-3 py-2 text-left transition-all ${
+                className={`relative flex min-h-[3.5rem] flex-1 flex-col items-start justify-center whitespace-nowrap border-r border-line px-4 py-2.5 text-left transition-colors last:border-r-0 ${
                   active
-                    ? "border-accent bg-accent shadow-glow text-white"
-                    : "border-line bg-surface/60 text-ink hover:border-accent/50 hover:bg-surface"
+                    ? "bg-accent/[0.07] text-accent"
+                    : "text-muted hover:bg-white/[0.03] hover:text-ink"
                 }`}
                 type="button"
                 onClick={() => setActiveMealId(meal.id)}
               >
+                {active && (
+                  <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-t-full bg-accent" />
+                )}
                 <span className="text-sm font-semibold">{meal.name}</span>
-                <span className={active ? "text-xs text-white/70" : "text-xs text-muted"}>
-                  推荐 {round(recommendation?.target.carbs ?? 0, 0)}g 碳水 / {round(recommendation?.target.protein ?? 0, 0)}g 蛋白
+                <span className="mt-0.5 text-xs opacity-70">
+                  {round(recommendation?.target.carbs ?? 0, 0)}g 碳 / {round(recommendation?.target.protein ?? 0, 0)}g 蛋
                 </span>
               </button>
             );
@@ -487,15 +497,12 @@ interface DailyBalancePanelProps {
 
 function DailyBalancePanel({ actual, recommended, target }: DailyBalancePanelProps) {
   return (
-    <div className="mx-4 my-3 rounded-xl border border-line bg-surface/60 p-3 backdrop-blur hover-lift">
-      <div className="mb-3 flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h3 className="text-sm font-semibold text-ink">当日热量与三大营养素盈亏</h3>
-          <p className="text-xs text-muted">当前摄入和应用推荐后的全天总量都会与目标对比。</p>
-        </div>
-        <span className="text-xs text-muted">柱状比例 = 摄入量 / 目标量</span>
+    <div className="rounded-xl border border-line bg-panel/60 p-3">
+      <div className="mb-2.5 flex items-baseline justify-between gap-2">
+        <h3 className="text-xs font-semibold tracking-tight text-ink">热量 &amp; 营养素盈亏</h3>
+        <span className="text-[10px] text-muted">摄入 / 目标</span>
       </div>
-      <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-1.5 sm:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-4">
         <DailyBalanceCard actual={actual.kcal} label="热量" recommended={recommended.kcal} target={target.kcal} unit="kcal" />
         <DailyBalanceCard actual={actual.carbs} label="碳水" recommended={recommended.carbs} target={target.carbs} unit="g" />
         <DailyBalanceCard actual={actual.protein} label="蛋白" recommended={recommended.protein} target={target.protein} unit="g" />
@@ -519,10 +526,10 @@ function DailyBalanceCard({
   unit: string;
 }) {
   return (
-    <div className="rounded-md border border-line bg-surface/70 p-3 backdrop-blur">
+    <div className="rounded-lg border border-line bg-surface/50 p-2.5">
       <div className="flex items-center justify-between gap-2">
         <span className="metric-label">{label}</span>
-        <span className="text-xs text-muted">目标 {round(target, unit === "kcal" ? 0 : 1)}{unit}</span>
+        <span className="text-[10px] text-muted">目标 {round(target, unit === "kcal" ? 0 : 1)}{unit}</span>
       </div>
       <DailyBalanceBar label="当前" target={target} unit={unit} value={actual} />
       <DailyBalanceBar label="推荐后" target={target} unit={unit} value={recommended} />
@@ -580,17 +587,14 @@ function MacroRatioPanel({ actualRatio, carbDayType, carbDayLabel, recommendedRa
   const recommendedStatus = `${recommendedCheck.cycleAligned ? "公式贴合" : "公式偏离"} / ${recommendedCheck.goalAligned ? "参考内" : "参考外"}`;
 
   return (
-    <div className="mx-4 mt-3 rounded-xl border border-line bg-surface/60 p-3 backdrop-blur hover-lift">
-      <div className="mb-2 flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h3 className="text-sm font-semibold text-ink">三大营养素比例</h3>
-          <p className="text-xs text-muted">
-            目标按{carbDayLabel}的每周碳水/脂肪总量重分配公式生成；当前 {actualStatus}，推荐后 {recommendedStatus}。
-          </p>
-        </div>
-        <span className="text-xs text-muted">{macroRatioCheckSource} {energyTargetSource} {carbCycleMacroSource}</span>
+    <div className="rounded-xl border border-line bg-panel/60 p-3">
+      <div className="mb-2.5">
+        <h3 className="text-xs font-semibold tracking-tight text-ink">宏量素比例</h3>
+        <p className="mt-0.5 text-[10px] leading-relaxed text-muted">
+          当前 {actualStatus} · 推荐后 {recommendedStatus}
+        </p>
       </div>
-      <div className="grid gap-2 md:grid-cols-3">
+      <div className="grid gap-1.5 grid-cols-3">
         <MacroRatioRow
           actual={actualRatio.carbs}
           label="碳水"
@@ -631,19 +635,19 @@ function MacroRatioRow({
   target: number;
 }) {
   return (
-    <div className="rounded-md border border-line bg-surface/70 p-3 backdrop-blur">
+    <div className="rounded-lg border border-line bg-surface/50 p-2.5">
       <div className="metric-label">{label}</div>
-      <div className="mt-1 flex items-end gap-2">
-        <span className="text-lg font-semibold text-accent">{round(target, 0)}%</span>
-        <span className="pb-0.5 text-xs text-muted">
-          当前 {round(actual, 0)}% / 推荐 {round(recommended, 0)}%
+      <div className="mt-1.5 flex items-end gap-1.5">
+        <span className="tabular-nums text-base font-semibold text-accent">{round(target, 0)}%</span>
+        <span className="pb-0.5 text-[10px] text-muted">
+          现 {round(actual, 0)} / 推 {round(recommended, 0)}
         </span>
       </div>
-      <p className="mt-1 text-xs text-muted">
-        {round(range.min, 0)}%-{round(range.max, 0)}% 参考区间
+      <p className="mt-0.5 text-[10px] text-muted">
+        {round(range.min, 0)}-{round(range.max, 0)}% 区间
       </p>
-      <div className="mt-2 h-2 overflow-hidden rounded-full bg-surface">
-        <div className="h-full rounded-full bg-accent shadow-glow" style={{ width: `${Math.min(Math.max(target, 0), 100)}%` }} />
+      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface">
+        <div className="h-full rounded-full bg-accent/70" style={{ width: `${Math.min(Math.max(target, 0), 100)}%` }} />
       </div>
     </div>
   );
@@ -661,20 +665,25 @@ function PlanRulePanel() {
   ];
 
   return (
-    <div className="mx-4 mt-3 rounded-xl border border-line bg-surface/60 p-3 backdrop-blur hover-lift">
-      <div className="mb-3 flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h3 className="text-gradient text-sm font-semibold">心平气和的张老师 五分化碳循环</h3>
-          <p className="text-xs text-muted">仅腿日高碳、其余6天低碳，一周五练两休，高碳日碳水集中训练前后。</p>
-        </div>
-        <span className="text-xs text-muted">16/8进食窗口；绿叶蔬菜不限量；高碳日严控油脂和劣质碳水。</span>
+    <div className="rounded-xl border border-line bg-panel/60 p-3">
+      <div className="mb-2.5">
+        <h3 className="text-xs font-semibold tracking-tight text-ink">张老师五分化碳循环</h3>
+        <p className="mt-0.5 text-[10px] text-muted">仅腿日高碳、其余6天低碳；16/8进食窗口；高碳日严控油脂。</p>
       </div>
-      <div className="grid gap-2 md:grid-cols-7">
+      <div className="grid grid-cols-7 gap-1">
         {weeklyPlan.map(([day, workout, carbDay]) => (
-          <div key={day} className="rounded-md border border-line bg-surface/70 p-2 backdrop-blur transition-all hover:border-accent/40">
-            <div className="text-xs font-semibold text-ink">{day}</div>
-            <div className="mt-1 min-h-8 text-xs text-muted">{workout}</div>
-            <div className={`mt-2 text-xs font-semibold ${carbDay === "高碳" ? "text-gradient animate-glow-pulse" : "text-muted"}`}>{carbDay}</div>
+          <div key={day} className="rounded-lg border border-line bg-surface/50 px-1.5 py-2 text-center transition-colors hover:border-accent/30">
+            <div className="text-[10px] font-semibold text-ink">{day}</div>
+            <div className="mt-1 text-[9px] leading-tight text-muted">{workout}</div>
+            <div className="mt-1.5 flex justify-center">
+              {carbDay === "高碳" ? (
+                <span className="rounded-full border border-accent/40 bg-accent/10 px-1.5 py-0.5 text-[9px] font-medium text-accent">
+                  高碳
+                </span>
+              ) : (
+                <span className="text-[9px] text-muted/60">低碳</span>
+              )}
+            </div>
           </div>
         ))}
       </div>
@@ -1036,19 +1045,19 @@ function MealEditor({
 
       <div className="scrollbar-thin hidden overflow-x-auto md:block">
         <table className="w-full min-w-[1080px] text-left text-sm">
-          <thead className="bg-surface/80 text-xs uppercase tracking-normal text-muted">
+          <thead className="border-b border-line bg-panel text-[11px] uppercase tracking-wider text-muted">
             <tr>
-              <th className="px-4 py-3">食物</th>
-              <th className="px-4 py-3">克重</th>
-              <th className="px-4 py-3">推荐</th>
-              <th className="px-4 py-3">最小</th>
-              <th className="px-4 py-3">最大</th>
-              <th className="px-4 py-3">热量</th>
-              <th className="px-4 py-3">碳水</th>
-              <th className="px-4 py-3">蛋白</th>
-              <th className="px-4 py-3">脂肪</th>
-              <th className="px-4 py-3">锁定</th>
-              <th className="px-4 py-3">操作</th>
+              <th className="px-4 py-2.5 font-semibold">食物</th>
+              <th className="px-4 py-2.5 font-semibold">克重</th>
+              <th className="px-4 py-2.5 font-semibold text-accent">推荐</th>
+              <th className="px-4 py-2.5 font-semibold">最小</th>
+              <th className="px-4 py-2.5 font-semibold">最大</th>
+              <th className="px-4 py-2.5 font-semibold">热量</th>
+              <th className="px-4 py-2.5 font-semibold">碳水</th>
+              <th className="px-4 py-2.5 font-semibold">蛋白</th>
+              <th className="px-4 py-2.5 font-semibold">脂肪</th>
+              <th className="px-4 py-2.5 font-semibold">锁定</th>
+              <th className="px-4 py-2.5 font-semibold">操作</th>
             </tr>
           </thead>
           <tbody>
@@ -1066,8 +1075,8 @@ function MealEditor({
                 const totals = food ? calculateFoodTotals(food, entry.grams) : { kcal: 0, carbs: 0, protein: 0, fat: 0 };
 
                 return (
-                  <tr key={entry.id} className="border-t border-line transition-colors hover:bg-accent/5">
-                    <td className="px-4 py-3">
+                  <tr key={entry.id} className="border-t border-line transition-colors hover:bg-white/[0.03]">
+                    <td className="px-4 py-2.5">
                       <select
                         className="field h-9 w-52"
                         value={entry.foodId}
@@ -1090,7 +1099,7 @@ function MealEditor({
                       </select>
                       {food ? <div className="mt-1 text-xs text-muted">{convertWeightLabel(food, entry.grams)}</div> : null}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-2.5">
                       <input
                         className="field h-9 w-24"
                         type="number"
@@ -1105,8 +1114,8 @@ function MealEditor({
                         }
                       />
                     </td>
-                    <td className="px-4 py-3 font-bold text-accent">{round(recommendedGrams, 1)} g</td>
-                    <td className="px-4 py-3">
+                    <td className="tabular-nums px-4 py-2.5 font-semibold text-accent">{round(recommendedGrams, 1)} g</td>
+                    <td className="px-4 py-2.5">
                       <input
                         className="field h-9 w-24"
                         type="number"
@@ -1120,7 +1129,7 @@ function MealEditor({
                         }
                       />
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-2.5">
                       <input
                         className="field h-9 w-24"
                         type="number"
@@ -1135,11 +1144,11 @@ function MealEditor({
                         }
                       />
                     </td>
-                    <td className="px-4 py-3">{round(totals.kcal, 0)}</td>
-                    <td className="px-4 py-3">{round(totals.carbs)}</td>
-                    <td className="px-4 py-3">{round(totals.protein)}</td>
-                    <td className="px-4 py-3">{round(totals.fat)}</td>
-                    <td className="px-4 py-3">
+                    <td className="tabular-nums px-4 py-2.5 text-muted">{round(totals.kcal, 0)}</td>
+                    <td className="tabular-nums px-4 py-2.5 text-muted">{round(totals.carbs)}</td>
+                    <td className="tabular-nums px-4 py-2.5 text-muted">{round(totals.protein)}</td>
+                    <td className="tabular-nums px-4 py-2.5 text-muted">{round(totals.fat)}</td>
+                    <td className="px-4 py-2.5">
                       <button
                         className={entry.locked ? "btn-primary h-8 px-2" : "btn-secondary h-8 px-2"}
                         type="button"
@@ -1153,7 +1162,7 @@ function MealEditor({
                         {entry.locked ? <Lock size={14} /> : <Unlock size={14} />}
                       </button>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-2.5">
                       <button className="btn-danger h-8 px-2" type="button" onClick={() => onRemoveEntry(entry.id)}>
                         <Trash2 size={14} />
                       </button>

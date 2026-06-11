@@ -148,7 +148,7 @@ export function AppShell({ initialView }: AppShellProps) {
         </nav>
 
         <div className="mt-auto flex flex-col gap-2 pt-6">
-          <div className="rounded-lg border border-line bg-base/50 px-3 py-2.5">
+          <div className="rounded-lg border border-line bg-ground/50 px-3 py-2.5">
             <div className="flex items-center gap-2">
               <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${configured && user ? "bg-accent" : "bg-muted"}`} />
               <span className="truncate text-xs text-muted">{userStatus}</span>
@@ -168,7 +168,7 @@ export function AppShell({ initialView }: AppShellProps) {
       </aside>
 
       {/* 移动/平板：顶部细 bar */}
-      <header className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-line bg-base/80 px-4 py-3 backdrop-blur-xl lg:hidden">
+      <header className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-line bg-ground/80 px-4 py-3 backdrop-blur-xl lg:hidden">
         <div className="flex min-w-0 items-center gap-2.5">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent/[0.12] text-accent ring-1 ring-accent/25">
             <BarChart3 size={18} />
@@ -226,7 +226,7 @@ export function AppShell({ initialView }: AppShellProps) {
       </main>
 
       {/* 移动端底部导航 */}
-      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 gap-1 border-t border-line bg-base/85 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl lg:hidden" aria-label="主导航">
+      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 gap-1 border-t border-line bg-ground/85 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl lg:hidden" aria-label="主导航">
         {navItems.map((item) => {
           const Icon = item.icon;
           const active = view === item.id;

@@ -16,7 +16,7 @@ const config: Config = {
         // 语义令牌
         ink: "#e7ebf2", // 主文字（off-white）
         muted: "#8a93a3", // 次要文字（冷灰）
-        base: "#0a0c0f", // 页面底（off-black，非纯黑）
+        ground: "#0a0c0f", // 页面底（off-black，非纯黑）。注意：勿命名为 base，会与 text-base 字号工具类撞名导致文字变黑不可见。
         surface: "#0f1318", // 卡片表面
         panel: "#161b22", // 内层/抬升表面
         raised: "#1c222c", // 更高一层

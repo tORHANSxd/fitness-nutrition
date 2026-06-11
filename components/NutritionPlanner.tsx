@@ -502,7 +502,7 @@ function DailyBalancePanel({ actual, recommended, target }: DailyBalancePanelPro
         <h3 className="text-xs font-semibold tracking-tight text-ink">热量 &amp; 营养素盈亏</h3>
         <span className="text-[10px] text-muted">摄入 / 目标</span>
       </div>
-      <div className="grid gap-1.5 sm:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-4">
+      <div className="grid gap-1.5 sm:grid-cols-2">
         <DailyBalanceCard actual={actual.kcal} label="热量" recommended={recommended.kcal} target={target.kcal} unit="kcal" />
         <DailyBalanceCard actual={actual.carbs} label="碳水" recommended={recommended.carbs} target={target.carbs} unit="g" />
         <DailyBalanceCard actual={actual.protein} label="蛋白" recommended={recommended.protein} target={target.protein} unit="g" />

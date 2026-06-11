@@ -105,7 +105,7 @@ export function MacroBars({ result, meals }: MacroBarsProps) {
       <div className="panel p-4">
         <div className="mb-3 flex items-center justify-between gap-3">
           <h3 className="font-semibold tracking-tight text-ink">当天摄入对比</h3>
-          <span className="rounded-full border border-line bg-base/40 px-2.5 py-0.5 text-xs font-medium text-muted">目标 / 当前 / 差额</span>
+          <span className="rounded-full border border-line bg-ground/40 px-2.5 py-0.5 text-xs font-medium text-muted">目标 / 当前 / 差额</span>
         </div>
         <div className="h-[280px]">
           <ResponsiveContainer width="100%" height="100%">
@@ -125,7 +125,7 @@ export function MacroBars({ result, meals }: MacroBarsProps) {
       <div className="panel p-4">
         <div className="mb-3 flex items-center justify-between gap-3">
           <h3 className="font-semibold tracking-tight text-ink">每餐当前摄入</h3>
-          <span className="rounded-full border border-line bg-base/40 px-2.5 py-0.5 text-xs font-medium text-muted">按餐次拆分</span>
+          <span className="rounded-full border border-line bg-ground/40 px-2.5 py-0.5 text-xs font-medium text-muted">按餐次拆分</span>
         </div>
         <div className="h-[280px]">
           <ResponsiveContainer width="100%" height="100%">

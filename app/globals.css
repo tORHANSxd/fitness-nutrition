@@ -78,7 +78,7 @@ select option {
 }
 
 .field {
-  @apply h-11 rounded-lg border border-line bg-base/60 px-3 text-sm text-ink shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] placeholder:text-muted/55 focus-ring;
+  @apply h-11 rounded-lg border border-line bg-ground/60 px-3 text-sm text-ink shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] placeholder:text-muted/55 focus-ring;
 }
 
 .btn {

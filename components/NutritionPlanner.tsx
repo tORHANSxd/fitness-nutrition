@@ -654,38 +654,47 @@ function MacroRatioRow({
 }
 
 function PlanRulePanel() {
-  const weeklyPlan = [
-    ["周一", "胸（卧推飞鸟）", "低碳"],
-    ["周二", "背（引体划船）", "低碳"],
-    ["周三", "腿（深蹲硬拉）", "高碳"],
-    ["周四", "肩（推举侧平举）", "低碳"],
-    ["周五", "手臂（弯举臂屈伸）", "低碳"],
-    ["周六", "休息", "低碳"],
-    ["周日", "休息", "低碳"]
+  // [日, 部位, 动作, 碳日]：部位与动作分行，避免窄列内长标签换行。
+  const weeklyPlan: Array<[string, string, string, "高碳" | "低碳"]> = [
+    ["周一", "胸", "卧推飞鸟", "低碳"],
+    ["周二", "背", "引体划船", "低碳"],
+    ["周三", "腿", "深蹲硬拉", "高碳"],
+    ["周四", "肩", "推举侧平举", "低碳"],
+    ["周五", "手臂", "弯举臂屈伸", "低碳"],
+    ["周六", "休息", "恢复", "低碳"],
+    ["周日", "休息", "恢复", "低碳"]
   ];
 
   return (
     <div className="rounded-xl border border-line bg-panel/60 p-3">
       <div className="mb-2.5">
         <h3 className="text-xs font-semibold tracking-tight text-ink">张老师五分化碳循环</h3>
-        <p className="mt-0.5 text-[10px] text-muted">仅腿日高碳、其余6天低碳；16/8进食窗口；高碳日严控油脂。</p>
+        <p className="mt-0.5 text-[11px] text-muted">仅腿日高碳、其余6天低碳；16/8进食窗口；高碳日严控油脂。</p>
       </div>
-      <div className="grid grid-cols-7 gap-1">
-        {weeklyPlan.map(([day, workout, carbDay]) => (
-          <div key={day} className="rounded-lg border border-line bg-surface/50 px-1.5 py-2 text-center transition-colors hover:border-accent/30">
-            <div className="text-[10px] font-semibold text-ink">{day}</div>
-            <div className="mt-1 text-[9px] leading-tight text-muted">{workout}</div>
-            <div className="mt-1.5 flex justify-center">
-              {carbDay === "高碳" ? (
-                <span className="rounded-full border border-accent/40 bg-accent/10 px-1.5 py-0.5 text-[9px] font-medium text-accent">
-                  高碳
-                </span>
-              ) : (
-                <span className="text-[9px] text-muted/60">低碳</span>
-              )}
+      {/* 一周横向条带：窄屏可横向滚动，单元最小宽度保证文字不换行 */}
+      <div className="scrollbar-thin -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
+        {weeklyPlan.map(([day, part, move, carbDay]) => {
+          const high = carbDay === "高碳";
+          return (
+            <div
+              key={day}
+              className={`min-w-[72px] shrink-0 rounded-lg border px-2 py-2 text-center transition-colors ${
+                high ? "border-accent/40 bg-accent/[0.07]" : "border-line bg-surface/50 hover:border-accent/30"
+              }`}
+            >
+              <div className="text-[11px] font-semibold text-ink">{day}</div>
+              <div className="mt-1 whitespace-nowrap text-xs font-medium text-ink">{part}</div>
+              <div className="whitespace-nowrap text-[10px] text-muted">{move}</div>
+              <div className="mt-1.5">
+                {high ? (
+                  <span className="rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-[10px] font-medium text-accent">高碳</span>
+                ) : (
+                  <span className="text-[10px] text-muted">低碳</span>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

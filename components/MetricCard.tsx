@@ -7,17 +7,17 @@ interface MetricCardProps {
   tone?: "normal" | "danger" | "accent";
 }
 
+// 扁平指标：放在已用细线分隔的 stat 网格内，不再各自描边/发光/悬浮，避免“框中框”与噪点。
+// 单强调色：accent=emerald、danger=rose、normal=中性，杜绝离色系的 amber。
 export function MetricCard({ label, value, unit, tone = "normal" }: MetricCardProps) {
   const color = tone === "danger" ? "text-rose" : tone === "accent" ? "text-accent" : "text-ink";
-  const railColor = tone === "danger" ? "bg-rose" : tone === "accent" ? "bg-amber" : "bg-accent";
-  const surface = tone === "danger" ? "bg-rose/5" : tone === "accent" ? "bg-amber/5" : "bg-surface";
-  const glowClass = tone === "accent" ? "shadow-glow" : "";
+  const railColor = tone === "danger" ? "bg-rose" : tone === "accent" ? "bg-accent" : "bg-line";
 
   return (
-    <div className={`relative overflow-hidden rounded-md border border-line ${surface} ${glowClass} p-3 hover-lift transition-shadow`}>
-      <div className={`absolute inset-y-0 left-0 w-1 ${railColor}`} />
-      <div className="metric-label pl-2">{label}</div>
-      <div className={`mt-1 pl-2 text-xl font-semibold tabular-nums ${color}`}>
+    <div className="relative">
+      <span className={`absolute inset-y-1 left-0 w-0.5 rounded-full ${railColor}`} />
+      <div className="metric-label pl-3">{label}</div>
+      <div className={`mt-1 pl-3 text-xl font-semibold tabular-nums ${color}`}>
         {round(value, unit === "kcal" ? 0 : 1)}
         <span className="ml-1 text-sm font-medium text-muted">{unit}</span>
       </div>

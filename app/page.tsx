@@ -1,6 +1,5 @@
-import { AppShell } from "@/components/AppShell";
+import { LandingGate } from "@/components/LandingGate";
 
 export default function HomePage() {
-  return <AppShell initialView="planner" />;
+  return <LandingGate />;
 }
-

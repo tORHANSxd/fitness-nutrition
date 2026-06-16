@@ -4,8 +4,8 @@
 
 :root {
   color-scheme: dark;
-  --base: #0a0c0f;
-  --hairline: rgba(255, 255, 255, 0.06);
+  --ground: #0a0814;
+  --hairline: rgba(255, 255, 255, 0.08);
 }
 
 * {
@@ -19,20 +19,22 @@ body {
 
 body {
   margin: 0;
-  color: #e7ebf2;
+  color: #ece9f8;
   font-family:
-    "Geist", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    var(--font-manrope), Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
-  /* 精致深色：off-black 底 + 单一极淡强调色光晕（顶部），无 AI 多彩 mesh */
+  /* 紫色玻璃：深 navy-purple 底 + 多层紫色光晕（顶部为主），固定不滚动 */
   background:
-    radial-gradient(720px 420px at 18% -10%, rgba(62, 207, 142, 0.07), transparent 60%),
-    #0a0c0f;
+    radial-gradient(820px 460px at 15% -12%, rgba(123, 57, 252, 0.22), transparent 60%),
+    radial-gradient(720px 420px at 88% -6%, rgba(168, 85, 247, 0.16), transparent 60%),
+    radial-gradient(900px 520px at 60% 112%, rgba(123, 57, 252, 0.10), transparent 60%),
+    #0a0814;
   background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
-/* 极淡网格叠层（克制，不喧宾夺主） */
+/* 极淡网格叠层 */
 body::before {
   content: "";
   position: fixed;
@@ -40,10 +42,10 @@ body::before {
   pointer-events: none;
   z-index: 0;
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.022) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.022) 1px, transparent 1px);
-  background-size: 44px 44px;
-  mask-image: radial-gradient(circle at 50% 0%, black, transparent 80%);
+    linear-gradient(rgba(168, 130, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(168, 130, 255, 0.03) 1px, transparent 1px);
+  background-size: 46px 46px;
+  mask-image: radial-gradient(circle at 50% 0%, black, transparent 78%);
 }
 
 button,
@@ -57,7 +59,7 @@ button {
     background-color 160ms ease,
     border-color 160ms ease,
     color 160ms ease,
-    box-shadow 200ms ease,
+    box-shadow 220ms ease,
     opacity 160ms ease,
     transform 140ms ease;
   touch-action: manipulation;
@@ -69,53 +71,54 @@ select {
 }
 
 select option {
-  background: #0f1318;
-  color: #e7ebf2;
+  background: #140e26;
+  color: #ece9f8;
 }
 
 .focus-ring {
-  @apply focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent/60;
+  @apply focus:outline-none focus:ring-2 focus:ring-accent/45 focus:border-accent/60;
 }
 
+/* 玻璃输入框 */
 .field {
-  @apply h-11 rounded-lg border border-line bg-ground/60 px-3 text-sm text-ink shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] placeholder:text-muted/55 focus-ring;
+  @apply h-11 rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm text-ink shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur placeholder:text-muted/55 focus-ring;
 }
 
 .btn {
   @apply inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border px-3.5 text-sm font-semibold transition-transform active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50;
 }
 
-/* 主操作：强调色实底 + 深色文字 */
+/* 主操作：紫色实底 + 紫色光晕 */
 .btn-primary {
-  @apply btn border-transparent bg-accent text-accent-ink hover:bg-[#4ad79a] hover:-translate-y-px;
+  @apply btn border-transparent bg-accent text-accent-ink shadow-[0_8px_24px_-10px_rgba(123,57,252,0.8)] hover:bg-[#8b53ff] hover:-translate-y-px hover:shadow-glow-neon;
 }
 
-/* 次强操作（如"应用推荐"）：强调色描边幽灵按钮，建立层级差异 */
+/* 次强操作：紫色玻璃描边 */
 .btn-cta {
-  @apply btn border-accent/45 bg-accent/10 text-accent hover:bg-accent/[0.16] hover:-translate-y-px;
+  @apply btn border-accent/45 bg-accent/[0.12] text-[#c4adff] hover:bg-accent/20 hover:text-white hover:-translate-y-px;
 }
 
-/* 次操作：幽灵 + 细描边 */
+/* 次操作：玻璃幽灵 */
 .btn-secondary {
-  @apply btn border-line bg-white/[0.03] text-ink hover:border-line hover:bg-white/[0.06];
+  @apply btn border-white/10 bg-white/[0.04] text-ink backdrop-blur hover:border-accent/40 hover:bg-white/[0.07];
 }
 
 .btn-danger {
-  @apply btn border-rose/35 bg-rose/10 text-rose hover:bg-rose/[0.16];
+  @apply btn border-rose/35 bg-rose/10 text-rose hover:bg-rose/[0.16] hover:text-white;
 }
 
-/* 卡片：实底抬升 + 发丝描边 + 柔和投影（非玻璃、非发光） */
+/* 玻璃拟态卡片：半透明 + 背景模糊 + 发丝高光描边 + 柔投影 */
 .panel {
-  @apply rounded-xl border border-line bg-surface shadow-soft;
+  @apply rounded-2xl border border-white/10 bg-white/[0.045] shadow-soft backdrop-blur-xl;
 }
 
 .metric-label {
   @apply text-[11px] font-semibold uppercase tracking-[0.1em] text-muted;
 }
 
-/* 旧 .text-gradient 降级：干净 off-white 强标题，无渐变字 */
+/* 紫色渐变强调标题 */
 .text-gradient {
-  @apply font-semibold tracking-tight text-ink;
+  @apply bg-gradient-to-r from-[#c9b3ff] via-[#a855f7] to-[#7b39fc] bg-clip-text font-semibold tracking-tight text-transparent;
 }
 
 .hover-lift {
@@ -128,11 +131,11 @@ select option {
 
 .scrollbar-thin {
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
+  scrollbar-color: rgba(168, 130, 255, 0.28) transparent;
 }
 
 .animate-view {
-  animation: view-in 200ms ease-out;
+  animation: view-in 220ms ease-out;
 }
 
 @keyframes view-in {

@@ -1,9 +1,8 @@
 import type { Config } from "tailwindcss";
 
-// 精致深色 · 单强调色设计令牌（去 slop：无霓虹发光、无渐变大标题、无纯黑、单一强调色）。
-// 强调色 = refined emerald #3ecf8e。中性 = 冷调炭灰。
-// 关键：把上一版的 neon 工具类(text-gradient/bg-neon-grad/shadow-glow…)在 globals.css 就地降级为雅致等价，
-// 并把组件硬编码的 blue 色阶重定向到 emerald 浅色调，使旧组件自动变精致、维持单强调色。
+// 紫色玻璃拟态主题（Finlytic 风，沿用 landing 的紫色/玻璃/动效）。
+// 单一品牌强调色 = 紫 #7b39fc；状态色（绿/琥珀/玫红）保留语义；表面为深navy-purple玻璃。
+// 令牌名保持不变，组件无需改 JSX 即随主题切换；硬编码的 blue 色阶重定向到紫色调。
 const config: Config = {
   content: [
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
@@ -13,39 +12,36 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // 语义令牌
-        ink: "#e7ebf2", // 主文字（off-white）
-        muted: "#8a93a3", // 次要文字（冷灰）
-        ground: "#0a0c0f", // 页面底（off-black，非纯黑）。注意：勿命名为 base，会与 text-base 字号工具类撞名导致文字变黑不可见。
-        surface: "#0f1318", // 卡片表面
-        panel: "#161b22", // 内层/抬升表面
-        raised: "#1c222c", // 更高一层
-        line: "#242b35", // 细描边
-        accent: "#3ecf8e", // 唯一强调色（refined emerald）
-        "accent-ink": "#04140d", // 强调色上的深色文字
-        accent2: "#6b96c4", // 仅用于数据可视化的次色（柔和蓝）
-        neon: "#3ecf8e", // 兼容旧引用，等同 accent
-        success: "#3ecf8e",
-        amber: { DEFAULT: "#e0a23a", 50: "rgba(224,162,58,0.12)", 800: "#f0c069" },
-        rose: { DEFAULT: "#e5687f", 50: "rgba(229,104,127,0.12)" },
-        // 覆盖组件硬编码的原生色阶 → emerald 浅色调（维持单强调）
+        ink: "#ece9f8", // 主文字（冷调 off-white）
+        muted: "#9b93bd", // 次要文字（紫灰）
+        ground: "#0a0814", // 页面底（深 navy-purple，勿命名 base）
+        surface: "#120e22", // 卡片表面
+        panel: "#1a1436", // 内层/抬升表面
+        raised: "#231a46", // 更高一层
+        line: "#2c2550", // 紫调细描边
+        accent: "#7b39fc", // 品牌强调色（紫）
+        "accent-ink": "#f7f5ff", // 强调色上的浅文字
+        accent2: "#a855f7", // 次紫（渐变/光晕/图表）
+        neon: "#7b39fc", // 兼容旧引用
+        success: "#34d399", // 状态：完成/已付（绿）
+        amber: { DEFAULT: "#e0a23a", 50: "rgba(224,162,58,0.12)", 800: "#f0c069" }, // 状态：排队中
+        rose: { DEFAULT: "#e5687f", 50: "rgba(229,104,127,0.12)" }, // 状态：危险/超额
+        // 组件硬编码的原生色阶 → 紫色调（维持单强调）
         blue: {
-          50: "rgba(62,207,142,0.08)",
-          100: "rgba(62,207,142,0.16)",
-          200: "rgba(62,207,142,0.28)",
-          800: "#2fb37e"
+          50: "rgba(123,57,252,0.10)",
+          100: "rgba(123,57,252,0.18)",
+          200: "rgba(123,57,252,0.32)",
+          800: "#6a2fe0"
         },
         slate: { 100: "rgba(255,255,255,0.06)" }
       },
       boxShadow: {
-        // 背景同色微染投影，无纯黑、无外发光
-        soft: "0 16px 40px -18px rgba(0,0,0,0.65)",
-        glow: "0 0 0 1px rgba(62,207,142,0.18), 0 10px 30px -14px rgba(0,0,0,0.6)",
-        "glow-neon": "0 8px 26px -14px rgba(62,207,142,0.30)"
+        soft: "0 18px 50px -20px rgba(0,0,0,0.75)",
+        glow: "0 0 0 1px rgba(123,57,252,0.30), 0 16px 44px -16px rgba(123,57,252,0.45)",
+        "glow-neon": "0 10px 32px -12px rgba(123,57,252,0.45)"
       },
       backgroundImage: {
-        // 旧 neon-grad 降级为克制的强调色渐变（无彩虹）
-        "neon-grad": "linear-gradient(135deg, #3ecf8e 0%, #2fb37e 100%)"
+        "neon-grad": "linear-gradient(135deg, #7b39fc 0%, #a855f7 100%)"
       },
       keyframes: {
         "view-in": { from: { opacity: "0", transform: "translateY(8px)" }, to: { opacity: "1", transform: "translateY(0)" } },
@@ -55,8 +51,8 @@ const config: Config = {
         float: { "0%,100%": { transform: "translateY(0)" }, "50%": { transform: "translateY(-4px)" } }
       },
       animation: {
-        "view-in": "view-in 200ms ease-out",
-        "fade-up": "fade-up 420ms cubic-bezier(0.22,1,0.36,1) both",
+        "view-in": "view-in 220ms ease-out",
+        "fade-up": "fade-up 460ms cubic-bezier(0.22,1,0.36,1) both",
         shimmer: "shimmer 2.4s infinite",
         "glow-pulse": "glow-pulse 2.8s ease-in-out infinite",
         float: "float 5s ease-in-out infinite"

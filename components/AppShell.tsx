@@ -132,14 +132,13 @@ export function AppShell({ initialView }: AppShellProps) {
             return (
               <button
                 key={item.id}
-                className={`group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-                  active ? "bg-accent/[0.12] text-accent" : "text-muted hover:bg-white/[0.04] hover:text-ink"
+                className={`group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${
+                  active ? "bg-neon-grad text-white shadow-glow-neon" : "text-muted hover:bg-white/[0.05] hover:text-ink"
                 }`}
                 type="button"
                 onClick={() => setView(item.id)}
                 aria-current={active ? "page" : undefined}
               >
-                {active ? <span className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-accent" /> : null}
                 <Icon size={18} className="shrink-0" />
                 <span className="truncate">{item.label}</span>
               </button>

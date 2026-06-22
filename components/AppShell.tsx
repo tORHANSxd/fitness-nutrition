@@ -73,7 +73,11 @@ export function AppShell({ initialView }: AppShellProps) {
       });
 
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
+      // 切屏/回到前台时 Supabase 会触发 TOKEN_REFRESHED 等事件并给出新的 user 对象引用；
+      // 若身份未变（同一 user.id）则保持原引用，避免下游以 user 为依赖的副作用（分餐水合、
+      // 食物/模板重载）被无谓重跑，从而修复“切屏后分餐计划跳回早餐”。
+      const nextUser = session?.user ?? null;
+      setUser((current) => (current?.id === nextUser?.id ? current : nextUser));
     });
 
     return () => {

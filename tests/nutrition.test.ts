@@ -739,4 +739,39 @@ describe("meal solving", () => {
     const result = buildNutritionResult(profile, meals, builtinFoods);
     expect(result.mealRecommendations[0].recommendedEntries.oil).toBeLessThanOrEqual(20);
   });
+
+  it("trims fatty filler to approach macros when foods are too fat-dense to hit the band", () => {
+    // 用户高碳腿日真实场景：食材脂肪密度偏高（偏肥的鸡肉、含脂燕麦、混合坚果），
+    // 物理上无法同时达到 高碳水/高蛋白/低脂。宏量优先收尾应在保留主餐动物蛋白的前提下，
+    // 压低坚果等填充类食材，让三大宏量都比纯结构解更贴近目标。
+    const foods: FoodItem[] = [
+      { id: "u-oats", name: "燕麦片（宜客）", category: "主食", kcalPer100g: 384.6, fatPer100g: 11.9, carbsPer100g: 57, proteinPer100g: 12.4, weightBasis: "cooked", cookedRawRatio: null, source: "user" },
+      { id: "u-chicken", name: "鸡肉（不吃皮）", category: "肉类", kcalPer100g: 180.6, fatPer100g: 7.33, carbsPer100g: 0, proteinPer100g: 28.67, weightBasis: "cooked", cookedRawRatio: null, source: "user" },
+      { id: "u-asparagus", name: "芦笋", category: "蔬菜", kcalPer100g: 25.5, fatPer100g: 0.12, carbsPer100g: 3.88, proteinPer100g: 2.19, weightBasis: "raw", cookedRawRatio: null, source: "user" },
+      { id: "u-nuts", name: "混合坚果", category: "坚果", kcalPer100g: 638, fatPer100g: 55, carbsPer100g: 20, proteinPer100g: 16.67, weightBasis: "cooked", cookedRawRatio: null, source: "user" },
+      ...builtinFoods
+    ];
+    const entry = (foodId: string, grams: number, maxGrams: number | null) => ({ id: `${foodId}-${grams}`, foodId, grams, locked: false, minGrams: 0, maxGrams });
+    const meals: MealPlan[] = [
+      { id: "breakfast", name: "早餐", ratio: 0.25, locked: false, entries: [entry("u-oats", 185, 360), entry("public-egg-whole", 65, 280), entry("public-blueberry-raw", 200, 200)] },
+      { id: "lunch", name: "午餐", ratio: 0.3, locked: false, entries: [entry("public-brown-rice-cooked", 360, 360), entry("u-chicken", 138, 260), entry("u-asparagus", 420, 420)] },
+      { id: "pre-workout", name: "训练前加餐", ratio: 0.1, locked: false, entries: [entry("public-banana-raw", 220, 220)] },
+      { id: "dinner", name: "晚餐", ratio: 0.3, locked: false, entries: [entry("public-brown-rice-cooked", 360, 360), entry("u-chicken", 150, 260), entry("u-asparagus", 420, 420), entry("u-nuts", 6, 35)] }
+    ];
+    const userProfile: UserProfile = {
+      sex: "male", age: 23, heightCm: 174, weightKg: 94.5, activityFactor: 1.1, exerciseKcal: 800,
+      proteinPerKg: 1.8, workoutType: "legs", trainingTime: "afternoon", planDate: "2026-06-22"
+    };
+    const result = buildNutritionResult(userProfile, meals, foods);
+
+    // 纯结构解会停在 碳水亏≈13.9 / 蛋白亏≈14.4 / 脂肪盈≈13.9；收尾后三项都应更贴近。
+    expect(result.recommendedRemaining.carbs).toBeLessThanOrEqual(13.5);
+    expect(result.recommendedRemaining.protein).toBeLessThanOrEqual(13.5);
+    expect(result.recommendedRemaining.fat).toBeGreaterThanOrEqual(-12.5); // 脂肪盈余 ≤12.5g
+    // 主餐动物蛋白下限仍然保留（不会为了降脂把鸡肉压成迷你份量）。
+    const lunch = result.mealRecommendations.find((item) => item.mealId === "lunch")!.recommendedEntries;
+    expect(lunch["u-chicken-138"]).toBeGreaterThanOrEqual(85);
+    // 死结仍然存在时给出可执行提示，而不是泛泛排查。
+    expect(result.conflicts.some((item) => item.includes("更瘦的蛋白"))).toBe(true);
+  });
 });

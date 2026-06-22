@@ -77,7 +77,9 @@ export function NutritionPlanner({ foods, templates, user, onTemplatesChanged }:
     setProfile(nextProfile);
     const nextMeals = draft?.meals ?? createStarterMeals(nextProfile);
     setMeals(nextMeals);
-    setActiveMealId(nextMeals[0]?.id ?? "");
+    // 重新水合时尽量保留用户当前停留的餐次：仅当原餐次已不存在才回到第一餐，
+    // 避免（例如登录态刷新触发的）重水合把分餐切回早餐。
+    setActiveMealId((current) => (nextMeals.some((meal) => meal.id === current) ? current : nextMeals[0]?.id ?? ""));
     setHydrated(true);
   }, [user]);
 

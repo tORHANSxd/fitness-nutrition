@@ -652,7 +652,8 @@ function isDailyMacroBandAligned(total: MacroTotals, target: MacroTotals) {
 function buildMealSolverModels(
   meal: MealPlan,
   foodsById: Map<string, FoodItem>,
-  mealTarget: MacroTotals
+  mealTarget: MacroTotals,
+  relaxFloors = false
 ): SolverEntryModel[] {
   if (meal.locked) {
     return [];
@@ -677,15 +678,18 @@ function buildMealSolverModels(
     counts.set(model.food.category, (counts.get(model.food.category) ?? 0) + 1);
     return counts;
   }, new Map<FoodCategory, number>());
-  const rawFloors = baseModels.map(({ bounds, food, portionRule }) => {
+  const animalProteinFloors = baseModels.map(({ bounds, food }) =>
+    protectsPresence && food.category === "肉类"
+      ? clamp(animalProteinFloorForMeal(meal) / Math.max(categoryCounts.get("肉类") ?? 1, 1), bounds.min, bounds.max)
+      : bounds.min
+  );
+  const rawFloors = baseModels.map(({ bounds, food, portionRule }, index) => {
     if (!protectsPresence) {
       return bounds.min;
     }
     const categoryPresenceFloor =
       food.category === "补剂" ? supplementPresenceFloor(food, portionRule) : portionRule.defaultGrams * presenceFloorRatios[food.category];
-    const animalProteinFloor =
-      food.category === "肉类" ? animalProteinFloorForMeal(meal) / Math.max(categoryCounts.get("肉类") ?? 1, 1) : 0;
-    return clamp(Math.max(categoryPresenceFloor, animalProteinFloor), bounds.min, bounds.max);
+    return clamp(Math.max(categoryPresenceFloor, animalProteinFloors[index]), bounds.min, bounds.max);
   });
   const floorTotals = baseModels.reduce(
     (total, model, index) => addTotals(total, calculateFoodTotals(model.food, rawFloors[index])),
@@ -698,8 +702,14 @@ function buildMealSolverModels(
   const floorScale = floorTotals.kcal > floorKcalLimit && floorTotals.kcal > 0 ? floorKcalLimit / floorTotals.kcal : 1;
 
   return baseModels.map(({ entry, food, bounds, portionRule }, index) => {
-    const min = round(clamp(bounds.min + (rawFloors[index] - bounds.min) * floorScale, bounds.min, bounds.max), 1);
-    const solverMax = protectsPresence ? round(clamp(multiFoodHardMaxFor(food, portionRule), min, bounds.max), 1) : bounds.max;
+    // 宏量优先收尾时放开主食/蔬果/坚果/补剂等“填充类存在感下限”，让优化器能压低它们去贴近全天宏量；
+    // 但保留肉类的动物蛋白下限（主餐不出现迷你蛋白份量）与多食材结构上限（避免单一主食压过蔬菜/蛋白）。
+    const min = relaxFloors
+      ? round(animalProteinFloors[index], 1)
+      : round(clamp(bounds.min + (rawFloors[index] - bounds.min) * floorScale, bounds.min, bounds.max), 1);
+    const solverMax = protectsPresence
+      ? round(clamp(multiFoodHardMaxFor(food, portionRule), min, bounds.max), 1)
+      : bounds.max;
     return {
       meal,
       entry,
@@ -1048,6 +1058,50 @@ function refineDailyRecommendations(
     scoreState
   );
 
+  // 宏量优先收尾：当“餐盘结构解”仍无法把全天碳水/蛋白/脂肪压进容忍带时，
+  // 放开存在感下限（只守用户锁定与显式上下限），以贴近全天宏量为唯一目标再优化一轮，
+  // 让推荐尽量逼近食材在物理上能达到的最接近点。仅在能改善全天宏量分数时采纳，绝不回退。
+  if (!isDailyMacroBandAligned(calculateRecommendedTotals(), dailyTarget)) {
+    const macroModelsByMealId = new Map(
+      meals.map((meal) => [meal.id, buildMealSolverModels(meal, foodsById, mealTargetsById.get(meal.id) ?? zeroTotals, true)])
+    );
+    const macroModels = Array.from(macroModelsByMealId.values()).flat();
+
+    if (macroModels.length > 0) {
+      for (const model of macroModels) {
+        const mealEntries = solvedEntriesByMealId.get(model.meal.id);
+        if (mealEntries) {
+          mealEntries[model.entry.id] = round(clamp(mealEntries[model.entry.id] ?? model.entry.grams, model.min, model.max), 1);
+        }
+      }
+
+      const macroScoreState = () => {
+        const dailyTotals = calculateRecommendedTotals();
+        let score =
+          dailyMacroBandScore(dailyTotals, dailyTarget) * 1000 +
+          macroFitScore(dailyTotals, dailyTarget, dailyFitWeights, { kcal: 120, carbs: 12, protein: 10, fat: 8 }) * 80;
+        // 轻量结构项仅用于打破并列，优先保留更像“餐盘”的克重，不与宏量目标抗衡。
+        for (const meal of meals) {
+          const mealEntries = solvedEntriesByMealId.get(meal.id) ?? Object.fromEntries(meal.entries.map((e) => [e.id, e.grams]));
+          score += mealStructureScore(macroModelsByMealId.get(meal.id) ?? [], mealEntries) * 0.05;
+        }
+        return score;
+      };
+
+      optimizeSolverModels(
+        macroModels,
+        (model) => solvedEntriesByMealId.get(model.meal.id)?.[model.entry.id] ?? model.entry.grams,
+        (model, grams) => {
+          const mealEntries = solvedEntriesByMealId.get(model.meal.id);
+          if (mealEntries) {
+            mealEntries[model.entry.id] = grams;
+          }
+        },
+        macroScoreState
+      );
+    }
+  }
+
   const recommendedTotals = calculateRecommendedTotals();
 
   return { solvedEntriesByMealId, recommendedTotals };
@@ -1110,6 +1164,30 @@ function lockedMealDeviationMessage(meal: MealPlan, deficit: MacroTotals) {
   return `${meal.name} 有锁定项，推荐后${direction} ${round(Math.abs(deficit.kcal), 0)} kcal；已保留该差额，避免把缺口强行分配给其他餐`;
 }
 
+// 全天宏量未进入容忍带时的可执行提示：逐项标出盈/亏方向，并针对“脂肪超标但碳水/蛋白不足”这类
+// 食材脂肪密度过高的常见死结给出换食材/调目标的具体建议，而不是泛泛地让用户自己排查。
+function dailyBandConflictMessage(remaining: MacroTotals) {
+  const labels = { carbs: "碳水", protein: "蛋白", fat: "脂肪" } as const;
+  const parts: string[] = [];
+  let fatSurplus = false;
+  let macroDeficit = false;
+  for (const key of macroRatioKeys) {
+    const diff = remaining[key]; // 目标 - 推荐：>0 为亏，<0 为盈
+    if (diff > dailyMacroBand.deficit) {
+      parts.push(`${labels[key]}亏${round(diff)}g`);
+      if (key !== "fat") macroDeficit = true;
+    } else if (diff < -dailyMacroBand.surplus) {
+      parts.push(`${labels[key]}盈${round(-diff)}g`);
+      if (key === "fat") fatSurplus = true;
+    }
+  }
+  const hint =
+    fatSurplus && macroDeficit
+      ? "原因是当前食材脂肪密度偏高：补足碳水/蛋白时脂肪必然超目标。可换更瘦的蛋白（鸡胸/虾/白鱼/低脂乳清）、减少蛋黄/坚果/食用油等高脂食材，或上调脂肪目标。"
+      : "可调整食材种类、各项克重上下限或解除锁定后重试。";
+  return `全天推荐已尽量贴近，但仍超出克数容忍带：${parts.join("、")}。${hint}`;
+}
+
 export function buildNutritionResult(profile: UserProfile, meals: MealPlan[], foods: FoodItem[]): NutritionResult {
   const foodsById = new Map(foods.map((food) => [food.id, food]));
   const cycleAverageTarget = calculateCycleAverageTarget(profile);
@@ -1147,10 +1225,7 @@ export function buildNutritionResult(profile: UserProfile, meals: MealPlan[], fo
   const dynamicMealTargetsById = buildDynamicMealTargets(meals, dailyTarget, solvedEntriesByMealId, mealTargetsById, foodsById);
 
   if (!isDailyMacroBandAligned(recommendedTotals, dailyTarget)) {
-    const remaining = subtractTotals(dailyTarget, recommendedTotals);
-    conflicts.push(
-      `全天推荐仍未进入克数容忍带：碳水 ${round(remaining.carbs)}g，蛋白 ${round(remaining.protein)}g，脂肪 ${round(remaining.fat)}g；检查食材种类、上下限或锁定项`
-    );
+    conflicts.push(dailyBandConflictMessage(subtractTotals(dailyTarget, recommendedTotals)));
   }
 
   const mealRecommendations = meals.map((meal) => {

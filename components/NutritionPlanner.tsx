@@ -44,6 +44,7 @@ import type {
   MealPlan,
   MealTemplate,
   PlannerTemplates,
+  SavedPlan,
   UserProfile,
   WorkoutType
 } from "@/lib/types";
@@ -54,9 +55,13 @@ interface NutritionPlannerProps {
   user: User | null;
   onFoodsChanged: () => Promise<void>;
   onTemplatesChanged: (templates: PlannerTemplates) => void;
+  /** 从模板页「一键应用」传入的全天餐食；nonce 变化时载入到当前计划。 */
+  applyRequest?: { meals: MealPlan[]; nonce: number } | null;
+  /** 从安排日历「去分餐」传入指定日期与该日已存计划；nonce 变化时按该日载入。 */
+  openDateRequest?: { date: string; plan: SavedPlan | null; nonce: number } | null;
 }
 
-export function NutritionPlanner({ foods, templates, user, onTemplatesChanged }: NutritionPlannerProps) {
+export function NutritionPlanner({ foods, templates, user, onTemplatesChanged, applyRequest, openDateRequest }: NutritionPlannerProps) {
   const [profile, setProfile] = useState<UserProfile>(defaultProfile);
   const [meals, setMeals] = useState<MealPlan[]>(() => createStarterMeals(defaultProfile));
   const [activeMealId, setActiveMealId] = useState(meals[0]?.id ?? "");
@@ -77,9 +82,7 @@ export function NutritionPlanner({ foods, templates, user, onTemplatesChanged }:
     setProfile(nextProfile);
     const nextMeals = draft?.meals ?? createStarterMeals(nextProfile);
     setMeals(nextMeals);
-    // 重新水合时尽量保留用户当前停留的餐次：仅当原餐次已不存在才回到第一餐，
-    // 避免（例如登录态刷新触发的）重水合把分餐切回早餐。
-    setActiveMealId((current) => (nextMeals.some((meal) => meal.id === current) ? current : nextMeals[0]?.id ?? ""));
+    setActiveMealId(nextMeals[0]?.id ?? "");
     setHydrated(true);
   }, [user]);
 
@@ -89,6 +92,30 @@ export function NutritionPlanner({ foods, templates, user, onTemplatesChanged }:
     }
     savePlannerDraft(profile, meals, user);
   }, [hydrated, meals, profile, user]);
+
+  // 模板页「一键应用」：nonce 变化时把模板餐食载入当前计划。
+  useEffect(() => {
+    if (!applyRequest || applyRequest.meals.length === 0) {
+      return;
+    }
+    setMeals(applyRequest.meals);
+    setActiveMealId(applyRequest.meals[0]?.id ?? "");
+    setMessage("已从模板应用全天餐食，可继续微调或保存。");
+  }, [applyRequest]);
+
+  // 安排日历「去分餐」：nonce 变化时按指定日期载入——有已存计划则载入，否则新建该日空计划。
+  useEffect(() => {
+    if (!openDateRequest) {
+      return;
+    }
+    const { date, plan } = openDateRequest;
+    const nextProfile = plan?.profile ?? { ...defaultProfile, planDate: date };
+    const nextMeals = plan?.meals ?? createDefaultMeals(nextProfile);
+    setProfile({ ...nextProfile, planDate: date });
+    setMeals(nextMeals);
+    setActiveMealId(nextMeals[0]?.id ?? "");
+    setMessage(plan ? `已载入 ${date} 的已保存计划，可继续编辑。` : `正在新建 ${date} 的计划，保存后写入该日。`);
+  }, [openDateRequest]);
 
   useEffect(() => {
     if (meals.length === 0) {
@@ -329,20 +356,20 @@ export function NutritionPlanner({ foods, templates, user, onTemplatesChanged }:
             </div>
 
             {/* stat 网格：7 指标，无独立卡片投影，细线分隔（列数受限以免窄列内中文标签竖排/溢出） */}
-            <div className="grid grid-cols-2 divide-x divide-y divide-line sm:grid-cols-3 xl:grid-cols-4">
-              <div className="px-4 py-3">
+            <div className="grid grid-cols-2 border-l border-t border-line sm:grid-cols-3 xl:grid-cols-4">
+              <div className="border-b border-r border-line px-4 py-3">
                 <MetricCard label="BMR" value={result.bmr} unit="kcal" />
               </div>
-              <div className="px-4 py-3">
+              <div className="border-b border-r border-line px-4 py-3">
                 <MetricCard label="维持热量" value={result.tdee} unit="kcal" tone="accent" />
               </div>
-              <div className="px-4 py-3">
+              <div className="border-b border-r border-line px-4 py-3">
                 <MetricCard label="计划均热量" value={result.cycleAverageTarget.kcal} unit="kcal" tone="accent" />
               </div>
-              <div className="px-4 py-3">
+              <div className="border-b border-r border-line px-4 py-3">
                 <MetricCard label="当日目标" value={result.dailyTarget.kcal} unit="kcal" tone="accent" />
               </div>
-              <div className="px-4 py-3">
+              <div className="border-b border-r border-line px-4 py-3">
                 <MetricCard
                   label={result.plannedCalorieDelta < 0 ? "计划缺口" : result.plannedCalorieDelta > 0 ? "计划盈余" : "计划差额"}
                   value={Math.abs(result.plannedCalorieDelta)}
@@ -350,10 +377,10 @@ export function NutritionPlanner({ foods, templates, user, onTemplatesChanged }:
                   tone={result.plannedCalorieDelta < 0 ? "normal" : "accent"}
                 />
               </div>
-              <div className="px-4 py-3">
+              <div className="border-b border-r border-line px-4 py-3">
                 <MetricCard label="当前摄入" value={result.actualTotals.kcal} unit="kcal" />
               </div>
-              <div className="px-4 py-3">
+              <div className="border-b border-r border-line px-4 py-3">
                 <MetricCard
                   label="剩余目标"
                   value={result.remaining.kcal}

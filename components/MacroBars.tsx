@@ -19,9 +19,9 @@ interface MacroBarsProps {
   meals: MealPlan[];
 }
 
-// 精致深色数据色：强调色 emerald + 去饱和的辅助色系（无霓虹蓝/青/紫）
+// 深色数据色：热量用与紫主题协调的柔和淡紫（替换原扎眼的亮绿），其余为去饱和辅助色。
 const colors = {
-  kcal: "#3ecf8e",
+  kcal: "#9d88d6",
   carbs: "#e0a23a",
   protein: "#6b96c4",
   fat: "#cf7e8e"

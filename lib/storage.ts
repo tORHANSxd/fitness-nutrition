@@ -297,3 +297,20 @@ export async function loadPlans(user: User | null): Promise<SavedPlan[]> {
 
   return data.map((row) => mapPlanRow(row));
 }
+
+export async function deletePlan(planId: string, user: User | null): Promise<void> {
+  const supabase = getSupabaseClient();
+  if (!supabase || !user) {
+    const plans = readLocal<SavedPlan[]>(savedPlansKey, []);
+    writeLocal(
+      savedPlansKey,
+      plans.filter((plan) => plan.id !== planId)
+    );
+    return;
+  }
+
+  const { error } = await supabase.from("daily_plans").delete().eq("id", planId);
+  if (error) {
+    throw error;
+  }
+}

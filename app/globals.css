@@ -5,7 +5,7 @@
 :root {
   color-scheme: dark;
   --ground: #0a0814;
-  --hairline: rgba(255, 255, 255, 0.08);
+  --hairline: rgba(255, 255, 255, 0.12);
 }
 
 * {
@@ -81,7 +81,7 @@ select option {
 
 /* 玻璃输入框 */
 .field {
-  @apply h-11 rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm text-ink shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur placeholder:text-muted/55 focus-ring;
+  @apply h-11 rounded-lg border border-white/[0.14] bg-white/[0.05] px-3 text-sm text-ink shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur placeholder:text-muted/75 focus-ring;
 }
 
 .btn {
@@ -100,7 +100,7 @@ select option {
 
 /* 次操作：玻璃幽灵 */
 .btn-secondary {
-  @apply btn border-white/10 bg-white/[0.04] text-ink backdrop-blur hover:border-accent/40 hover:bg-white/[0.07];
+  @apply btn border-white/[0.16] bg-white/[0.06] text-ink backdrop-blur hover:border-accent/45 hover:bg-white/[0.09];
 }
 
 .btn-danger {
@@ -109,16 +109,16 @@ select option {
 
 /* 玻璃拟态卡片：半透明 + 背景模糊 + 发丝高光描边 + 柔投影 */
 .panel {
-  @apply rounded-2xl border border-white/10 bg-white/[0.045] shadow-soft backdrop-blur-xl;
+  @apply rounded-2xl border border-white/[0.13] bg-white/[0.05] shadow-soft backdrop-blur-xl;
 }
 
 .metric-label {
   @apply text-[11px] font-semibold uppercase tracking-[0.1em] text-muted;
 }
 
-/* 紫色渐变强调标题 */
+/* 紫色渐变强调标题：提高整段最低亮度，避免右端深紫在深底上看不清 */
 .text-gradient {
-  @apply bg-gradient-to-r from-[#c9b3ff] via-[#a855f7] to-[#7b39fc] bg-clip-text font-semibold tracking-tight text-transparent;
+  @apply bg-gradient-to-r from-[#ece2ff] via-[#c8abff] to-[#a981ff] bg-clip-text font-semibold tracking-tight text-transparent;
 }
 
 .hover-lift {

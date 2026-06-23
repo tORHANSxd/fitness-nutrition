@@ -111,3 +111,46 @@ drop policy if exists "delete own plans" on public.daily_plans;
 create policy "delete own plans"
 on public.daily_plans for delete
 using (auth.uid() = user_id);
+
+-- 训练日历：每位用户每天一条训练记录，逐组数据以 jsonb 数组存放（与 daily_plans.meals 同构）。
+-- 训练模块强制登录、仅落 Supabase，不使用 localStorage 回退。
+create table if not exists public.workout_sessions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  session_date date not null,
+  split_label text not null,
+  carb_day_type text not null check (carb_day_type in ('high', 'mid', 'low')),
+  bodyweight_kg numeric(6, 2) check (bodyweight_kg is null or bodyweight_kg > 0),
+  recovery smallint check (recovery is null or recovery between 1 and 5),
+  note text,
+  sets jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (user_id, session_date)
+);
+
+create index if not exists workout_sessions_user_date_idx
+  on public.workout_sessions (user_id, session_date desc);
+
+alter table public.workout_sessions enable row level security;
+
+drop policy if exists "read own workout sessions" on public.workout_sessions;
+create policy "read own workout sessions"
+on public.workout_sessions for select
+using (auth.uid() = user_id);
+
+drop policy if exists "insert own workout sessions" on public.workout_sessions;
+create policy "insert own workout sessions"
+on public.workout_sessions for insert
+with check (auth.uid() = user_id);
+
+drop policy if exists "update own workout sessions" on public.workout_sessions;
+create policy "update own workout sessions"
+on public.workout_sessions for update
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+
+drop policy if exists "delete own workout sessions" on public.workout_sessions;
+create policy "delete own workout sessions"
+on public.workout_sessions for delete
+using (auth.uid() = user_id);

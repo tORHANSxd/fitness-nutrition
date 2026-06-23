@@ -7,7 +7,22 @@ export type WorkoutType = "chest" | "back" | "legs" | "shoulders" | "arms" | "re
 export type CarbDayType = "high" | "mid" | "low";
 export type TrainingTime = "morning" | "afternoon" | "evening";
 export type NutritionGoal = "cut" | "maintain" | "bulk";
-export type ViewName = "planner" | "templates" | "foods" | "history" | "login";
+export type ViewName = "overview" | "planner" | "schedule" | "training" | "templates" | "foods" | "history" | "login";
+
+export type MuscleGroup =
+  | "chest"
+  | "back"
+  | "quads"
+  | "hamstrings"
+  | "glutes"
+  | "shoulders"
+  | "biceps"
+  | "triceps"
+  | "calves"
+  | "abs";
+export type TrainingSplit = "ppl" | "upperLower" | "fullBody";
+export type ExperienceLevel = "beginner" | "intermediate" | "advanced";
+export type OneRmFormula = "epley" | "brzycki";
 
 export interface MacroTotals {
   kcal: number;
@@ -136,3 +151,62 @@ export interface PlannerTemplates {
 }
 
 export type FoodFormState = Omit<FoodItem, "id" | "source" | "userId">;
+
+/** 单组训练记录：逐组的重量×次数×RIR，是计算的最小单位。 */
+export interface WorkoutSet {
+  id: string;
+  exercise: string;
+  muscleGroup: MuscleGroup;
+  weightKg: number;
+  reps: number;
+  /** Reps In Reserve 剩余次数；null = 未记录（不参与 RIR 相关统计）。 */
+  rir: number | null;
+  /** 热身组不计入有效训练量。 */
+  isWarmup: boolean;
+}
+
+/** 一次训练（一天一条）。逐组数据放在 sets 里以 jsonb 存入 Supabase。 */
+export interface WorkoutSession {
+  id: string;
+  sessionDate: string;
+  splitLabel: string;
+  carbDayType: CarbDayType;
+  bodyweightKg?: number | null;
+  /** 主观恢复 1–5（睡眠/精力/酸痛综合）。 */
+  recovery?: number | null;
+  note?: string;
+  sets: WorkoutSet[];
+  createdAt: string;
+}
+
+/** 训练量地标（每肌群每周硬组数），来自 RP / Schoenfeld。 */
+export interface VolumeLandmark {
+  mv: number;
+  mev: number;
+  mav: number;
+  mrv: number;
+}
+
+export interface ProgramExercise {
+  exercise: string;
+  muscleGroup: MuscleGroup;
+  sets: number;
+  repRange: [number, number];
+  targetRir: number;
+}
+
+export interface ProgramDay {
+  dayLabel: string;
+  splitLabel: string;
+  muscleGroups: MuscleGroup[];
+  carbDay: CarbDayType;
+  exercises: ProgramExercise[];
+}
+
+export interface ProgramTemplate {
+  id: TrainingSplit;
+  name: string;
+  summary: string;
+  daysPerWeek: number;
+  days: ProgramDay[];
+}

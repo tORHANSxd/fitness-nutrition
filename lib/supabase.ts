@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
 import { calculateFoodKcalPer100g } from "@/lib/nutrition";
-import type { FoodItem, SavedPlan } from "@/lib/types";
+import type { FoodItem, SavedPlan, WorkoutSession, WorkoutSet } from "@/lib/types";
 
 let client: SupabaseClient | null = null;
 
@@ -103,5 +103,42 @@ export function mapPlanRow(row: Record<string, unknown>): SavedPlan {
     meals: row.meals as SavedPlan["meals"],
     result: row.result as SavedPlan["result"],
     createdAt: String(row.created_at)
+  };
+}
+
+export function mapWorkoutSessionRow(row: Record<string, unknown>): WorkoutSession {
+  const rawSets = Array.isArray(row.sets) ? (row.sets as WorkoutSet[]) : [];
+  return {
+    id: String(row.id),
+    sessionDate: String(row.session_date),
+    splitLabel: String(row.split_label),
+    carbDayType: row.carb_day_type as WorkoutSession["carbDayType"],
+    bodyweightKg: row.bodyweight_kg == null ? null : Number(row.bodyweight_kg),
+    recovery: row.recovery == null ? null : Number(row.recovery),
+    note: row.note == null ? "" : String(row.note),
+    sets: rawSets.map((set) => ({
+      id: String(set.id),
+      exercise: String(set.exercise),
+      muscleGroup: set.muscleGroup,
+      weightKg: Number(set.weightKg),
+      reps: Number(set.reps),
+      rir: set.rir == null ? null : Number(set.rir),
+      isWarmup: Boolean(set.isWarmup)
+    })),
+    createdAt: String(row.created_at)
+  };
+}
+
+export function workoutSessionToRow(session: WorkoutSession, user: User) {
+  return {
+    user_id: user.id,
+    session_date: session.sessionDate,
+    split_label: session.splitLabel,
+    carb_day_type: session.carbDayType,
+    bodyweight_kg: session.bodyweightKg ?? null,
+    recovery: session.recovery ?? null,
+    note: session.note ?? null,
+    sets: session.sets,
+    updated_at: new Date().toISOString()
   };
 }

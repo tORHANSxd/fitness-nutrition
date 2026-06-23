@@ -1,10 +1,10 @@
 "use client";
 
 import type { User } from "@supabase/supabase-js";
-import { CalendarClock, RefreshCw } from "lucide-react";
+import { CalendarClock, RefreshCw, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { carbDayLabels, round, workoutLabels } from "@/lib/nutrition";
-import { loadPlans } from "@/lib/storage";
+import { deletePlan, loadPlans } from "@/lib/storage";
 import type { SavedPlan } from "@/lib/types";
 
 interface HistoryViewProps {
@@ -15,6 +15,7 @@ export function HistoryView({ user }: HistoryViewProps) {
   const [plans, setPlans] = useState<SavedPlan[]>([]);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   async function refresh() {
     setBusy(true);
@@ -25,6 +26,23 @@ export function HistoryView({ user }: HistoryViewProps) {
       setMessage(error instanceof Error ? error.message : "读取历史失败。");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function removePlan(plan: SavedPlan) {
+    if (!window.confirm(`确定删除 ${plan.planDate} 的计划记录？此操作不可撤销。`)) {
+      return;
+    }
+    setDeletingId(plan.id);
+    setMessage("");
+    try {
+      await deletePlan(plan.id, user);
+      setPlans((current) => current.filter((item) => item.id !== plan.id));
+      setMessage(`已删除 ${plan.planDate} 的记录。`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "删除失败。");
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -50,7 +68,11 @@ export function HistoryView({ user }: HistoryViewProps) {
           刷新
         </button>
       </div>
-      {message ? <p className="m-4 rounded-md bg-rose/10 p-3 text-sm text-rose">{message}</p> : null}
+      {message ? (
+        <p className={`m-4 rounded-md p-3 text-sm ${message.includes("失败") ? "bg-rose/10 text-rose" : "border border-line bg-surface/80 text-ink"}`}>
+          {message}
+        </p>
+      ) : null}
       <div className="scrollbar-thin overflow-x-auto">
         <table className="w-full min-w-[860px] text-left text-sm">
           <thead className="bg-surface/80 text-xs uppercase tracking-normal text-muted">
@@ -63,12 +85,13 @@ export function HistoryView({ user }: HistoryViewProps) {
               <th className="px-4 py-3">碳水</th>
               <th className="px-4 py-3">蛋白</th>
               <th className="px-4 py-3">脂肪</th>
+              <th className="px-4 py-3 text-right">操作</th>
             </tr>
           </thead>
           <tbody>
             {plans.length === 0 ? (
               <tr>
-                <td className="px-4 py-8 text-center text-muted" colSpan={8}>
+                <td className="px-4 py-8 text-center text-muted" colSpan={9}>
                   暂无保存记录。
                 </td>
               </tr>
@@ -87,6 +110,17 @@ export function HistoryView({ user }: HistoryViewProps) {
                   <td className="px-4 py-3">{round(plan.result.actualTotals.carbs)} g</td>
                   <td className="px-4 py-3">{round(plan.result.actualTotals.protein)} g</td>
                   <td className="px-4 py-3">{round(plan.result.actualTotals.fat)} g</td>
+                  <td className="px-4 py-3 text-right">
+                    <button
+                      className="btn-danger h-8 px-2.5"
+                      type="button"
+                      onClick={() => removePlan(plan)}
+                      disabled={deletingId === plan.id}
+                      title="删除该记录"
+                    >
+                      <Trash2 size={14} className={deletingId === plan.id ? "animate-pulse" : ""} />
+                    </button>
+                  </td>
                 </tr>
               ))
             )}

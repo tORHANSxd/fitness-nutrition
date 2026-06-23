@@ -1,28 +1,33 @@
 "use client";
 
 import type { User } from "@supabase/supabase-js";
-import { BarChart3, CalendarClock, Dumbbell, LayoutTemplate, Library, LogIn, LogOut, RefreshCw } from "lucide-react";
+import { BarChart3, CalendarCheck, CalendarClock, CalendarRange, Dumbbell, LayoutGrid, LayoutTemplate, Library, LogOut, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { AuthPanel } from "@/components/AuthPanel";
 import { FoodLibrary } from "@/components/FoodLibrary";
 import { HistoryView } from "@/components/HistoryView";
 import { NutritionPlanner } from "@/components/NutritionPlanner";
+import { OverviewCalendar } from "@/components/OverviewCalendar";
+import { ScheduleCalendar } from "@/components/ScheduleCalendar";
 import { TemplateManager } from "@/components/TemplateManager";
+import { TrainingLog } from "@/components/TrainingLog";
 import { builtinFoods } from "@/lib/foods";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase";
 import { loadFoods, loadPlannerTemplates, savePlannerTemplates } from "@/lib/storage";
-import type { FoodItem, PlannerTemplates, ViewName } from "@/lib/types";
+import type { DayTemplate, FoodItem, MealPlan, PlannerTemplates, SavedPlan, ViewName } from "@/lib/types";
 
 interface AppShellProps {
   initialView: ViewName;
 }
 
 const navItems: Array<{ id: ViewName; label: string; shortLabel: string; icon: typeof Dumbbell }> = [
+  { id: "overview", label: "总览", shortLabel: "总览", icon: LayoutGrid },
   { id: "planner", label: "当天计划", shortLabel: "计划", icon: Dumbbell },
+  { id: "schedule", label: "安排日历", shortLabel: "安排", icon: CalendarCheck },
+  { id: "training", label: "训练日历", shortLabel: "训练", icon: CalendarRange },
   { id: "templates", label: "模板管理", shortLabel: "模板", icon: LayoutTemplate },
   { id: "foods", label: "食物库", shortLabel: "食物", icon: Library },
-  { id: "history", label: "历史记录", shortLabel: "历史", icon: CalendarClock },
-  { id: "login", label: "登录", shortLabel: "登录", icon: LogIn }
+  { id: "history", label: "历史记录", shortLabel: "历史", icon: CalendarClock }
 ];
 
 export function AppShell({ initialView }: AppShellProps) {
@@ -32,7 +37,29 @@ export function AppShell({ initialView }: AppShellProps) {
   const [templates, setTemplates] = useState<PlannerTemplates>({ mealTemplates: [], dayTemplates: [] });
   const [loadingFoods, setLoadingFoods] = useState(false);
   const [authReady, setAuthReady] = useState(false);
+  const [applyRequest, setApplyRequest] = useState<{ meals: MealPlan[]; nonce: number } | null>(null);
+  const [openDateRequest, setOpenDateRequest] = useState<{ date: string; plan: SavedPlan | null; nonce: number } | null>(null);
+  const [trainingDateRequest, setTrainingDateRequest] = useState<{ date: string; nonce: number } | null>(null);
   const configured = isSupabaseConfigured();
+
+  function applyDayTemplate(template: DayTemplate) {
+    const meals = template.meals.map((meal) => ({
+      ...meal,
+      entries: meal.entries.map((entry) => ({ ...entry, id: crypto.randomUUID() }))
+    }));
+    setApplyRequest({ meals, nonce: Date.now() });
+    setView("planner");
+  }
+
+  function editPlannerForDate(date: string, plan: SavedPlan | null) {
+    setOpenDateRequest({ date, plan, nonce: Date.now() });
+    setView("planner");
+  }
+
+  function editTrainingForDate(date: string) {
+    setTrainingDateRequest({ date, nonce: Date.now() });
+    setView("training");
+  }
 
   const refreshFoods = useCallback(async () => {
     setLoadingFoods(true);
@@ -73,11 +100,7 @@ export function AppShell({ initialView }: AppShellProps) {
       });
 
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-      // 切屏/回到前台时 Supabase 会触发 TOKEN_REFRESHED 等事件并给出新的 user 对象引用；
-      // 若身份未变（同一 user.id）则保持原引用，避免下游以 user 为依赖的副作用（分餐水合、
-      // 食物/模板重载）被无谓重跑，从而修复“切屏后分餐计划跳回早餐”。
-      const nextUser = session?.user ?? null;
-      setUser((current) => (current?.id === nextUser?.id ? current : nextUser));
+      setUser(session?.user ?? null);
     });
 
     return () => {
@@ -112,6 +135,28 @@ export function AppShell({ initialView }: AppShellProps) {
   const userStatus = configured ? (user ? `已登录：${user.email}` : "Supabase 在线模式") : "本地演示模式";
   const activeLabel = navItems.find((item) => item.id === view)?.label ?? "当天计划";
   const today = new Date().toLocaleDateString("zh-CN", { year: "numeric", month: "long", day: "numeric", weekday: "long" });
+
+  // 全局登录门禁：已配置 Supabase 但未登录时，整屏只显示登录/注册页；登录后进入完整应用。
+  // 未配置 Supabase 时不门禁（否则无法登录会变砖），保留本地演示模式。
+  if (configured && authReady && !user) {
+    return (
+      <div className="relative z-10 flex min-h-dvh items-center justify-center px-4 py-10">
+        <div className="w-full max-w-2xl">
+          <div className="mb-6 flex items-center gap-3">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-accent/[0.12] text-accent ring-1 ring-accent/25">
+              <BarChart3 size={24} />
+            </div>
+            <div className="min-w-0 leading-tight">
+              <div className="text-xl font-semibold tracking-tight text-ink">健身营养</div>
+              <div className="text-sm text-muted">碳循环计划器 · 登录后开始使用</div>
+            </div>
+          </div>
+          <AuthPanel user={user} onSignedIn={setUser} />
+          <p className="mt-4 text-center text-xs text-muted">所有数据按账户保存在 Supabase 云端；首次使用请先注册。</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative z-10 min-h-dvh lg:pl-64">
@@ -212,11 +257,20 @@ export function AppShell({ initialView }: AppShellProps) {
             <div className={view === "login" ? "animate-view" : "hidden"}>
               <AuthPanel user={user} onSignedIn={setUser} />
             </div>
+            <div className={view === "overview" ? "animate-view" : "hidden"}>
+              <OverviewCalendar user={user} onEditPlanner={editPlannerForDate} onEditTraining={editTrainingForDate} />
+            </div>
             <div className={view === "planner" ? "animate-view" : "hidden"}>
-              <NutritionPlanner foods={foods} templates={templates} user={user} onFoodsChanged={refreshFoods} onTemplatesChanged={persistTemplates} />
+              <NutritionPlanner foods={foods} templates={templates} user={user} onFoodsChanged={refreshFoods} onTemplatesChanged={persistTemplates} applyRequest={applyRequest} openDateRequest={openDateRequest} />
+            </div>
+            <div className={view === "schedule" ? "animate-view" : "hidden"}>
+              <ScheduleCalendar user={user} foods={foods} onGoTraining={editTrainingForDate} onGoPlanner={editPlannerForDate} />
+            </div>
+            <div className={view === "training" ? "animate-view" : "hidden"}>
+              <TrainingLog user={user} onRequireLogin={() => setView("login")} dateRequest={trainingDateRequest} />
             </div>
             <div className={view === "templates" ? "animate-view" : "hidden"}>
-              <TemplateManager templates={templates} onTemplatesChanged={persistTemplates} />
+              <TemplateManager templates={templates} foods={foods} onTemplatesChanged={persistTemplates} onApplyDayTemplate={applyDayTemplate} />
             </div>
             <div className={view === "foods" ? "animate-view" : "hidden"}>
               <FoodLibrary foods={foods} user={user} onFoodsChanged={refreshFoods} onFoodsUpdated={setFoods} />
@@ -229,7 +283,7 @@ export function AppShell({ initialView }: AppShellProps) {
       </main>
 
       {/* 移动端底部导航 */}
-      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 gap-1 border-t border-line bg-ground/85 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl lg:hidden" aria-label="主导航">
+      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-7 gap-0.5 border-t border-line bg-ground/85 px-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl lg:hidden" aria-label="主导航">
         {navItems.map((item) => {
           const Icon = item.icon;
           const active = view === item.id;

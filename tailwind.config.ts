@@ -12,13 +12,14 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        ink: "#ece9f8", // 主文字（冷调 off-white）
-        muted: "#9b93bd", // 次要文字（紫灰）
+        ink: "#f1eefb", // 主文字（冷调 off-white，略提亮）
+        muted: "#b6aed9", // 次要文字（紫灰，提亮以改善小字可读性）
+        "muted-soft": "#8e86ac", // 三级/弱化文字（仅用于确需更弱处）
         ground: "#0a0814", // 页面底（深 navy-purple，勿命名 base）
         surface: "#120e22", // 卡片表面
         panel: "#1a1436", // 内层/抬升表面
         raised: "#231a46", // 更高一层
-        line: "#2c2550", // 紫调细描边
+        line: "#3d3469", // 紫调细描边（提亮以增强卡片/表格分隔可见度）
         accent: "#7b39fc", // 品牌强调色（紫）
         "accent-ink": "#f7f5ff", // 强调色上的浅文字
         accent2: "#a855f7", // 次紫（渐变/光晕/图表）

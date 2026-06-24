@@ -252,6 +252,11 @@ export function NutritionPlanner({ foods, templates, user, onTemplatesChanged, a
     setMessage("");
     try {
       await savePlan(profile, meals, result, user);
+      // 同步把当前状态立即刷入草稿（不等 1.2s 防抖），确保保存后立刻刷新页面也能恢复，
+      // 而不是回落默认。草稿写失败不影响“计划已保存”（daily_plans 已成功）。
+      if (user) {
+        await savePlannerDraft(profile, meals, user).catch(() => {});
+      }
       setMessage("计划已保存。");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "保存失败。");

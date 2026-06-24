@@ -1,101 +1,59 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { createStarterMeals, defaultProfile } from "@/lib/demoState";
 import { builtinFoods } from "@/lib/foods";
-import { calculateFoodKcalPer100g } from "@/lib/nutrition";
+import { buildNutritionResult } from "@/lib/nutrition";
 import {
+  StorageAuthError,
   deleteFood,
+  deletePlan,
   loadFoods,
   loadPlannerDraft,
   loadPlannerTemplates,
+  loadPlans,
   saveFood,
+  savePlan,
   savePlannerDraft,
   savePlannerTemplates
 } from "@/lib/storage";
-import type { FoodItem } from "@/lib/types";
+import type { FoodItem, PlannerTemplates } from "@/lib/types";
 
-describe("food storage", () => {
-  beforeEach(() => {
+// 改造后：全站业务数据一律只落 Supabase 云端，未登录（user=null）时所有存取都必须
+// 抛 StorageAuthError，绝不再读写客户端本地 localStorage。这组用例即守住该不变量。
+describe("storage requires Supabase auth (no local fallback)", () => {
+  const meals = createStarterMeals(defaultProfile);
+  const result = buildNutritionResult(defaultProfile, meals, builtinFoods);
+  const sampleFood: FoodItem = {
+    id: "",
+    name: "测试食物",
+    category: "主食",
+    kcalPer100g: 100,
+    fatPer100g: 1,
+    carbsPer100g: 20,
+    proteinPer100g: 3,
+    weightBasis: "cooked",
+    cookedRawRatio: null,
+    source: "user"
+  };
+  const templates: PlannerTemplates = { mealTemplates: [], dayTemplates: [] };
+
+  it("rejects every read/write when unauthenticated", async () => {
+    await expect(loadFoods(null)).rejects.toBeInstanceOf(StorageAuthError);
+    await expect(saveFood(sampleFood, null)).rejects.toBeInstanceOf(StorageAuthError);
+    await expect(deleteFood("public-rice-cooked", null)).rejects.toBeInstanceOf(StorageAuthError);
+    await expect(savePlan(defaultProfile, meals, result, null)).rejects.toBeInstanceOf(StorageAuthError);
+    await expect(loadPlans(null)).rejects.toBeInstanceOf(StorageAuthError);
+    await expect(deletePlan("any-id", null)).rejects.toBeInstanceOf(StorageAuthError);
+    await expect(loadPlannerDraft(null)).rejects.toBeInstanceOf(StorageAuthError);
+    await expect(savePlannerDraft(defaultProfile, meals, null)).rejects.toBeInstanceOf(StorageAuthError);
+    await expect(loadPlannerTemplates(null)).rejects.toBeInstanceOf(StorageAuthError);
+    await expect(savePlannerTemplates(null, templates)).rejects.toBeInstanceOf(StorageAuthError);
+  });
+
+  it("never touches localStorage on a failed unauthenticated write", async () => {
     window.localStorage.clear();
-  });
-
-  it("stores public food edits as user overrides without duplicating the food", async () => {
-    const rice = builtinFoods.find((food) => food.id === "public-rice-cooked");
-    expect(rice).toBeDefined();
-
-    const override = { ...rice!, carbsPer100g: 30, source: "public" as const };
-    await saveFood(override, null);
-    const foods = await loadFoods(null);
-    const riceRows = foods.filter((food) => food.id === "public-rice-cooked");
-
-    expect(riceRows).toHaveLength(1);
-    expect(riceRows[0].kcalPer100g).toBe(calculateFoodKcalPer100g(override));
-    expect(riceRows[0].source).toBe("public");
-    expect(riceRows[0].isUserOverride).toBe(true);
-  });
-
-  it("resets a public override back to the built-in food", async () => {
-    const rice = builtinFoods.find((food) => food.id === "public-rice-cooked");
-    expect(rice).toBeDefined();
-
-    await saveFood({ ...rice!, carbsPer100g: 30, source: "public" }, null);
-    await deleteFood("public-rice-cooked", null);
-    const foods = await loadFoods(null);
-    const restoredRice = foods.find((food) => food.id === "public-rice-cooked");
-
-    expect(restoredRice?.kcalPer100g).toBe(calculateFoodKcalPer100g(rice!));
-    expect(restoredRice?.isUserOverride).toBeUndefined();
-  });
-
-  it("updates an existing custom food instead of adding a duplicate", async () => {
-    const customFood: FoodItem = {
-      id: "",
-      name: "测试食物",
-      category: "主食",
-      kcalPer100g: 100,
-      fatPer100g: 1,
-      carbsPer100g: 20,
-      proteinPer100g: 3,
-      weightBasis: "cooked",
-      cookedRawRatio: null,
-      source: "user"
-    };
-
-    const savedFood = await saveFood(customFood, null);
-    const updatedFood = { ...savedFood, carbsPer100g: 25 };
-    await saveFood(updatedFood, null);
-    const foods = await loadFoods(null);
-    const customRows = foods.filter((food) => food.id === savedFood.id);
-
-    expect(customRows).toHaveLength(1);
-    expect(customRows[0].kcalPer100g).toBe(calculateFoodKcalPer100g(updatedFood));
-  });
-
-  it("stores planner drafts and templates under the local user bucket", () => {
-    const meals = createStarterMeals(defaultProfile);
-    const mealTemplate = {
-      id: "meal-template",
-      name: "午餐模板",
-      sourceMealName: "午餐",
-      mealRatio: meals[0].ratio,
-      mealLocked: meals[0].locked,
-      entries: meals[0].entries,
-      createdAt: "2026-05-27T00:00:00.000Z"
-    };
-    const dayTemplate = {
-      id: "day-template",
-      name: "全天模板",
-      meals,
-      createdAt: "2026-05-27T00:00:00.000Z"
-    };
-
-    savePlannerDraft(defaultProfile, meals, null);
-    savePlannerTemplates(null, {
-      mealTemplates: [mealTemplate],
-      dayTemplates: [dayTemplate]
-    });
-
-    expect(loadPlannerDraft(null)?.profile.weightKg).toBe(defaultProfile.weightKg);
-    expect(loadPlannerTemplates(null).mealTemplates[0].entries[0].grams).toBe(meals[0].entries[0].grams);
-    expect(loadPlannerTemplates(null).dayTemplates[0].meals).toHaveLength(meals.length);
+    await expect(savePlannerDraft(defaultProfile, meals, null)).rejects.toBeInstanceOf(StorageAuthError);
+    await expect(saveFood(sampleFood, null)).rejects.toBeInstanceOf(StorageAuthError);
+    await expect(savePlannerTemplates(null, templates)).rejects.toBeInstanceOf(StorageAuthError);
+    expect(window.localStorage.length).toBe(0);
   });
 });

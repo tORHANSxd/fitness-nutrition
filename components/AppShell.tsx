@@ -120,11 +120,49 @@ export function AppShell({ initialView }: AppShellProps) {
   }, [refreshFoods]);
 
   useEffect(() => {
-    setTemplates(loadPlannerTemplates(user));
+    if (!user) {
+      setTemplates({ mealTemplates: [], dayTemplates: [] });
+      return;
+    }
+    let mounted = true;
+    loadPlannerTemplates(user)
+      .then((next) => {
+        if (mounted) {
+          setTemplates(next);
+        }
+      })
+      .catch(() => {
+        if (mounted) {
+          setTemplates({ mealTemplates: [], dayTemplates: [] });
+        }
+      });
+    return () => {
+      mounted = false;
+    };
   }, [user]);
 
+  // 登录成功后若仍停留在登录视图（如登出后再登录），自动落到总览，避免主区还显示登录卡片。
+  useEffect(() => {
+    if (user && view === "login") {
+      setView("overview");
+    }
+  }, [user, view]);
+
   function persistTemplates(nextTemplates: PlannerTemplates) {
-    setTemplates(savePlannerTemplates(user, nextTemplates));
+    // 乐观更新：先本地反映，再异步落 Supabase；失败回滚到云端真实值。
+    const currentUser = user;
+    setTemplates(nextTemplates);
+    savePlannerTemplates(currentUser, nextTemplates)
+      .then((saved) => setTemplates(saved))
+      .catch(() => {
+        // 身份已切换/登出则不回滚，交给 [user] 副作用重新同步，避免回填到错误账户。
+        if (!currentUser || user?.id !== currentUser.id) {
+          return;
+        }
+        loadPlannerTemplates(currentUser)
+          .then((next) => setTemplates(next))
+          .catch(() => setTemplates({ mealTemplates: [], dayTemplates: [] }));
+      });
   }
 
   async function signOut() {
@@ -136,13 +174,13 @@ export function AppShell({ initialView }: AppShellProps) {
     setView("login");
   }
 
-  const userStatus = configured ? (user ? `已登录：${user.email}` : "Supabase 在线模式") : "本地演示模式";
+  const userStatus = user ? `已登录：${user.email}` : configured ? "未登录" : "未配置云端存储";
   const activeLabel = navItems.find((item) => item.id === view)?.label ?? "当天计划";
   const today = new Date().toLocaleDateString("zh-CN", { year: "numeric", month: "long", day: "numeric", weekday: "long" });
 
-  // 全局登录门禁：已配置 Supabase 但未登录时，整屏只显示登录/注册页；登录后进入完整应用。
-  // 未配置 Supabase 时不门禁（否则无法登录会变砖），保留本地演示模式。
-  if (configured && authReady && !user) {
+  // 全局登录门禁：所有业务数据仅存 Supabase 云端，未登录时整屏只显示登录/注册页。
+  // 未配置 Supabase 时无法登录也无法存数据，给出配置提示（不再回退本地存储）。
+  if (authReady && !user) {
     return (
       <div className="relative z-10 flex min-h-dvh items-center justify-center px-4 py-10">
         <div className="w-full max-w-2xl">
@@ -155,8 +193,21 @@ export function AppShell({ initialView }: AppShellProps) {
               <div className="text-sm text-muted">碳循环计划器 · 登录后开始使用</div>
             </div>
           </div>
-          <AuthPanel user={user} onSignedIn={setUser} />
-          <p className="mt-4 text-center text-xs text-muted">所有数据按账户保存在 Supabase 云端；首次使用请先注册。</p>
+          {configured ? (
+            <>
+              <AuthPanel user={user} onSignedIn={setUser} />
+              <p className="mt-4 text-center text-xs text-muted">所有数据按账户保存在 Supabase 云端；首次使用请先注册。</p>
+            </>
+          ) : (
+            <div className="panel px-6 py-8 text-center">
+              <p className="text-sm text-ink">未配置 Supabase 云端存储。</p>
+              <p className="mt-2 text-xs text-muted">
+                所有数据仅保存在云端（除登录信息外不写本地）。请在 <code className="rounded bg-white/10 px-1">.env.local</code> 配置
+                <code className="mx-1 rounded bg-white/10 px-1">NEXT_PUBLIC_SUPABASE_URL</code> 与
+                <code className="mx-1 rounded bg-white/10 px-1">NEXT_PUBLIC_SUPABASE_ANON_KEY</code> 后重启。
+              </p>
+            </div>
+          )}
         </div>
       </div>
     );

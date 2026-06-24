@@ -4,86 +4,198 @@ import type { User } from "@supabase/supabase-js";
 import { builtinFoods } from "@/lib/foods";
 import { calculateFoodKcalPer100g } from "@/lib/nutrition";
 import { foodToOverrideRow, foodToRow, getSupabaseClient, mapFoodOverrideRow, mapFoodRow, mapPlanRow } from "@/lib/supabase";
-import type { FoodItem, MealPlan, NutritionResult, PlannerDraft, PlannerTemplates, SavedPlan, UserProfile } from "@/lib/types";
+import type {
+  DayTemplate,
+  FoodItem,
+  MealFoodEntry,
+  MealPlan,
+  MealTemplate,
+  NutritionResult,
+  PlannerDraft,
+  PlannerTemplates,
+  SavedPlan,
+  UserProfile
+} from "@/lib/types";
 
-const privateFoodsKey = "fitness-nutrition-private-foods";
-const publicFoodOverridesKey = "fitness-nutrition-public-food-overrides";
-const savedPlansKey = "fitness-nutrition-saved-plans";
-const plannerDraftsKey = "fitness-nutrition-planner-drafts";
-const plannerTemplatesKey = "fitness-nutrition-planner-templates";
-
-const emptyPlannerTemplates: PlannerTemplates = {
-  mealTemplates: [],
-  dayTemplates: []
-};
-
-function readLocal<T>(key: string, fallback: T): T {
-  if (typeof window === "undefined") {
-    return fallback;
-  }
-  const raw = window.localStorage.getItem(key);
-  if (!raw) {
-    return fallback;
-  }
-  try {
-    return JSON.parse(raw) as T;
-  } catch {
-    return fallback;
+// 全站数据一律只落 Supabase 云端：除登录 session（fitness-nutrition-auth-v1）外，
+// 不再向客户端 localStorage 写入任何业务数据。未配置 Supabase 或未登录时抛明确错误，
+// 由 AppShell 的登录门禁兜底引导。与 lib/trainingStorage.ts 保持一致。
+export class StorageAuthError extends Error {
+  constructor() {
+    super("该功能需要登录后使用（数据仅保存在 Supabase 云端）。");
+    this.name = "StorageAuthError";
   }
 }
 
-function writeLocal<T>(key: string, value: T) {
-  if (typeof window !== "undefined") {
-    window.localStorage.setItem(key, JSON.stringify(value));
+function requireClient(user: User | null) {
+  const supabase = getSupabaseClient();
+  if (!supabase || !user) {
+    throw new StorageAuthError();
   }
+  return { supabase, user } as const;
 }
 
-export function getPlannerStorageUserId(user: User | null): string {
-  return user?.id ?? "local";
-}
+const mealTemplateLimit = 24;
+const dayTemplateLimit = 12;
 
-export function loadPlannerDraft(user: User | null): PlannerDraft | null {
-  const drafts = readLocal<Record<string, PlannerDraft>>(plannerDraftsKey, {});
-  return drafts[getPlannerStorageUserId(user)] ?? null;
-}
+// ---------------------------------------------------------------------------
+// 分餐草稿（planner_drafts：每用户一行，upsert on user_id）
+// ---------------------------------------------------------------------------
 
-export function savePlannerDraft(profile: UserProfile, meals: MealPlan[], user: User | null): PlannerDraft {
-  const drafts = readLocal<Record<string, PlannerDraft>>(plannerDraftsKey, {});
-  const draft: PlannerDraft = {
-    profile,
-    meals,
-    updatedAt: new Date().toISOString()
+export async function loadPlannerDraft(user: User | null): Promise<PlannerDraft | null> {
+  const { supabase, user: authedUser } = requireClient(user);
+  const { data, error } = await supabase
+    .from("planner_drafts")
+    .select("profile, meals, updated_at")
+    .eq("user_id", authedUser.id)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+  if (!data) {
+    return null;
+  }
+  return {
+    profile: data.profile as UserProfile,
+    meals: data.meals as MealPlan[],
+    updatedAt: String(data.updated_at)
   };
-  writeLocal(plannerDraftsKey, {
-    ...drafts,
-    [getPlannerStorageUserId(user)]: draft
-  });
-  return draft;
 }
 
-export function loadPlannerTemplates(user: User | null): PlannerTemplates {
-  const templatesByUser = readLocal<Record<string, PlannerTemplates>>(plannerTemplatesKey, {});
-  const templates = templatesByUser[getPlannerStorageUserId(user)];
-  return templates
-    ? {
-        mealTemplates: templates.mealTemplates ?? [],
-        dayTemplates: templates.dayTemplates ?? []
-      }
-    : emptyPlannerTemplates;
+export async function savePlannerDraft(profile: UserProfile, meals: MealPlan[], user: User | null): Promise<PlannerDraft> {
+  const { supabase, user: authedUser } = requireClient(user);
+  const updatedAt = new Date().toISOString();
+  const { error } = await supabase
+    .from("planner_drafts")
+    .upsert({ user_id: authedUser.id, profile, meals, updated_at: updatedAt }, { onConflict: "user_id" });
+
+  if (error) {
+    throw error;
+  }
+  return { profile, meals, updatedAt };
 }
 
-export function savePlannerTemplates(user: User | null, templates: PlannerTemplates): PlannerTemplates {
-  const templatesByUser = readLocal<Record<string, PlannerTemplates>>(plannerTemplatesKey, {});
-  const nextTemplates = {
-    mealTemplates: templates.mealTemplates.slice(0, 24),
-    dayTemplates: templates.dayTemplates.slice(0, 12)
+// ---------------------------------------------------------------------------
+// 计划模板（planner_templates：每模板一行，template_type = meal|day，整体存 payload）
+// ---------------------------------------------------------------------------
+
+interface PlannerTemplateRow {
+  id: string;
+  template_type: string;
+  name: string;
+  payload: Record<string, unknown> | null;
+  created_at?: string;
+}
+
+function rowToMealTemplate(row: PlannerTemplateRow): MealTemplate {
+  const payload = (row.payload ?? {}) as Partial<MealTemplate>;
+  return {
+    id: String(row.id),
+    name: String(row.name),
+    sourceMealName: payload.sourceMealName ?? "",
+    mealRatio: typeof payload.mealRatio === "number" ? payload.mealRatio : 0,
+    mealLocked: Boolean(payload.mealLocked),
+    entries: (payload.entries as MealFoodEntry[]) ?? [],
+    createdAt: payload.createdAt ?? String(row.created_at ?? "")
   };
-  writeLocal(plannerTemplatesKey, {
-    ...templatesByUser,
-    [getPlannerStorageUserId(user)]: nextTemplates
-  });
-  return nextTemplates;
 }
+
+function rowToDayTemplate(row: PlannerTemplateRow): DayTemplate {
+  const payload = (row.payload ?? {}) as Partial<DayTemplate>;
+  return {
+    id: String(row.id),
+    name: String(row.name),
+    meals: (payload.meals as MealPlan[]) ?? [],
+    createdAt: payload.createdAt ?? String(row.created_at ?? "")
+  };
+}
+
+function mealTemplateToRow(template: MealTemplate, userId: string) {
+  return {
+    id: template.id,
+    user_id: userId,
+    template_type: "meal" as const,
+    name: template.name,
+    payload: {
+      sourceMealName: template.sourceMealName,
+      mealRatio: template.mealRatio,
+      mealLocked: template.mealLocked,
+      entries: template.entries,
+      createdAt: template.createdAt
+    },
+    updated_at: new Date().toISOString()
+  };
+}
+
+function dayTemplateToRow(template: DayTemplate, userId: string) {
+  return {
+    id: template.id,
+    user_id: userId,
+    template_type: "day" as const,
+    name: template.name,
+    payload: {
+      meals: template.meals,
+      createdAt: template.createdAt
+    },
+    updated_at: new Date().toISOString()
+  };
+}
+
+export async function loadPlannerTemplates(user: User | null): Promise<PlannerTemplates> {
+  const { supabase, user: authedUser } = requireClient(user);
+  const { data, error } = await supabase
+    .from("planner_templates")
+    .select("id, template_type, name, payload, created_at")
+    .eq("user_id", authedUser.id)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  const rows = (data ?? []) as PlannerTemplateRow[];
+  const mealTemplates = rows.filter((row) => row.template_type === "meal").map(rowToMealTemplate);
+  const dayTemplates = rows.filter((row) => row.template_type === "day").map(rowToDayTemplate);
+  return {
+    mealTemplates: mealTemplates.slice(0, mealTemplateLimit),
+    dayTemplates: dayTemplates.slice(0, dayTemplateLimit)
+  };
+}
+
+export async function savePlannerTemplates(user: User | null, templates: PlannerTemplates): Promise<PlannerTemplates> {
+  const { supabase, user: authedUser } = requireClient(user);
+  const mealTemplates = templates.mealTemplates.slice(0, mealTemplateLimit);
+  const dayTemplates = templates.dayTemplates.slice(0, dayTemplateLimit);
+  const rows = [
+    ...mealTemplates.map((template) => mealTemplateToRow(template, authedUser.id)),
+    ...dayTemplates.map((template) => dayTemplateToRow(template, authedUser.id))
+  ];
+  const keepIds = rows.map((row) => row.id);
+
+  // 先删该用户不在新集合里的模板行（实现“整组替换”语义），再 upsert 当前集合。
+  let deleteQuery = supabase.from("planner_templates").delete().eq("user_id", authedUser.id);
+  if (keepIds.length > 0) {
+    deleteQuery = deleteQuery.not("id", "in", `(${keepIds.join(",")})`);
+  }
+  const { error: deleteError } = await deleteQuery;
+  if (deleteError) {
+    throw deleteError;
+  }
+
+  if (rows.length > 0) {
+    const { error: upsertError } = await supabase.from("planner_templates").upsert(rows, { onConflict: "id" });
+    if (upsertError) {
+      throw upsertError;
+    }
+  }
+
+  return { mealTemplates, dayTemplates };
+}
+
+// ---------------------------------------------------------------------------
+// 食物库（foods + food_overrides）
+// ---------------------------------------------------------------------------
 
 function isPublicFood(food: Pick<FoodItem, "id" | "source">) {
   return food.source === "public" || food.id.startsWith("public-");
@@ -114,20 +226,16 @@ function withDerivedFoodEnergy(food: FoodItem): FoodItem {
 }
 
 export async function loadFoods(user: User | null): Promise<FoodItem[]> {
-  const supabase = getSupabaseClient();
-  if (!supabase || !user) {
-    const publicOverrides = readLocal<FoodItem[]>(publicFoodOverridesKey, []);
-    return [...applyPublicOverrides(builtinFoods, publicOverrides), ...readLocal<FoodItem[]>(privateFoodsKey, []).map(withDerivedFoodEnergy)];
-  }
+  const { supabase, user: authedUser } = requireClient(user);
 
   const [foodsResult, overridesResult] = await Promise.all([
     supabase
       .from("foods")
       .select("*")
-      .or(`user_id.is.null,user_id.eq.${user.id}`)
+      .or(`user_id.is.null,user_id.eq.${authedUser.id}`)
       .order("category", { ascending: true })
       .order("name", { ascending: true }),
-    supabase.from("food_overrides").select("*").eq("user_id", user.id)
+    supabase.from("food_overrides").select("*").eq("user_id", authedUser.id)
   ]);
 
   if (foodsResult.error) {
@@ -148,22 +256,13 @@ export async function loadFoods(user: User | null): Promise<FoodItem[]> {
 }
 
 export async function saveFood(food: FoodItem, user: User | null): Promise<FoodItem> {
+  const { supabase, user: authedUser } = requireClient(user);
   const normalizedFood = withDerivedFoodEnergy(food);
-  const supabase = getSupabaseClient();
-  if (!supabase || !user) {
-    const storageKey = isPublicFood(normalizedFood) ? publicFoodOverridesKey : privateFoodsKey;
-    const localFoods = readLocal<FoodItem[]>(storageKey, []);
-    const savedFood: FoodItem = isPublicFood(normalizedFood)
-      ? { ...normalizedFood, source: "public", isUserOverride: true }
-      : { ...normalizedFood, id: normalizedFood.id || crypto.randomUUID(), source: "user" };
-    writeLocal(storageKey, [...localFoods.filter((item) => item.id !== savedFood.id), savedFood]);
-    return savedFood;
-  }
 
   if (isPublicFood(normalizedFood)) {
     const { data, error } = await supabase
       .from("food_overrides")
-      .upsert(foodToOverrideRow(normalizedFood, user), { onConflict: "user_id,base_food_id" })
+      .upsert(foodToOverrideRow(normalizedFood, authedUser), { onConflict: "user_id,base_food_id" })
       .select("*")
       .single();
 
@@ -174,7 +273,7 @@ export async function saveFood(food: FoodItem, user: User | null): Promise<FoodI
     return withDerivedFoodEnergy(mapFoodOverrideRow(data));
   }
 
-  const payload = foodToRow({ ...normalizedFood, source: "user" }, user);
+  const payload = foodToRow({ ...normalizedFood, source: "user" }, authedUser);
   if (normalizedFood.id) {
     const { data, error } = await supabase.from("foods").update(payload).eq("id", normalizedFood.id).select("*").single();
 
@@ -199,30 +298,13 @@ export async function saveFood(food: FoodItem, user: User | null): Promise<FoodI
 }
 
 export async function deleteFood(foodId: string, user: User | null): Promise<void> {
-  const supabase = getSupabaseClient();
-  if (foodId.startsWith("public-")) {
-    if (!supabase || !user) {
-      const localOverrides = readLocal<FoodItem[]>(publicFoodOverridesKey, []);
-      writeLocal(
-        publicFoodOverridesKey,
-        localOverrides.filter((food) => food.id !== foodId)
-      );
-      return;
-    }
+  const { supabase, user: authedUser } = requireClient(user);
 
-    const { error } = await supabase.from("food_overrides").delete().eq("user_id", user.id).eq("base_food_id", foodId);
+  if (foodId.startsWith("public-")) {
+    const { error } = await supabase.from("food_overrides").delete().eq("user_id", authedUser.id).eq("base_food_id", foodId);
     if (error) {
       throw error;
     }
-    return;
-  }
-
-  if (!supabase || !user) {
-    const localFoods = readLocal<FoodItem[]>(privateFoodsKey, []);
-    writeLocal(
-      privateFoodsKey,
-      localFoods.filter((food) => food.id !== foodId)
-    );
     return;
   }
 
@@ -232,40 +314,27 @@ export async function deleteFood(foodId: string, user: User | null): Promise<voi
   }
 }
 
+// ---------------------------------------------------------------------------
+// 每日计划（daily_plans）
+// ---------------------------------------------------------------------------
+
 export async function savePlan(
   profile: UserProfile,
   meals: MealPlan[],
   result: NutritionResult,
   user: User | null
 ): Promise<SavedPlan> {
-  const supabase = getSupabaseClient();
-  const payload = {
-    profile,
-    meals,
-    result
-  };
-
-  if (!supabase || !user) {
-    const plans = readLocal<SavedPlan[]>(savedPlansKey, []);
-    const savedPlan: SavedPlan = {
-      id: crypto.randomUUID(),
-      planDate: profile.planDate,
-      profile,
-      meals,
-      result,
-      createdAt: new Date().toISOString()
-    };
-    writeLocal(savedPlansKey, [savedPlan, ...plans.filter((plan) => plan.planDate !== profile.planDate)]);
-    return savedPlan;
-  }
+  const { supabase, user: authedUser } = requireClient(user);
 
   const { data, error } = await supabase
     .from("daily_plans")
     .upsert(
       {
-        user_id: user.id,
+        user_id: authedUser.id,
         plan_date: profile.planDate,
-        ...payload
+        profile,
+        meals,
+        result
       },
       { onConflict: "user_id,plan_date" }
     )
@@ -280,14 +349,13 @@ export async function savePlan(
 }
 
 export async function loadPlans(user: User | null): Promise<SavedPlan[]> {
-  const supabase = getSupabaseClient();
-  if (!supabase || !user) {
-    return readLocal<SavedPlan[]>(savedPlansKey, []);
-  }
+  const { supabase, user: authedUser } = requireClient(user);
 
+  // 纵深防御：除 RLS 外，在应用层显式按 user_id 过滤，避免 RLS 万一被误配/关闭时泄露他人计划。
   const { data, error } = await supabase
     .from("daily_plans")
     .select("*")
+    .eq("user_id", authedUser.id)
     .order("plan_date", { ascending: false })
     .limit(30);
 
@@ -299,17 +367,10 @@ export async function loadPlans(user: User | null): Promise<SavedPlan[]> {
 }
 
 export async function deletePlan(planId: string, user: User | null): Promise<void> {
-  const supabase = getSupabaseClient();
-  if (!supabase || !user) {
-    const plans = readLocal<SavedPlan[]>(savedPlansKey, []);
-    writeLocal(
-      savedPlansKey,
-      plans.filter((plan) => plan.id !== planId)
-    );
-    return;
-  }
+  const { supabase, user: authedUser } = requireClient(user);
 
-  const { error } = await supabase.from("daily_plans").delete().eq("id", planId);
+  // 同时限定 id 与 user_id，避免凭 id 误删/越权删他人计划（纵深防御，RLS 之外再加一层）。
+  const { error } = await supabase.from("daily_plans").delete().eq("id", planId).eq("user_id", authedUser.id);
   if (error) {
     throw error;
   }

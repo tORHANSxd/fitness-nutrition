@@ -21,7 +21,7 @@ export function AuthPanel({ user, onSignedIn }: AuthPanelProps) {
   async function submit() {
     const supabase = getSupabaseClient();
     if (!supabase) {
-      setMessage("当前未配置 Supabase，应用以本地演示模式运行。");
+      setMessage("当前未配置 Supabase，无法登录或保存数据。请先在 .env.local 配置后重启。");
       return;
     }
 
@@ -68,7 +68,7 @@ export function AuthPanel({ user, onSignedIn }: AuthPanelProps) {
         <div className="grid gap-3 text-sm text-ink md:grid-cols-3">
           <div className="rounded-xl border border-line bg-surface/70 backdrop-blur p-3">RLS 限制每个用户只能读写自己的私有食物和计划。</div>
           <div className="rounded-xl border border-line bg-surface/70 backdrop-blur p-3">公共食物库与私有食物库合并显示，私有食物仅本人可见。</div>
-          <div className="rounded-xl border border-line bg-surface/70 backdrop-blur p-3">未配置 Supabase 时，功能可预览，数据保存在浏览器本地。</div>
+          <div className="rounded-xl border border-line bg-surface/70 backdrop-blur p-3">所有数据按账户保存在 Supabase 云端；除登录状态外不写入浏览器本地。</div>
         </div>
       </div>
 

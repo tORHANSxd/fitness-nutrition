@@ -18,6 +18,9 @@ export function HistoryView({ user }: HistoryViewProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   async function refresh() {
+    if (!user) {
+      return;
+    }
     setBusy(true);
     setMessage("");
     try {

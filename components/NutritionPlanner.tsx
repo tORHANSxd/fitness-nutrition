@@ -43,6 +43,7 @@ import type {
   MealFoodEntry,
   MealPlan,
   MealTemplate,
+  PlannerDraft,
   PlannerTemplates,
   SavedPlan,
   UserProfile,
@@ -77,22 +78,47 @@ export function NutritionPlanner({ foods, templates, user, onTemplatesChanged, a
   );
 
   useEffect(() => {
-    const draft = loadPlannerDraft(user);
-    const nextProfile = draft?.profile ?? { ...defaultProfile, planDate: new Date().toISOString().slice(0, 10) };
-    setProfile(nextProfile);
-    const nextMeals = draft?.meals ?? createStarterMeals(nextProfile);
-    setMeals(nextMeals);
-    // 重新水合时尽量保留用户当前停留的餐次：仅当原餐次已不存在才回到第一餐，
-    // 避免（例如登录态刷新触发的）重水合把分餐切回早餐。
-    setActiveMealId((current) => (nextMeals.some((meal) => meal.id === current) ? current : nextMeals[0]?.id ?? ""));
-    setHydrated(true);
+    let mounted = true;
+    const hydrate = (draft: PlannerDraft | null) => {
+      if (!mounted) {
+        return;
+      }
+      const nextProfile = draft?.profile ?? { ...defaultProfile, planDate: new Date().toISOString().slice(0, 10) };
+      setProfile(nextProfile);
+      const nextMeals = draft?.meals ?? createStarterMeals(nextProfile);
+      setMeals(nextMeals);
+      // 重新水合时尽量保留用户当前停留的餐次：仅当原餐次已不存在才回到第一餐，
+      // 避免（例如登录态刷新触发的）重水合把分餐切回早餐。
+      setActiveMealId((current) => (nextMeals.some((meal) => meal.id === current) ? current : nextMeals[0]?.id ?? ""));
+      setHydrated(true);
+    };
+
+    // 草稿仅存 Supabase（按账户）。未登录时用默认起始计划，不读写云端。
+    if (!user) {
+      hydrate(null);
+      return () => {
+        mounted = false;
+      };
+    }
+
+    setHydrated(false);
+    loadPlannerDraft(user)
+      .then(hydrate)
+      .catch(() => hydrate(null));
+    return () => {
+      mounted = false;
+    };
   }, [user]);
 
   useEffect(() => {
-    if (!hydrated) {
+    if (!hydrated || !user) {
       return;
     }
-    savePlannerDraft(profile, meals, user);
+    // 自动保存到 Supabase 草稿：防抖 1.2s，避免每次微调克重都打库。
+    const handle = window.setTimeout(() => {
+      savePlannerDraft(profile, meals, user).catch(() => {});
+    }, 1200);
+    return () => window.clearTimeout(handle);
   }, [hydrated, meals, profile, user]);
 
   // 模板页「一键应用」：nonce 变化时把模板餐食载入当前计划。

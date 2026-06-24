@@ -169,7 +169,8 @@ export function ScheduleCalendar({ user, foods, onGoTraining, onGoPlanner }: Sch
     if (!user) {
       return;
     }
-    const baseProfile = loadPlannerDraft(user)?.profile ?? defaultProfile;
+    const draft = await loadPlannerDraft(user).catch(() => null);
+    const baseProfile = draft?.profile ?? defaultProfile;
     const workoutType = selectedSession
       ? workoutTypeFromMuscles(Array.from(new Set(selectedSession.sets.map((s) => s.muscleGroup))))
       : baseProfile.workoutType;

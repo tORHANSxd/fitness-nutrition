@@ -172,16 +172,6 @@ create table if not exists public.plan_instances (
 alter table public.plan_instances add constraint plan_instances_pkey PRIMARY KEY (id);
 alter table public.plan_instances add constraint plan_instances_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
-create table if not exists public.planner_drafts (
-  user_id uuid not null,
-  profile jsonb not null,
-  meals jsonb not null,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table public.planner_drafts add constraint planner_drafts_pkey PRIMARY KEY (user_id);
-alter table public.planner_drafts add constraint planner_drafts_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
-
 create table if not exists public.planner_templates (
   id uuid not null default gen_random_uuid(),
   user_id uuid not null,
@@ -256,7 +246,6 @@ alter table public.foods enable row level security;
 alter table public.measurement_logs enable row level security;
 alter table public.plan_day_overrides enable row level security;
 alter table public.plan_instances enable row level security;
-alter table public.planner_drafts enable row level security;
 alter table public.planner_templates enable row level security;
 alter table public.profiles enable row level security;
 alter table public.training_logs enable row level security;
@@ -341,11 +330,6 @@ with check ((auth.uid() = user_id));
 drop policy if exists "own plan instances" on public.plan_instances;
 create policy "own plan instances"
 on public.plan_instances for all
-using ((auth.uid() = user_id))
-with check ((auth.uid() = user_id));
-drop policy if exists "own planner drafts" on public.planner_drafts;
-create policy "own planner drafts"
-on public.planner_drafts for all
 using ((auth.uid() = user_id))
 with check ((auth.uid() = user_id));
 drop policy if exists "own planner templates" on public.planner_templates;

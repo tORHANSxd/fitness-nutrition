@@ -39,37 +39,61 @@ const mealTemplateLimit = 24;
 const dayTemplateLimit = 12;
 
 // ---------------------------------------------------------------------------
-// 分餐草稿（planner_drafts：每用户一行，upsert on user_id）
+// 分餐草稿（存 profiles.preferences.plannerDraft）
+// 复用线上已有的每用户 profiles 表（jsonb preferences），无需新建表/手动 DDL：
+// 读时取 preferences.plannerDraft；写时先读回现有 preferences 合并该键，避免覆盖其他偏好。
 // ---------------------------------------------------------------------------
+
+interface PlannerDraftPayload {
+  profile: UserProfile;
+  meals: MealPlan[];
+  updatedAt?: string;
+}
 
 export async function loadPlannerDraft(user: User | null): Promise<PlannerDraft | null> {
   const { supabase, user: authedUser } = requireClient(user);
   const { data, error } = await supabase
-    .from("planner_drafts")
-    .select("profile, meals, updated_at")
-    .eq("user_id", authedUser.id)
+    .from("profiles")
+    .select("preferences")
+    .eq("id", authedUser.id)
     .maybeSingle();
 
   if (error) {
     throw error;
   }
-  if (!data) {
+  const preferences = (data?.preferences ?? {}) as Record<string, unknown>;
+  const draft = preferences.plannerDraft as PlannerDraftPayload | undefined;
+  if (!draft || !draft.profile || !Array.isArray(draft.meals)) {
     return null;
   }
   return {
-    profile: data.profile as UserProfile,
-    meals: data.meals as MealPlan[],
-    updatedAt: String(data.updated_at)
+    profile: draft.profile,
+    meals: draft.meals,
+    updatedAt: draft.updatedAt ?? ""
   };
 }
 
 export async function savePlannerDraft(profile: UserProfile, meals: MealPlan[], user: User | null): Promise<PlannerDraft> {
   const { supabase, user: authedUser } = requireClient(user);
   const updatedAt = new Date().toISOString();
-  const { error } = await supabase
-    .from("planner_drafts")
-    .upsert({ user_id: authedUser.id, profile, meals, updated_at: updatedAt }, { onConflict: "user_id" });
 
+  // 先读现有 preferences 再合并 plannerDraft 写回，确保不会覆盖该用户的其他偏好键。
+  const { data: existing, error: readError } = await supabase
+    .from("profiles")
+    .select("preferences")
+    .eq("id", authedUser.id)
+    .maybeSingle();
+  if (readError) {
+    throw readError;
+  }
+  const preferences = {
+    ...((existing?.preferences as Record<string, unknown>) ?? {}),
+    plannerDraft: { profile, meals, updatedAt }
+  };
+
+  const { error } = await supabase
+    .from("profiles")
+    .upsert({ id: authedUser.id, preferences }, { onConflict: "id" });
   if (error) {
     throw error;
   }

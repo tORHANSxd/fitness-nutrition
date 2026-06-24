@@ -43,6 +43,9 @@ const dailyMacroBandWeights: Record<keyof MacroRatio, number> = {
   protein: 24,
   fat: 12
 };
+// 全天总热量相对当日目标的硬性盈余上限（kcal）。即便碳/蛋/脂各自都在容忍带内（盈≤5g 时 kcal 可漂到 +85），
+// 也要求总热量不超目标 +50 kcal——这是用户新增的“宁可少、不要明显超”的硬约束。仅约束上盈，亏由克数容忍带兜底。
+const dailyKcalSurplusCap = 50;
 
 // 张老师五分化碳循环：每周仅 1 天高碳（腿日），其余 6 天低碳。
 // 周碳水总量 W×2×7、周脂肪总量 W×0.8×7 在两类碳日间重分配，保持周均不变。
@@ -649,6 +652,20 @@ function isDailyMacroBandAligned(total: MacroTotals, target: MacroTotals) {
   });
 }
 
+// 仅惩罚“总热量超过目标 +dailyKcalSurplusCap”的部分（盈余方向），随超出量平方增长；亏不罚。
+function dailyKcalSurplusScore(total: MacroTotals, target: MacroTotals) {
+  const excess = total.kcal - target.kcal - dailyKcalSurplusCap;
+  if (excess <= 0) {
+    return 0;
+  }
+  const ratio = excess / 40;
+  return ratio * ratio;
+}
+
+function isDailyKcalWithinSurplusCap(total: MacroTotals, target: MacroTotals) {
+  return total.kcal - target.kcal <= dailyKcalSurplusCap;
+}
+
 function buildMealSolverModels(
   meal: MealPlan,
   foodsById: Map<string, FoodItem>,
@@ -1026,7 +1043,8 @@ function refineDailyRecommendations(
         fat: 8
       }) *
         220 +
-      dailyMacroBandScore(dailyTotals, dailyTarget) * 360;
+      dailyMacroBandScore(dailyTotals, dailyTarget) * 360 +
+      dailyKcalSurplusScore(dailyTotals, dailyTarget) * 300;
 
     for (const meal of meals) {
       const mealEntries = solvedEntriesByMealId.get(meal.id) ?? Object.fromEntries(meal.entries.map((entry) => [entry.id, entry.grams]));
@@ -1058,10 +1076,11 @@ function refineDailyRecommendations(
     scoreState
   );
 
-  // 宏量优先收尾：当“餐盘结构解”仍无法把全天碳水/蛋白/脂肪压进容忍带时，
-  // 放开存在感下限（只守用户锁定与显式上下限），以贴近全天宏量为唯一目标再优化一轮，
-  // 让推荐尽量逼近食材在物理上能达到的最接近点。仅在能改善全天宏量分数时采纳，绝不回退。
-  if (!isDailyMacroBandAligned(calculateRecommendedTotals(), dailyTarget)) {
+  // 宏量优先收尾：当“餐盘结构解”仍无法把全天碳水/蛋白/脂肪压进容忍带、或总热量超出 +50 kcal 上限时，
+  // 放开存在感下限（只守用户锁定与显式上下限），以贴近全天宏量+压回热量上限为唯一目标再优化一轮，
+  // 让推荐尽量逼近食材在物理上能达到的最接近点。仅在能改善分数时采纳，绝不回退。
+  const finishingTotals = calculateRecommendedTotals();
+  if (!isDailyMacroBandAligned(finishingTotals, dailyTarget) || !isDailyKcalWithinSurplusCap(finishingTotals, dailyTarget)) {
     const macroModelsByMealId = new Map(
       meals.map((meal) => [meal.id, buildMealSolverModels(meal, foodsById, mealTargetsById.get(meal.id) ?? zeroTotals, true)])
     );
@@ -1079,6 +1098,7 @@ function refineDailyRecommendations(
         const dailyTotals = calculateRecommendedTotals();
         let score =
           dailyMacroBandScore(dailyTotals, dailyTarget) * 1000 +
+          dailyKcalSurplusScore(dailyTotals, dailyTarget) * 800 +
           macroFitScore(dailyTotals, dailyTarget, dailyFitWeights, { kcal: 120, carbs: 12, protein: 10, fat: 8 }) * 80;
         // 轻量结构项仅用于打破并列，优先保留更像“餐盘”的克重，不与宏量目标抗衡。
         for (const meal of meals) {
@@ -1226,6 +1246,15 @@ export function buildNutritionResult(profile: UserProfile, meals: MealPlan[], fo
 
   if (!isDailyMacroBandAligned(recommendedTotals, dailyTarget)) {
     conflicts.push(dailyBandConflictMessage(subtractTotals(dailyTarget, recommendedTotals)));
+  }
+
+  if (!isDailyKcalWithinSurplusCap(recommendedTotals, dailyTarget)) {
+    conflicts.push(
+      `全天推荐热量 ${round(recommendedTotals.kcal, 0)} kcal 超过目标 ${round(dailyTarget.kcal, 0)} kcal 的 +${dailyKcalSurplusCap} 上限（超 ${round(
+        recommendedTotals.kcal - dailyTarget.kcal,
+        0
+      )} kcal）：减少高热量主食/坚果/食用油，下调份量上限，或上调当日热量目标。`
+    );
   }
 
   const mealRecommendations = meals.map((meal) => {

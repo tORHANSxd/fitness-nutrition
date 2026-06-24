@@ -49,6 +49,7 @@ export const carbDayLabelsForTraining: Record<CarbDayType, string> = {
 
 export const splitLabels: Record<TrainingSplit, string> = {
   ppl: "推/拉/腿 5天",
+  pplLumbarSafe: "推/拉/腿 5天（腰突）",
   upperLower: "上下分化 4天",
   fullBody: "全身 3天"
 };
@@ -349,6 +350,77 @@ export const programTemplates: Record<TrainingSplit, ProgramTemplate> = {
           { exercise: "直臂下拉", muscleGroup: "back", sets: 3, repRange: [12, 15], targetRir: 1 },
           { exercise: "锤式弯举", muscleGroup: "biceps", sets: 3, repRange: [10, 15], targetRir: 1 },
           { exercise: "核心循环", muscleGroup: "abs", sets: 3, repRange: [12, 20], targetRir: 1 }
+        ]
+      }
+    ]
+  },
+  pplLumbarSafe: {
+    id: "pplLumbarSafe",
+    name: "推/拉/腿 5天（腰突·脊柱友好）",
+    summary:
+      "腰椎间盘突出适配版：与 5练1高碳 同样的推/拉/腿结构，但全程改器械与支撑动作，去除硬拉/杠铃深蹲/俯身杠铃划船/站姿过顶推举等脊柱剪切与轴向压缩；腿日用腿举(腰背贴垫)+坐姿腿弯举替代硬拉深蹲，划船改胸部支撑，核心用麦吉尔三件套替代负重屈曲。全程保持中立脊柱、避免负重弯腰/旋转。注意：急性期请遵医嘱，疼痛/放射痛加重立即停止。",
+    daysPerWeek: 5,
+    days: [
+      {
+        dayLabel: "D1 推",
+        splitLabel: "推 Push(支撑)",
+        muscleGroups: ["chest", "shoulders", "triceps"],
+        carbDay: "mid",
+        exercises: [
+          { exercise: "器械胸推(坐姿靠背)", muscleGroup: "chest", sets: 4, repRange: [6, 10], targetRir: 2 },
+          { exercise: "上斜哑铃卧推", muscleGroup: "chest", sets: 3, repRange: [8, 12], targetRir: 2 },
+          { exercise: "坐姿器械肩推(靠背支撑)", muscleGroup: "shoulders", sets: 3, repRange: [8, 12], targetRir: 2 },
+          { exercise: "侧平举", muscleGroup: "shoulders", sets: 3, repRange: [12, 20], targetRir: 1 },
+          { exercise: "绳索下压", muscleGroup: "triceps", sets: 3, repRange: [10, 15], targetRir: 1 }
+        ]
+      },
+      {
+        dayLabel: "D2 拉",
+        splitLabel: "拉 Pull(去腰椎剪切)",
+        muscleGroups: ["back", "biceps"],
+        carbDay: "mid",
+        exercises: [
+          { exercise: "高位下拉/辅助引体", muscleGroup: "back", sets: 4, repRange: [8, 12], targetRir: 2 },
+          { exercise: "胸部支撑器械划船", muscleGroup: "back", sets: 4, repRange: [10, 12], targetRir: 2 },
+          { exercise: "面拉", muscleGroup: "shoulders", sets: 3, repRange: [15, 20], targetRir: 1 },
+          { exercise: "坐姿绳索弯举", muscleGroup: "biceps", sets: 4, repRange: [10, 15], targetRir: 1 }
+        ]
+      },
+      {
+        dayLabel: "D3 腿",
+        splitLabel: "腿 Legs(无轴向压缩)",
+        muscleGroups: ["quads", "hamstrings", "glutes", "calves"],
+        carbDay: "high",
+        exercises: [
+          { exercise: "腿举(腰背贴垫·控制ROM)", muscleGroup: "quads", sets: 4, repRange: [8, 12], targetRir: 2 },
+          { exercise: "哈克深蹲/器械深蹲", muscleGroup: "quads", sets: 3, repRange: [10, 15], targetRir: 2 },
+          { exercise: "坐姿腿弯举(替代罗马尼亚硬拉)", muscleGroup: "hamstrings", sets: 4, repRange: [10, 15], targetRir: 1 },
+          { exercise: "器械臀推(中立脊柱)", muscleGroup: "glutes", sets: 3, repRange: [10, 15], targetRir: 2 },
+          { exercise: "坐姿提踵", muscleGroup: "calves", sets: 4, repRange: [12, 15], targetRir: 1 }
+        ]
+      },
+      {
+        dayLabel: "D4 推",
+        splitLabel: "推 Push(肥大·支撑)",
+        muscleGroups: ["chest", "shoulders", "triceps"],
+        carbDay: "mid",
+        exercises: [
+          { exercise: "上斜器械推胸", muscleGroup: "chest", sets: 4, repRange: [8, 12], targetRir: 2 },
+          { exercise: "蝴蝶机夹胸", muscleGroup: "chest", sets: 3, repRange: [12, 15], targetRir: 1 },
+          { exercise: "侧平举", muscleGroup: "shoulders", sets: 4, repRange: [12, 20], targetRir: 1 },
+          { exercise: "坐姿绳索过顶臂屈伸", muscleGroup: "triceps", sets: 3, repRange: [10, 15], targetRir: 1 }
+        ]
+      },
+      {
+        dayLabel: "D5 拉",
+        splitLabel: "拉 Pull(肥大)+核心",
+        muscleGroups: ["back", "biceps", "abs"],
+        carbDay: "low",
+        exercises: [
+          { exercise: "坐姿绳索划船(中立脊柱·不晃腰)", muscleGroup: "back", sets: 4, repRange: [10, 12], targetRir: 2 },
+          { exercise: "直臂下拉", muscleGroup: "back", sets: 3, repRange: [12, 15], targetRir: 1 },
+          { exercise: "锤式弯举", muscleGroup: "biceps", sets: 3, repRange: [10, 15], targetRir: 1 },
+          { exercise: "麦吉尔核心三件套(鸟狗/侧桥/卷腹)", muscleGroup: "abs", sets: 3, repRange: [10, 15], targetRir: 1 }
         ]
       }
     ]

@@ -274,7 +274,7 @@ export function ScheduleCalendar({ user, foods, onGoTraining, onGoPlanner }: Sch
             <div className="flex gap-1">
               {(Object.keys(splitLabels) as TrainingSplit[]).map((key) => (
                 <button key={key} type="button" className={`rounded px-2 py-0.5 text-[11px] ${split === key ? "bg-accent/20 text-accent" : "text-muted hover:text-ink"}`} onClick={() => setSplit(key)}>
-                  {key === "ppl" ? "PPL" : key === "upperLower" ? "上下" : "全身"}
+                  {key === "ppl" ? "PPL" : key === "pplLumbarSafe" ? "腰突" : key === "upperLower" ? "上下" : "全身"}
                 </button>
               ))}
             </div>

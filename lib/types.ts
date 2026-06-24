@@ -20,7 +20,7 @@ export type MuscleGroup =
   | "triceps"
   | "calves"
   | "abs";
-export type TrainingSplit = "ppl" | "upperLower" | "fullBody";
+export type TrainingSplit = "ppl" | "pplLumbarSafe" | "upperLower" | "fullBody";
 export type ExperienceLevel = "beginner" | "intermediate" | "advanced";
 export type OneRmFormula = "epley" | "brzycki";
 

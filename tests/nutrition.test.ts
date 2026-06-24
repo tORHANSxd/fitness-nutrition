@@ -774,4 +774,29 @@ describe("meal solving", () => {
     // 死结仍然存在时给出可执行提示，而不是泛泛排查。
     expect(result.conflicts.some((item) => item.includes("更瘦的蛋白"))).toBe(true);
   });
+
+  it("keeps recommended daily calories within the +50 kcal surplus cap (or flags it)", () => {
+    // 新增硬约束：物理可达成时，求解器须把全天总热量压到不超目标 +50 kcal；达不成时必须明确提示。
+    const userProfile: UserProfile = { ...defaultProfile, planDate: "2026-05-22" };
+    const meals = createStarterMeals(userProfile);
+    const result = buildNutritionResult(userProfile, meals, builtinFoods);
+    const surplus = result.recommendedTotals.kcal - result.dailyTarget.kcal;
+    const flagged = result.conflicts.some((item) => item.includes("+50 上限"));
+    expect(surplus <= 50 + 1e-6 || flagged).toBe(true);
+  });
+
+  it("flags when locked intake forces daily calories far past the +50 kcal cap", () => {
+    const meals: MealPlan[] = [
+      {
+        id: "all-day",
+        name: "整天",
+        ratio: 1,
+        locked: true,
+        entries: [{ id: "almond", foodId: "public-almond", grams: 1000, locked: true }]
+      }
+    ];
+    const result = buildNutritionResult(profile, meals, builtinFoods);
+    expect(result.recommendedTotals.kcal - result.dailyTarget.kcal).toBeGreaterThan(50);
+    expect(result.conflicts.some((item) => item.includes("+50 上限"))).toBe(true);
+  });
 });

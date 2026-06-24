@@ -608,9 +608,12 @@ function mealDeviationScore(total: MacroTotals, target: MacroTotals) {
   }, 0);
 }
 
-function multiFoodHardMaxFor(food: FoodItem, portionRule: FoodPortionRule) {
-  if (isCookingOil(food)) {
-    return portionRule.maxGrams;
+function multiFoodHardMaxFor(food: FoodItem, portionRule: FoodPortionRule, boundsMax: number) {
+  // 补剂（含蛋白粉/食用油等）与坚果：不再施加“多食材内部硬上限”，直接沿用该食材自身上限
+  // （用户设置的 maxGrams 或分类默认 maxGrams），避免被死锁在远低于上限的份量、调不动
+  // （此前蛋白粉=30×1、坚果=20×1.5 都被硬锁在 30g）。过量仍由 comfortMax 软惩罚抑制——软不硬。
+  if (food.category === "补剂" || food.category === "坚果") {
+    return boundsMax;
   }
   const categoryMax = portionRule.defaultGrams * multiFoodHardMaxMultipliers[food.category];
   if (food.category === "主食" && food.weightBasis === "cooked") {
@@ -725,7 +728,7 @@ function buildMealSolverModels(
       ? round(animalProteinFloors[index], 1)
       : round(clamp(bounds.min + (rawFloors[index] - bounds.min) * floorScale, bounds.min, bounds.max), 1);
     const solverMax = protectsPresence
-      ? round(clamp(multiFoodHardMaxFor(food, portionRule), min, bounds.max), 1)
+      ? round(clamp(multiFoodHardMaxFor(food, portionRule, bounds.max), min, bounds.max), 1)
       : bounds.max;
     return {
       meal,

@@ -799,4 +799,50 @@ describe("meal solving", () => {
     expect(result.recommendedTotals.kcal - result.dailyTarget.kcal).toBeGreaterThan(50);
     expect(result.conflicts.some((item) => item.includes("+50 上限"))).toBe(true);
   });
+
+  it("no longer hard-locks protein powder or nuts at 30g in multi-food meals", () => {
+    // 蛋白粉：与低蛋白主食同餐、蛋白目标高 → 求解器可把蛋白粉推到其上限(>30g)，不再硬锁 30g。
+    const wheyMeal: MealPlan[] = [
+      {
+        id: "lunch",
+        name: "午餐",
+        ratio: 1,
+        locked: false,
+        entries: [
+          { id: "rice", foodId: "public-rice-cooked", grams: 150, locked: false, minGrams: 0, maxGrams: 300 },
+          { id: "whey", foodId: "public-whey", grams: 30, locked: false, minGrams: 0, maxGrams: 80 }
+        ]
+      }
+    ];
+    const wheyResult = buildNutritionResult(
+      { ...defaultProfile, workoutType: "legs", goalType: "maintain", weeklyWeightChangePct: 0, planDate: "2026-05-22" },
+      wheyMeal,
+      builtinFoods
+    );
+    const whey = wheyResult.mealRecommendations[0].recommendedEntries.whey;
+    expect(whey).toBeGreaterThan(30);
+    expect(whey).toBeLessThanOrEqual(80);
+
+    // 坚果：与蔬菜同餐、低碳日脂肪目标高 → 坚果可推到其上限(>30g)，不再硬锁 30g。
+    const nutMeal: MealPlan[] = [
+      {
+        id: "lunch",
+        name: "午餐",
+        ratio: 1,
+        locked: false,
+        entries: [
+          { id: "broccoli", foodId: "public-broccoli-cooked", grams: 150, locked: false, minGrams: 0, maxGrams: 300 },
+          { id: "almond", foodId: "public-almond", grams: 20, locked: false, minGrams: 0, maxGrams: 70 }
+        ]
+      }
+    ];
+    const nutResult = buildNutritionResult(
+      { ...defaultProfile, workoutType: "chest", goalType: "maintain", weeklyWeightChangePct: 0, planDate: "2026-05-22" },
+      nutMeal,
+      builtinFoods
+    );
+    const almond = nutResult.mealRecommendations[0].recommendedEntries.almond;
+    expect(almond).toBeGreaterThan(30);
+    expect(almond).toBeLessThanOrEqual(70);
+  });
 });

@@ -93,15 +93,18 @@ describe("nutrition formulas", () => {
     expect(getCarbDayType("rest")).toBe("low");
   });
 
-  it("anchors the calorie target to TDEE with fixed protein", () => {
-    expect(round(calculateTdee(profile), 0)).toBe(2881);
-    // 每日/周均总热量锚定 TDEE（不再是体重系数反推的固定低值）。
-    expect(round(calculateCalorieTarget(profile), 0)).toBe(2881);
-    expect(round(calculateCycleAverageTarget(profile).kcal, 0)).toBe(2881);
+  it("anchors the daily target to TDEE minus the calorie deficit, with fixed protein", () => {
+    const tdee = calculateTdee(profile);
+    expect(round(tdee, 0)).toBe(2881);
+    // 缺省缺口 500：当日/周均总热量 = TDEE − 500（不再是体重系数反推的固定低值）。
+    expect(round(calculateCalorieTarget(profile), 0)).toBe(round(tdee - 500, 0));
+    expect(round(calculateCycleAverageTarget(profile).kcal, 0)).toBe(round(tdee - 500, 0));
     // 蛋白固定 W×g/kg（默认 1.8）。
     expect(round(calculateCycleAverageTarget(profile).protein, 1)).toBe(round(profile.weightKg * 1.8, 1));
-    // 每日总热量=当日 TDEE，故当日相对维持的盈亏为 0。
-    expect(round(calculatePlannedCalorieDelta(profile), 0)).toBe(0);
+    // 当日相对维持的盈亏 = −缺口。
+    expect(round(calculatePlannedCalorieDelta(profile), 0)).toBe(-500);
+    // 自定义缺口生效：当日目标 = TDEE − 该缺口。
+    expect(round(calculateDailyTarget({ ...profile, calorieDeficit: 300 }).kcal, 0)).toBe(round(tdee - 300, 0));
   });
 
   it("uses the requested default body profile for the Kaisheng plan", () => {
@@ -114,10 +117,10 @@ describe("nutrition formulas", () => {
 
     expect(round(calculateBmr(defaultProfile), 1)).toBe(1922.5);
     expect(round(calculateTdee(defaultProfile), 0)).toBe(2915);
-    // 周均与当日总热量都锚定 TDEE；当日相对维持盈亏为 0。
-    expect(round(calculateCycleAverageTarget(defaultProfile).kcal, 0)).toBe(2915);
-    expect(round(calculateDailyTarget(defaultProfile).kcal, 0)).toBe(2915);
-    expect(round(calculatePlannedCalorieDelta(defaultProfile), 0)).toBe(0);
+    // 周均与当日总热量 = TDEE − 缺省缺口 500 = 2415；当日相对维持盈亏 = −500。
+    expect(round(calculateCycleAverageTarget(defaultProfile).kcal, 0)).toBe(2415);
+    expect(round(calculateDailyTarget(defaultProfile).kcal, 0)).toBe(2415);
+    expect(round(calculatePlannedCalorieDelta(defaultProfile), 0)).toBe(-500);
   });
 
   it("keeps daily total at TDEE and cycles carbs vs fat by Zhang ratios (1 high + 6 low)", () => {
@@ -128,9 +131,9 @@ describe("nutrition formulas", () => {
       const target = calculateDailyTarget({ ...profile, workoutType });
       const macroCalories = target.carbs * 4 + target.protein * 4 + target.fat * 9;
 
-      // 4/4/9 自洽，且每日总热量锚定当日 TDEE；蛋白每日固定 W×g/kg。
+      // 4/4/9 自洽，且每日总热量 = 当日 TDEE − 缺省缺口 500；蛋白每日固定 W×g/kg。
       expect(round(macroCalories, 0)).toBe(round(target.kcal, 0));
-      expect(round(target.kcal, 0)).toBe(round(tdee, 0));
+      expect(round(target.kcal, 0)).toBe(round(tdee - 500, 0));
       expect(round(target.protein, 1)).toBe(fixedProtein);
     }
 

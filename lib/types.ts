@@ -45,6 +45,8 @@ export interface UserProfile {
   activityFactor: number;
   exerciseKcal: number;
   proteinPerKg?: number;
+  /** 减脂热量缺口（kcal/天）：当日目标热量 = TDEE − 该值。缺省 500（≈每周减0.5kg）。 */
+  calorieDeficit?: number;
   goalType?: NutritionGoal;
   weeklyWeightChangePct?: number;
   workoutType: WorkoutType;

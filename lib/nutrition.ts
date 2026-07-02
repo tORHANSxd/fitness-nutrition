@@ -61,6 +61,9 @@ const easyFatGainBaseCarbsPerKg = 2;
 const easyFatGainBaseFatPerKg = 0.8;
 const defaultProteinPerKg = 1.8;
 const proteinPerKgRange = { min: 1.6, max: 2.2 };
+// 减脂热量缺口（kcal/天）：当日目标 = TDEE − 缺口。默认 500（≈每周减0.5kg，凯圣王建议200-400、不超500，循证共识300-500）。
+const defaultCalorieDeficit = 500;
+const calorieDeficitRange = { min: 0, max: 1200 };
 
 const goalDefaults: Record<NutritionGoal, number> = {
   cut: 0.5,
@@ -155,13 +158,13 @@ const categoryGramWeights: Record<FoodCategory, number> = {
 };
 
 export const carbCycleMacroSource =
-  "张老师五分化碳循环：一周5练（胸/背/腿/肩/手臂）+2休息，仅腿日高碳、其余6天低碳；蛋白每日固定W×1.6-2.2g。每日总热量锚定当日TDEE（BMR×活动系数+运动消耗），蛋白外的热量按张老师碳:脂配比拆分——高碳日碳重脂轻（碳水约占碳+脂能量79%）、低碳日碳轻脂重（约46%）。配比沿用张老师，总热量随真实消耗走。";
+  "张老师五分化碳循环：一周5练（胸/背/腿/肩/手臂）+2休息，仅腿日高碳、其余6天低碳；蛋白每日固定W×1.6-2.2g。每日总热量 = 当日TDEE（BMR×活动系数+运动消耗）− 减脂热量缺口，蛋白外的热量按碳:脂配比拆分——高碳日碳重脂轻（碳水约占碳+脂能量79%）、低碳日碳轻脂重（约46%）。配比沿用张老师，总热量随真实消耗−缺口走。";
 
 export const foodPortionSource =
   "分类份量参考中国居民平衡膳食餐盘和健康餐盘法：主餐保留可见蛋白份量，主食、蔬果、蛋白按餐盘结构评分；补剂和坚果按健身常用单次份量设上限。";
 
 export const energyTargetSource =
-  "热量目标：每日总热量锚定当日TDEE（BMR×活动系数+运动消耗），蛋白固定W×1.6-2.2g/kg，其余热量按当日碳循环的碳:脂配比拆成碳水与脂肪；运动越多当日TDEE越高、目标热量越高。";
+  "热量目标：每日总热量 = 当日TDEE（BMR×活动系数+运动消耗）− 减脂热量缺口（默认500kcal/天，可在档案按视频/自身调整）；蛋白固定W×1.6-2.2g/kg，其余热量按当日碳循环碳:脂配比拆成碳水与脂肪。碳循环各日总热量恒定、只在碳↔脂间摆动（凯圣王/张老师减脂缺口区间约200-500kcal）。";
 
 export const macroRatioCheckSource =
   "配比检查：按当前体重公式反推的目标供能占比±5个百分点判断碳水、蛋白、脂肪是否贴合。";
@@ -466,6 +469,10 @@ export function getProteinPerKg(profile: Pick<UserProfile, "proteinPerKg">) {
   return clamp(profile.proteinPerKg ?? defaultProteinPerKg, proteinPerKgRange.min, proteinPerKgRange.max);
 }
 
+export function getCalorieDeficit(profile: Pick<UserProfile, "calorieDeficit">) {
+  return clamp(profile.calorieDeficit ?? defaultCalorieDeficit, calorieDeficitRange.min, calorieDeficitRange.max);
+}
+
 function caloriesFromMacros(target: Pick<MacroTotals, "carbs" | "protein" | "fat">) {
   const calories = calculateMacroCalories({ kcal: 0, ...target });
   return calories.carbs + calories.protein + calories.fat;
@@ -493,15 +500,15 @@ function zhangCarbFatSplit(carbDayType: CarbDayType): number {
   return carbKcal / (carbKcal + fatKcal);
 }
 
-// 每日目标：总热量锚定当日 TDEE（=BMR×活动系数+运动消耗，随实际运动/Apple Watch 活动能量变化），
-// 蛋白固定 W×g/kg（张老师方案中蛋白本就每日固定），其余热量按「当日碳:脂配比」拆成碳水与脂肪。
-// 于是配比仍是张老师那一套，但总热量真正跟着你的消耗走——修复了“系数总热量与真实 TDEE 差出一个
-// 大窗口却浑然不觉”的问题。碳循环体现在高/低碳日的碳↔脂此消彼长（运动越多当日 TDEE 越高、热量越高）。
+// 每日目标：总热量 = 当日 TDEE − 减脂热量缺口（TDEE=BMR×活动系数+运动消耗，随实际运动/Apple Watch
+// 活动能量变化；缺口默认 500，可在档案里按视频/自身调整）。蛋白固定 W×g/kg（凯圣王/张老师方案中蛋白
+// 本就每日固定、碳循环只在碳↔脂间摆动），其余热量按「当日碳:脂配比」拆成碳水与脂肪。于是配比仍是那一套、
+// 碳循环日总热量恒定，但目标真正跟着”消耗−缺口”走——修复”系数总热量与真实 TDEE 差出大窗口却浑然不觉”。
 export function calculateDailyTarget(profile: UserProfile): MacroTotals {
   const carbDayType = getCarbDayType(profile.workoutType);
   const protein = profile.weightKg * getProteinPerKg(profile);
   const tdee = calculateTdee(profile);
-  const carbFatKcal = Math.max(tdee - protein * 4, 0);
+  const carbFatKcal = Math.max(tdee - getCalorieDeficit(profile) - protein * 4, 0);
   const carbShare = zhangCarbFatSplit(carbDayType);
   const target = {
     kcal: 0,

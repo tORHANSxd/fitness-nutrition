@@ -26,6 +26,7 @@ import {
   convertWeightLabel,
   createDefaultMeals,
   energyTargetSource,
+  getCalorieDeficit,
   getDefaultMealEntrySettings,
   getMacroRatioCheck,
   getProteinPerKg,
@@ -390,8 +391,8 @@ export function NutritionPlanner({ foods, templates, user, onTemplatesChanged, a
               </div>
             </div>
 
-            {/* stat 网格：5 指标，无独立卡片投影，细线分隔（列数受限以免窄列内中文标签竖排/溢出）。
-                每日目标热量已锚定 TDEE，故「当日目标」与「维持热量」一致——直观印证目标随消耗走。 */}
+            {/* stat 网格：6 指标，无独立卡片投影，细线分隔（列数受限以免窄列内中文标签竖排/溢出）。
+                当日目标 = 维持热量(TDEE) − 减脂热量缺口；「计划缺口」显示该缺口值。 */}
             <div className="grid grid-cols-2 border-l border-t border-line sm:grid-cols-3 xl:grid-cols-4">
               <div className="border-b border-r border-line px-4 py-3">
                 <MetricCard label="BMR" value={result.bmr} unit="kcal" />
@@ -401,6 +402,14 @@ export function NutritionPlanner({ foods, templates, user, onTemplatesChanged, a
               </div>
               <div className="border-b border-r border-line px-4 py-3">
                 <MetricCard label="当日目标" value={result.dailyTarget.kcal} unit="kcal" tone="accent" />
+              </div>
+              <div className="border-b border-r border-line px-4 py-3">
+                <MetricCard
+                  label={result.plannedCalorieDelta < 0 ? "计划缺口" : result.plannedCalorieDelta > 0 ? "计划盈余" : "计划差额"}
+                  value={Math.abs(result.plannedCalorieDelta)}
+                  unit="kcal"
+                  tone={result.plannedCalorieDelta < 0 ? "normal" : "accent"}
+                />
               </div>
               <div className="border-b border-r border-line px-4 py-3">
                 <MetricCard label="当前摄入" value={result.actualTotals.kcal} unit="kcal" />
@@ -826,6 +835,19 @@ function ProfilePanel({ profile, updateProfile }: ProfilePanelProps) {
               inputMode="decimal"
               value={getProteinPerKg(profile)}
               onChange={(event) => numberInput("proteinPerKg", event.target.value)}
+            />
+          </label>
+          <label>
+            <span className="metric-label mb-1 block">热量缺口 kcal</span>
+            <input
+              className="field w-full"
+              min="0"
+              max="1200"
+              step="50"
+              type="number"
+              inputMode="numeric"
+              value={getCalorieDeficit(profile)}
+              onChange={(event) => numberInput("calorieDeficit", event.target.value)}
             />
           </label>
         </div>

@@ -17,6 +17,13 @@ body {
   min-height: 100%;
 }
 
+/* 始终保留竖向滚动条槽：短页面(无滚动条)与长页面(有滚动条)之间切换时，视口宽度保持恒定，
+   避免 position:fixed 的顶栏/底栏（inset-x-0）宽度忽大忽小。iOS 覆盖式滚动条上为无副作用空操作。 */
+html {
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
+}
+
 body {
   margin: 0;
   color: #ece9f8;

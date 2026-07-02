@@ -14,6 +14,8 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { MacroBars } from "@/components/MacroBars";
 import { MetricCard } from "@/components/MetricCard";
+import { HealthSyncPanel } from "@/components/HealthSyncPanel";
+import { applyHealthMetricToProfile, type HealthMetric } from "@/lib/health";
 import { defaultProfile, createStarterMeals } from "@/lib/demoState";
 import {
   buildNutritionResult,
@@ -356,7 +358,7 @@ export function NutritionPlanner({ foods, templates, user, onTemplatesChanged, a
 
   return (
     <section className="animate-fade-up space-y-5">
-      <div className="grid gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
         <div className="order-1 space-y-4 xl:order-2">
           <section className="panel overflow-hidden">
             {/* 指挥台顶栏：标题+碳日标签 左，主操作 右 */}
@@ -388,7 +390,8 @@ export function NutritionPlanner({ foods, templates, user, onTemplatesChanged, a
               </div>
             </div>
 
-            {/* stat 网格：7 指标，无独立卡片投影，细线分隔（列数受限以免窄列内中文标签竖排/溢出） */}
+            {/* stat 网格：5 指标，无独立卡片投影，细线分隔（列数受限以免窄列内中文标签竖排/溢出）。
+                每日目标热量已锚定 TDEE，故「当日目标」与「维持热量」一致——直观印证目标随消耗走。 */}
             <div className="grid grid-cols-2 border-l border-t border-line sm:grid-cols-3 xl:grid-cols-4">
               <div className="border-b border-r border-line px-4 py-3">
                 <MetricCard label="BMR" value={result.bmr} unit="kcal" />
@@ -397,18 +400,7 @@ export function NutritionPlanner({ foods, templates, user, onTemplatesChanged, a
                 <MetricCard label="维持热量" value={result.tdee} unit="kcal" tone="accent" />
               </div>
               <div className="border-b border-r border-line px-4 py-3">
-                <MetricCard label="计划均热量" value={result.cycleAverageTarget.kcal} unit="kcal" tone="accent" />
-              </div>
-              <div className="border-b border-r border-line px-4 py-3">
                 <MetricCard label="当日目标" value={result.dailyTarget.kcal} unit="kcal" tone="accent" />
-              </div>
-              <div className="border-b border-r border-line px-4 py-3">
-                <MetricCard
-                  label={result.plannedCalorieDelta < 0 ? "计划缺口" : result.plannedCalorieDelta > 0 ? "计划盈余" : "计划差额"}
-                  value={Math.abs(result.plannedCalorieDelta)}
-                  unit="kcal"
-                  tone={result.plannedCalorieDelta < 0 ? "normal" : "accent"}
-                />
               </div>
               <div className="border-b border-r border-line px-4 py-3">
                 <MetricCard label="当前摄入" value={result.actualTotals.kcal} unit="kcal" />
@@ -424,7 +416,7 @@ export function NutritionPlanner({ foods, templates, user, onTemplatesChanged, a
             </div>
 
             {/* 盈亏 + 宏比 + 周计划：在窄的右栏内纵向堆叠，避免横向三列挤压溢出 */}
-            <div className="grid gap-3 border-t border-line p-4">
+            <div className="grid grid-cols-1 gap-3 border-t border-line p-4">
               <DailyBalancePanel
                 actual={result.actualTotals}
                 recommended={result.recommendedTotals}
@@ -453,8 +445,13 @@ export function NutritionPlanner({ foods, templates, user, onTemplatesChanged, a
           </section>
           <MacroBars result={result} meals={meals} />
         </div>
-        <div className="order-2 xl:order-1">
+        <div className="order-2 space-y-4 xl:order-1">
           <ProfilePanel profile={profile} updateProfile={updateProfile} />
+          <HealthSyncPanel
+            user={user}
+            profile={profile}
+            onApply={(metric: HealthMetric) => setProfile((current) => applyHealthMetricToProfile(current, metric))}
+          />
         </div>
       </div>
 
@@ -564,7 +561,7 @@ function DailyBalancePanel({ actual, recommended, target }: DailyBalancePanelPro
         <h3 className="text-xs font-semibold tracking-tight text-ink">热量 &amp; 营养素盈亏</h3>
         <span className="text-[10px] text-muted">摄入 / 目标</span>
       </div>
-      <div className="grid gap-1.5 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
         <DailyBalanceCard actual={actual.kcal} label="热量" recommended={recommended.kcal} target={target.kcal} unit="kcal" />
         <DailyBalanceCard actual={actual.carbs} label="碳水" recommended={recommended.carbs} target={target.carbs} unit="g" />
         <DailyBalanceCard actual={actual.protein} label="蛋白" recommended={recommended.protein} target={target.protein} unit="g" />

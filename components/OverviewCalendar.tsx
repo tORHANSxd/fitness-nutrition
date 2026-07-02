@@ -196,7 +196,7 @@ export function OverviewCalendar({ user, onEditPlanner, onEditTraining }: Overvi
         <StatCard icon={<Activity size={14} />} label="连续训练" value={`${stats.streak} 天`} hint="截至今天" />
       </section>
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
         {/* 月视图（全宽格子） */}
         <section className="panel p-4">
           <div className="mb-3 flex items-center justify-between">

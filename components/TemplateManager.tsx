@@ -107,7 +107,7 @@ export function TemplateManager({ templates, foods, onTemplatesChanged, onApplyD
           <h2 className="text-xl font-semibold text-gradient">模板管理</h2>
           <p className="mt-1 text-sm text-muted">预览模板内容与宏量、复制、重命名、删除；全天模板可一键应用到当天计划。删除不影响已保存的历史计划。</p>
         </div>
-        <div className="grid gap-4 p-4 xl:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 p-4 xl:grid-cols-2">
           <TemplateSection count={templates.dayTemplates.length} emptyText="还没有全天模板。" icon="day" title="全天模板">
             {templates.dayTemplates.map((template) => {
               const isOpen = expanded.has(template.id);

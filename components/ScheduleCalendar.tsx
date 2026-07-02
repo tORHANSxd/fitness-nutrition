@@ -206,7 +206,7 @@ export function ScheduleCalendar({ user, foods, onGoTraining, onGoPlanner }: Sch
   const weekdayHeads = ["一", "二", "三", "四", "五", "六", "日"];
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+    <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
       {/* 月历 */}
       <section className="panel p-4">
         <div className="mb-3 flex items-center justify-between">

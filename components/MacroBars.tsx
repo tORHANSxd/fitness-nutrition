@@ -101,7 +101,7 @@ export function MacroBars({ result, meals }: MacroBarsProps) {
   );
 
   return (
-    <div className="grid gap-4 xl:grid-cols-2">
+    <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
       <div className="panel p-4">
         <div className="mb-3 flex items-center justify-between gap-3">
           <h3 className="font-semibold tracking-tight text-ink">当天摄入对比</h3>

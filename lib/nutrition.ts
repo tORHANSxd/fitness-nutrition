@@ -155,13 +155,13 @@ const categoryGramWeights: Record<FoodCategory, number> = {
 };
 
 export const carbCycleMacroSource =
-  "张老师五分化碳循环：一周5练（胸/背/腿/肩/手臂）+2休息，仅腿日1天高碳、其余6天低碳；蛋白每日固定W×1.6-2.2g；碳水周总量W×2×7，脂肪周总量W×0.8×7；高碳日=周碳水30%/周脂肪9%（≈4.2g/kg碳水），低碳日=周碳水70%÷6/周脂肪91%÷6（≈1.63g/kg碳水、0.85g/kg脂肪）。";
+  "张老师五分化碳循环：一周5练（胸/背/腿/肩/手臂）+2休息，仅腿日高碳、其余6天低碳；蛋白每日固定W×1.6-2.2g。每日总热量锚定当日TDEE（BMR×活动系数+运动消耗），蛋白外的热量按张老师碳:脂配比拆分——高碳日碳重脂轻（碳水约占碳+脂能量79%）、低碳日碳轻脂重（约46%）。配比沿用张老师，总热量随真实消耗走。";
 
 export const foodPortionSource =
   "分类份量参考中国居民平衡膳食餐盘和健康餐盘法：主餐保留可见蛋白份量，主食、蔬果、蛋白按餐盘结构评分；补剂和坚果按健身常用单次份量设上限。";
 
 export const energyTargetSource =
-  "热量目标：当日目标由当前碳日的碳水、蛋白、脂肪按4/4/9 kcal反推；计划缺口用7天周期平均目标热量与维持热量对比。";
+  "热量目标：每日总热量锚定当日TDEE（BMR×活动系数+运动消耗），蛋白固定W×1.6-2.2g/kg，其余热量按当日碳循环的碳:脂配比拆成碳水与脂肪；运动越多当日TDEE越高、目标热量越高。";
 
 export const macroRatioCheckSource =
   "配比检查：按当前体重公式反推的目标供能占比±5个百分点判断碳水、蛋白、脂肪是否贴合。";
@@ -471,12 +471,64 @@ function caloriesFromMacros(target: Pick<MacroTotals, "carbs" | "protein" | "fat
   return calories.carbs + calories.protein + calories.fat;
 }
 
-export function calculateCycleAverageTarget(profile: UserProfile): MacroTotals {
+export function getCarbDayType(workoutType: WorkoutType): CarbDayType {
+  // 张老师五分化：腿日为唯一高碳日（糖原消耗最大），其余训练日与休息日均低碳。
+  if (workoutType === "legs") {
+    return "high";
+  }
+  return "low";
+}
+
+// 从张老师基线系数推导「当日碳水占（碳水+脂肪）能量的比例」：真正随碳循环摆动的是碳水与脂肪，
+// 高碳日碳重脂轻、低碳日碳轻脂重——这个比例即张老师三大营养素配比里可循环的部分。
+function zhangCarbFatSplit(carbDayType: CarbDayType): number {
+  const distribution = carbCycleDistribution[carbDayType];
+  const carbGPerKg = (easyFatGainBaseCarbsPerKg * 7 * distribution.carbShare) / distribution.daysPerWeek;
+  const fatGPerKg = (easyFatGainBaseFatPerKg * 7 * distribution.fatShare) / distribution.daysPerWeek;
+  const carbKcal = carbGPerKg * 4;
+  const fatKcal = fatGPerKg * 9;
+  if (carbKcal + fatKcal <= 0) {
+    return 0.5;
+  }
+  return carbKcal / (carbKcal + fatKcal);
+}
+
+// 每日目标：总热量锚定当日 TDEE（=BMR×活动系数+运动消耗，随实际运动/Apple Watch 活动能量变化），
+// 蛋白固定 W×g/kg（张老师方案中蛋白本就每日固定），其余热量按「当日碳:脂配比」拆成碳水与脂肪。
+// 于是配比仍是张老师那一套，但总热量真正跟着你的消耗走——修复了“系数总热量与真实 TDEE 差出一个
+// 大窗口却浑然不觉”的问题。碳循环体现在高/低碳日的碳↔脂此消彼长（运动越多当日 TDEE 越高、热量越高）。
+export function calculateDailyTarget(profile: UserProfile): MacroTotals {
+  const carbDayType = getCarbDayType(profile.workoutType);
+  const protein = profile.weightKg * getProteinPerKg(profile);
+  const tdee = calculateTdee(profile);
+  const carbFatKcal = Math.max(tdee - protein * 4, 0);
+  const carbShare = zhangCarbFatSplit(carbDayType);
   const target = {
     kcal: 0,
-    carbs: profile.weightKg * easyFatGainBaseCarbsPerKg,
-    protein: profile.weightKg * getProteinPerKg(profile),
-    fat: profile.weightKg * easyFatGainBaseFatPerKg
+    carbs: (carbFatKcal * carbShare) / 4,
+    protein,
+    fat: (carbFatKcal * (1 - carbShare)) / 9
+  };
+
+  return {
+    ...target,
+    kcal: caloriesFromMacros(target)
+  };
+}
+
+// 周均目标：一周 1 高碳(腿)+6 低碳，各日总热量均=当日 TDEE；此处给出周平均的宏量分布用于展示与对照。
+export function calculateCycleAverageTarget(profile: UserProfile): MacroTotals {
+  const high = calculateDailyTarget({ ...profile, workoutType: "legs" });
+  const low = calculateDailyTarget({ ...profile, workoutType: "chest" });
+  const highDays = carbCycleDistribution.high.daysPerWeek;
+  const lowDays = carbCycleDistribution.low.daysPerWeek;
+  const weeklyAverage = (highValue: number, lowValue: number) =>
+    (highValue * highDays + lowValue * lowDays) / (highDays + lowDays);
+  const target = {
+    kcal: 0,
+    carbs: weeklyAverage(high.carbs, low.carbs),
+    protein: high.protein,
+    fat: weeklyAverage(high.fat, low.fat)
   };
 
   return {
@@ -489,34 +541,10 @@ export function calculateCalorieTarget(profile: UserProfile) {
   return calculateCycleAverageTarget(profile).kcal;
 }
 
+// 当日总热量相对维持(TDEE)的盈亏。当前模型每日总热量=当日 TDEE，故常态约为 0；
+// 若某天运动消耗不同导致当日 TDEE 变化，或后续引入减脂/增肌热量偏移，这里会反映差值。
 export function calculatePlannedCalorieDelta(profile: UserProfile) {
-  return calculateCalorieTarget(profile) - calculateTdee(profile);
-}
-
-export function getCarbDayType(workoutType: WorkoutType): CarbDayType {
-  // 张老师五分化：腿日为唯一高碳日（糖原消耗最大），其余训练日与休息日均低碳。
-  if (workoutType === "legs") {
-    return "high";
-  }
-  return "low";
-}
-
-export function calculateDailyTarget(profile: UserProfile): MacroTotals {
-  const carbDayType = getCarbDayType(profile.workoutType);
-  const distribution = carbCycleDistribution[carbDayType];
-  const weeklyBaseCarbsPerKg = easyFatGainBaseCarbsPerKg * 7;
-  const weeklyBaseFatPerKg = easyFatGainBaseFatPerKg * 7;
-  const target = {
-    kcal: 0,
-    carbs: profile.weightKg * ((weeklyBaseCarbsPerKg * distribution.carbShare) / distribution.daysPerWeek),
-    protein: profile.weightKg * getProteinPerKg(profile),
-    fat: profile.weightKg * ((weeklyBaseFatPerKg * distribution.fatShare) / distribution.daysPerWeek)
-  };
-
-  return {
-    ...target,
-    kcal: caloriesFromMacros(target)
-  };
+  return calculateDailyTarget(profile).kcal - calculateTdee(profile);
 }
 
 export function calculateFoodTotals(food: FoodItem, grams: number): MacroTotals {
@@ -1230,11 +1258,12 @@ export function buildNutritionResult(profile: UserProfile, meals: MealPlan[], fo
     conflicts.push(deficitMessage("锁定餐已超过目标", remainingAfterLockedMeals));
   }
 
+  // 新模型每日目标热量≈当日维持(TDEE)；当实际摄入明显低于目标（超出计划盈亏再 250kcal）时提示缺口过大。
   const plannedDeficit = Math.max(-plannedCalorieDelta, 0);
   const actualDeficitFromMaintenance = tdee - actualTotals.kcal;
-  if (plannedDeficit > 0 && actualTotals.kcal > 0 && actualDeficitFromMaintenance > plannedDeficit + 250) {
+  if (actualTotals.kcal > 0 && actualDeficitFromMaintenance > plannedDeficit + 250) {
     conflicts.push(
-      `当前实际热量缺口过大：${round(actualDeficitFromMaintenance, 0)} kcal，计划缺口 ${round(plannedDeficit, 0)} kcal`
+      `当前实际热量缺口过大：实际 ${round(actualTotals.kcal, 0)} kcal，低于当日目标(维持) ${round(tdee, 0)} kcal 达 ${round(actualDeficitFromMaintenance, 0)} kcal`
     );
   }
 

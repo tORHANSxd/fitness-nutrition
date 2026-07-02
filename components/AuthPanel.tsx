@@ -54,7 +54,7 @@ export function AuthPanel({ user, onSignedIn }: AuthPanelProps) {
   }
 
   return (
-    <section className="grid gap-4 lg:grid-cols-[1fr_420px]">
+    <section className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_420px]">
       <div className="panel p-5">
         <div className="mb-5 flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-md bg-accent/10 text-accent">
@@ -65,7 +65,7 @@ export function AuthPanel({ user, onSignedIn }: AuthPanelProps) {
             <p className="text-sm text-muted">邮箱密码登录后，食物库和每日计划写入 Supabase。</p>
           </div>
         </div>
-        <div className="grid gap-3 text-sm text-ink md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 text-sm text-ink md:grid-cols-3">
           <div className="rounded-xl border border-line bg-surface/70 backdrop-blur p-3">RLS 限制每个用户只能读写自己的私有食物和计划。</div>
           <div className="rounded-xl border border-line bg-surface/70 backdrop-blur p-3">公共食物库与私有食物库合并显示，私有食物仅本人可见。</div>
           <div className="rounded-xl border border-line bg-surface/70 backdrop-blur p-3">所有数据按账户保存在 Supabase 云端；除登录状态外不写入浏览器本地。</div>

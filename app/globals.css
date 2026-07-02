@@ -79,9 +79,9 @@ select option {
   @apply focus:outline-none focus:ring-2 focus:ring-accent/45 focus:border-accent/60;
 }
 
-/* 玻璃输入框 */
+/* 玻璃输入框：移动端字号 16px（sm 及以上回落 14px），避免 iOS 聚焦 <16px 输入框时强制放大页面 */
 .field {
-  @apply h-11 rounded-lg border border-white/[0.14] bg-white/[0.05] px-3 text-sm text-ink shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur placeholder:text-muted/75 focus-ring;
+  @apply h-11 rounded-lg border border-white/[0.14] bg-white/[0.05] px-3 text-base text-ink shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur placeholder:text-muted/75 focus-ring sm:text-sm;
 }
 
 .btn {

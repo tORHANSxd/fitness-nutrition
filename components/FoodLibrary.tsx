@@ -261,7 +261,7 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated }: Foo
   }
 
   return (
-    <section className="grid gap-4 xl:grid-cols-[420px_1fr]">
+    <section className="grid grid-cols-1 gap-4 xl:grid-cols-[420px_1fr]">
       <div className="panel p-4">
         <div className="mb-4">
           <h2 className="text-lg font-semibold text-gradient">{editingFood ? "编辑食物" : "新增食物"}</h2>

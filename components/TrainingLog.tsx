@@ -310,7 +310,7 @@ export function TrainingLog({ user, onRequireLogin, dateRequest }: TrainingLogPr
         <p className="mt-2 text-[11px] text-muted">点任一训练日 → 自动把动作与目标 RIR 填入下方选中日期，逐组填重量即可。</p>
       </section>
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
         {/* 日历 */}
         <section className="panel p-4">
           <div className="mb-3 flex items-center justify-between">
@@ -531,7 +531,7 @@ function ReferencePanel() {
   return (
     <section className="panel p-4">
       <h2 className="mb-3 text-base font-semibold text-ink">训练强度参考与自动调节</h2>
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div>
           <h3 className="mb-2 text-sm font-semibold text-ink">%1RM ↔ 次数 ↔ 目标（NSCA）</h3>
           <div className="overflow-hidden rounded-xl border border-line">
@@ -554,13 +554,13 @@ function ReferencePanel() {
         <div>
           <h3 className="mb-2 text-sm font-semibold text-ink">RIR 自动调节（下次负荷建议）</h3>
           <div className="flex items-end gap-3">
-            <label className="flex flex-1 flex-col gap-1">
+            <label className="flex min-w-0 flex-1 flex-col gap-1">
               <span className="metric-label">目标 RIR</span>
-              <input className="field" type="number" value={targetRir} onChange={(e) => setTargetRir(Number(e.target.value) || 0)} />
+              <input className="field w-full min-w-0" type="number" value={targetRir} onChange={(e) => setTargetRir(Number(e.target.value) || 0)} />
             </label>
-            <label className="flex flex-1 flex-col gap-1">
+            <label className="flex min-w-0 flex-1 flex-col gap-1">
               <span className="metric-label">实际 RIR</span>
-              <input className="field" type="number" value={actualRir} onChange={(e) => setActualRir(Number(e.target.value) || 0)} />
+              <input className="field w-full min-w-0" type="number" value={actualRir} onChange={(e) => setActualRir(Number(e.target.value) || 0)} />
             </label>
           </div>
           <div className="mt-3 rounded-xl border border-accent/30 bg-accent/[0.07] p-3 text-sm text-ink">

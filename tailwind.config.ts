@@ -35,14 +35,12 @@ const config: Config = {
         },
         slate: { 100: "rgba(0,0,0,0.05)" }
       },
+      // 全站统一字体栈：英文 Anthropic Serif（本机安装即生效）→ Source Serif 4（开源回退），
+      // 中文霞鹜文楷。sans/serif/display 全部映射同一栈，font-sans 工具类也不例外。
       fontFamily: {
-        display: [
-          "var(--font-serif)",
-          "Georgia",
-          "Songti SC",
-          "SimSun",
-          "serif"
-        ]
+        sans: ["Anthropic Serif", "var(--font-serif)", "Source Serif 4", "LXGW WenKai", "Georgia", "Songti SC", "serif"],
+        serif: ["Anthropic Serif", "var(--font-serif)", "Source Serif 4", "LXGW WenKai", "Georgia", "Songti SC", "serif"],
+        display: ["Anthropic Serif", "var(--font-serif)", "Source Serif 4", "LXGW WenKai", "Georgia", "Songti SC", "serif"]
       },
       boxShadow: {
         soft: "0 1px 2px rgba(31,30,29,0.04), 0 12px 32px -20px rgba(31,30,29,0.16)",

@@ -34,19 +34,20 @@ html {
 body {
   margin: 0;
   color: #1f1e1d;
+  /* 英文 Anthropic Serif（专有，仅声明，安装即用）→ Source Serif 4 回退；中文霞鹜文楷。
+     西文字体在前，拉丁字形由其命中，中文字符落到文楷。 */
   font-family:
-    var(--font-sans), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-    "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    "Anthropic Serif", var(--font-serif), "Source Serif 4", "LXGW WenKai",
+    Georgia, "Songti SC", "SimSun", serif;
   background: #faf9f5;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
-/* 大标题走衬线（Copernicus 气质）：字重适中、字距微收、行高紧。 */
+/* 大标题：同一字体栈，字重适中、字距微收、行高紧。 */
 h1,
 h2,
 .font-display {
-  font-family: var(--font-serif), Georgia, "Songti SC", "SimSun", serif;
   font-weight: 500;
   letter-spacing: -0.02em;
   line-height: 1.2;
@@ -173,9 +174,8 @@ input[type="date"]::-webkit-date-and-time-value {
   box-shadow: 0 6px 20px -12px rgba(31, 30, 29, 0.22);
 }
 
-/* 大数字（指标卡）：衬线，Claude 定价页数字气质。 */
+/* 大数字（指标卡）：同一字体栈，等宽数字。 */
 .metric-number {
-  font-family: var(--font-serif), Georgia, "Songti SC", serif;
   font-weight: 500;
   letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;

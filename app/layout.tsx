@@ -1,10 +1,13 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Source_Serif_4 } from "next/font/google";
+import { Source_Serif_4 } from "next/font/google";
+import "lxgw-wenkai-webfont/lxgwwenkai-regular.css";
+import "lxgw-wenkai-webfont/lxgwwenkai-bold.css";
 import "./globals.css";
 
-// Claude 官网风字体：正文无衬线（Styrene 气质 → Inter），大标题衬线（Copernicus 气质 → Source Serif 4）。
-const inter = Inter({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-sans", display: "swap" });
-const sourceSerif = Source_Serif_4({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-serif", display: "swap" });
+// 字体策略：英文一律 Anthropic Serif（专有字体，仅声明——本机安装即生效），
+// 回退 Source Serif 4（气质最接近的开源衬线）；中文一律霞鹜文楷 LXGW WenKai（OFL，自托管切片按需加载）。
+// 西文字体排在中文字体之前：拉丁字形由前者命中，中文字符自然落到文楷。
+const sourceSerif = Source_Serif_4({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-serif", display: "swap" });
 
 export const metadata: Metadata = {
   title: "NutriTrain · 碳循环计划器",
@@ -29,7 +32,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="zh-CN" suppressHydrationWarning className={`${inter.variable} ${sourceSerif.variable}`}>
+    <html lang="zh-CN" suppressHydrationWarning className={sourceSerif.variable}>
       <body>{children}</body>
     </html>
   );

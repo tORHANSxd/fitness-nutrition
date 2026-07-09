@@ -79,47 +79,67 @@ select {
   min-width: 0;
 }
 
-/* Claude 式聚焦：边框转深墨 + 极淡外圈（不是霓虹 ring）。 */
-.focus-ring {
-  @apply focus:outline-none focus:border-[#B9B5A7] focus:shadow-[0_0_0_3px_rgba(31,30,29,0.06)];
-}
-
-/* 输入框：白底、暖灰细边、hover 微深；移动端字号 16px（sm 及以上回落 14px），
-   避免 iOS 聚焦 <16px 输入框时强制放大页面。 */
-.field {
-  @apply h-11 rounded-lg border border-line bg-surface px-3 text-base text-ink transition-colors placeholder:text-muted-soft hover:border-[#D5D0C2] focus-ring sm:text-sm;
-}
-
 /* ------------------------------------------------------------
-   按钮体系：anthropic 官网语言 = pill（rounded-full）。
-   主操作深墨底白字；品牌强调（btn-cta）珊瑚底白字；次操作白底细边。
+   组件类必须包进 @layer components：这样 JSX 里的工具类（pl-9、h-9、px-2 等）
+   才能按 Tailwind 层级正确覆盖组件默认值（此前裸规则排在 utilities 之后，
+   曾导致搜索框 pl-9 被 .field 的 px-3 压掉、图标与占位文字重叠）。
    ------------------------------------------------------------ */
-.btn {
-  @apply inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-full border px-4 text-sm font-medium transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
-}
+@layer components {
+  /* Claude 式聚焦：边框转深墨 + 极淡外圈（不是霓虹 ring）。 */
+  .focus-ring {
+    @apply focus:outline-none focus:border-[#B9B5A7] focus:shadow-[0_0_0_3px_rgba(31,30,29,0.06)];
+  }
 
-/* 主操作：深墨 pill（anthropic 主 CTA） */
-.btn-primary {
-  @apply btn border-transparent bg-ink text-white hover:bg-[#3D3A34];
-}
+  /* 输入框：白底、暖灰细边、hover 微深；移动端字号 16px（sm 及以上回落 14px），
+     避免 iOS 聚焦 <16px 输入框时强制放大页面。 */
+  .field {
+    @apply h-11 rounded-lg border border-line bg-surface px-3 text-base text-ink transition-colors placeholder:text-muted-soft hover:border-[#D5D0C2] focus-ring sm:text-sm;
+  }
 
-/* 品牌强调操作：珊瑚 pill */
-.btn-cta {
-  @apply btn border-transparent bg-accent text-accent-ink hover:bg-accent2;
-}
+  /* 按钮体系：anthropic 官网语言 = pill（rounded-full）。
+     主操作深墨底白字；品牌强调（btn-cta）珊瑚底白字；次操作白底细边。
+     默认 h-11，JSX 里的 h-8/h-9/h-10 可正常覆盖出小尺寸。 */
+  .btn {
+    @apply inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-full border px-4 text-sm font-medium transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
+  }
 
-/* 次操作：白底细边 pill */
-.btn-secondary {
-  @apply btn border-line bg-surface text-ink hover:border-[#CFC9BA] hover:bg-panel;
-}
+  /* 主操作：深墨 pill（anthropic 主 CTA） */
+  .btn-primary {
+    @apply btn border-transparent bg-ink text-white hover:bg-[#3D3A34];
+  }
 
-.btn-danger {
-  @apply btn border-rose/25 bg-transparent text-rose hover:bg-rose/[0.08];
-}
+  /* 品牌强调操作：珊瑚 pill */
+  .btn-cta {
+    @apply btn border-transparent bg-accent text-accent-ink hover:bg-accent2;
+  }
 
-/* 卡片：白面 + 暖细描边 + 极轻投影。 */
-.panel {
-  @apply rounded-2xl border border-line bg-surface shadow-soft;
+  /* 次操作：白底细边 pill */
+  .btn-secondary {
+    @apply btn border-line bg-surface text-ink hover:border-[#CFC9BA] hover:bg-panel;
+  }
+
+  .btn-danger {
+    @apply btn border-rose/25 bg-transparent text-rose hover:bg-rose/[0.08];
+  }
+
+  /* 卡片：白面 + 暖细描边 + 极轻投影。 */
+  .panel {
+    @apply rounded-2xl border border-line bg-surface shadow-soft;
+  }
+
+  .metric-label {
+    @apply text-[11px] font-medium uppercase tracking-[0.08em] text-muted;
+  }
+
+  /* 小型珊瑚 eyebrow 标签（官网 section 眉题） */
+  .eyebrow {
+    @apply text-[11px] font-semibold uppercase tracking-[0.14em] text-accent2;
+  }
+
+  /* 旧渐变标题类：重定义为衬线深墨标题（保留类名，组件无需改 JSX） */
+  .text-gradient {
+    @apply font-display text-ink;
+  }
 }
 
 /* 悬浮可点卡片（日历格、模板卡等）：hover 轻提升 + 阴影加深。 */
@@ -134,26 +154,12 @@ select {
   box-shadow: 0 6px 20px -12px rgba(31, 30, 29, 0.22);
 }
 
-.metric-label {
-  @apply text-[11px] font-medium uppercase tracking-[0.08em] text-muted;
-}
-
 /* 大数字（指标卡）：衬线，Claude 定价页数字气质。 */
 .metric-number {
   font-family: var(--font-serif), Georgia, "Songti SC", serif;
   font-weight: 500;
   letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
-}
-
-/* 小型珊瑚 eyebrow 标签（官网 section 眉题） */
-.eyebrow {
-  @apply text-[11px] font-semibold uppercase tracking-[0.14em] text-accent2;
-}
-
-/* 旧渐变标题类：重定义为衬线深墨标题（保留类名，组件无需改 JSX） */
-.text-gradient {
-  @apply font-display text-ink;
 }
 
 .skip-link {

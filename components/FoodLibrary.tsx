@@ -243,8 +243,9 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated }: Foo
   }
 
   return (
-    <section className="grid grid-cols-1 gap-4 xl:grid-cols-[420px_1fr]">
-      <div className="panel p-4">
+    <section className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
+      {/* 新增/编辑表单：桌面端吸顶跟随页面滚动 */}
+      <div className="panel p-4 xl:sticky xl:top-6">
         <div className="mb-4">
           <h2 className="text-lg font-semibold text-gradient">{editingFood ? "编辑食物" : "新增食物"}</h2>
           <p className="text-sm text-muted">
@@ -388,18 +389,19 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated }: Foo
           </div>
         </div>
         <div className="scrollbar-thin overflow-x-auto">
-          <table className="w-full min-w-[920px] text-left text-sm">
+          {/* 单位并入表头、单元格全部 nowrap；操作列右侧吸附，窄屏横向滚动时也始终可见。 */}
+          <table className="w-full min-w-[860px] text-left text-sm [&_td]:whitespace-nowrap [&_th]:whitespace-nowrap">
             <thead className="border-b border-line text-[11px] uppercase tracking-[0.08em] text-muted-soft">
               <tr>
                 <th className="px-4 py-3">食物</th>
-                <th className="px-4 py-3">分类</th>
-                <th className="px-4 py-3">热量</th>
-                <th className="px-4 py-3">脂肪</th>
-                <th className="px-4 py-3">净碳水</th>
-                <th className="px-4 py-3">蛋白</th>
-                <th className="px-4 py-3">口径</th>
-                <th className="px-4 py-3">来源/校验</th>
-                <th className="px-4 py-3">操作</th>
+                <th className="px-3 py-3">分类</th>
+                <th className="px-3 py-3">热量 kcal</th>
+                <th className="px-3 py-3">脂肪 g</th>
+                <th className="px-3 py-3">净碳水 g</th>
+                <th className="px-3 py-3">蛋白 g</th>
+                <th className="px-3 py-3">口径</th>
+                <th className="px-3 py-3">来源</th>
+                <th className="sticky right-0 bg-surface px-3 py-3 text-right">操作</th>
               </tr>
             </thead>
             <tbody>
@@ -408,29 +410,29 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated }: Foo
                 const badge = severityBadge[mismatch.severity as "ok" | "warn" | "error"];
                 const isDuplicate = duplicateNames.has(food.name.trim().toLowerCase());
                 return (
-                  <tr key={food.id} className="border-t border-line transition-colors hover:bg-panel/40">
+                  <tr key={food.id} className="group border-t border-line transition-colors hover:bg-panel/40">
                     <td className="px-4 py-3 font-medium text-ink">
                       <div className="flex items-center gap-2">
                         <span>{food.name}</span>
-                        {isDuplicate ? <span className="rounded border border-rose/40 bg-rose/10 px-1.5 py-0.5 text-[10px] text-rose">重名</span> : null}
+                        {isDuplicate ? <span className="rounded-full border border-rose/40 bg-rose/10 px-1.5 py-0.5 text-[10px] text-rose">重名</span> : null}
                       </div>
                     </td>
-                    <td className="px-4 py-3">{food.category}</td>
-                    <td className="px-4 py-3" title={badge ? `按宏量应为 ${round(mismatch.macroKcalPer100g, 1)} kcal` : undefined}>
-                      {round(calculateFoodKcalPer100g(food), 1)} kcal
+                    <td className="px-3 py-3 text-muted">{food.category}</td>
+                    <td className="tabular-nums px-3 py-3" title={badge ? `按宏量应为 ${round(mismatch.macroKcalPer100g, 1)} kcal` : undefined}>
+                      {round(calculateFoodKcalPer100g(food), 1)}
                     </td>
-                    <td className="px-4 py-3">{food.fatPer100g} g</td>
-                    <td className="px-4 py-3">{food.carbsPer100g} g</td>
-                    <td className="px-4 py-3">{food.proteinPer100g} g</td>
-                    <td className="px-4 py-3">{food.weightBasis === "raw" ? "生重" : "熟重"}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-col gap-1">
+                    <td className="tabular-nums px-3 py-3">{food.fatPer100g}</td>
+                    <td className="tabular-nums px-3 py-3">{food.carbsPer100g}</td>
+                    <td className="tabular-nums px-3 py-3">{food.proteinPer100g}</td>
+                    <td className="px-3 py-3 text-muted">{food.weightBasis === "raw" ? "生重" : "熟重"}</td>
+                    <td className="px-3 py-3">
+                      <div className="flex items-center gap-1.5">
                         <span className="text-xs text-muted">{food.source === "public" ? (food.isUserOverride ? "公共·已修改" : "公共") : "本人"}</span>
-                        {badge ? <span className={`w-fit rounded border px-1.5 py-0.5 text-[10px] ${badge.cls}`}>{badge.label}</span> : null}
+                        {badge ? <span className={`rounded-full border px-1.5 py-0.5 text-[10px] ${badge.cls}`}>{badge.label}</span> : null}
                       </div>
                     </td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-2">
+                    <td className="sticky right-0 bg-surface px-3 py-3 shadow-[-10px_0_10px_-10px_rgba(31,30,29,0.10)] transition-colors group-hover:bg-[#F9F7F1]">
+                      <div className="flex justify-end gap-1.5">
                         <button className="btn-secondary h-8 px-2" type="button" onClick={() => startEditFood(food)} disabled={busy} title="编辑">
                           <Pencil size={14} />
                         </button>

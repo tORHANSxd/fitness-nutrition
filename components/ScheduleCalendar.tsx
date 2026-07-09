@@ -4,11 +4,11 @@ import type { User } from "@supabase/supabase-js";
 import { CalendarCheck, ChevronLeft, ChevronRight, Dumbbell, Trash2, Utensils } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { defaultProfile } from "@/lib/demoState";
-import { buildNutritionResult, carbDayLabels, round } from "@/lib/nutrition";
+import { buildNutritionResult, carbDayLabels, resolveCarbDayType, round } from "@/lib/nutrition";
 import { loadPlannerDraft, loadPlans, savePlan } from "@/lib/storage";
 import { carbDayLabelsForTraining, muscleGroupLabels, programTemplates, splitLabels, toDateKey } from "@/lib/training";
 import { deleteWorkoutSession, loadWorkoutSessions, saveWorkoutSession, TrainingAuthError } from "@/lib/trainingStorage";
-import type { CarbDayType, FoodItem, MuscleGroup, SavedPlan, TrainingSplit, WorkoutSession, WorkoutSet, WorkoutType } from "@/lib/types";
+import type { CarbDayType, FoodItem, SavedPlan, TrainingSplit, WorkoutSession, WorkoutSet } from "@/lib/types";
 
 interface ScheduleCalendarProps {
   user: User | null;
@@ -22,25 +22,6 @@ const carbDayDotClass: Record<CarbDayType, string> = {
   mid: "bg-accent/45",
   low: "bg-white/20"
 };
-
-function workoutTypeFromMuscles(groups: MuscleGroup[]): WorkoutType {
-  if (groups.some((g) => ["quads", "hamstrings", "glutes", "calves"].includes(g))) {
-    return "legs";
-  }
-  if (groups.includes("chest")) {
-    return "chest";
-  }
-  if (groups.includes("back")) {
-    return "back";
-  }
-  if (groups.includes("shoulders")) {
-    return "shoulders";
-  }
-  if (groups.some((g) => ["biceps", "triceps"].includes(g))) {
-    return "arms";
-  }
-  return "rest";
-}
 
 function monthMatrix(cursor: Date): Array<Array<{ date: Date; key: string; inMonth: boolean }>> {
   const year = cursor.getFullYear();
@@ -171,10 +152,9 @@ export function ScheduleCalendar({ user, foods, onGoTraining, onGoPlanner }: Sch
     }
     const draft = await loadPlannerDraft(user).catch(() => null);
     const baseProfile = draft?.profile ?? defaultProfile;
-    const workoutType = selectedSession
-      ? workoutTypeFromMuscles(Array.from(new Set(selectedSession.sets.map((s) => s.muscleGroup))))
-      : baseProfile.workoutType;
-    const profile = { ...baseProfile, workoutType, planDate: selectedDate };
+    // 有训练课则直接采用该课的碳日（TrainingLog 里选的高/中/低），否则沿用档案解析出的碳日。
+    const carbDayType: CarbDayType = selectedSession ? selectedSession.carbDayType : resolveCarbDayType(baseProfile);
+    const profile = { ...baseProfile, carbDayType, planDate: selectedDate };
     const result = buildNutritionResult(profile, [], foods);
     setBusy(true);
     setMessage(null);

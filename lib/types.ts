@@ -5,9 +5,11 @@ export type WeightBasis = "raw" | "cooked";
 export type Sex = "male" | "female";
 export type WorkoutType = "chest" | "back" | "legs" | "shoulders" | "arms" | "rest";
 export type CarbDayType = "high" | "mid" | "low";
-export type TrainingTime = "morning" | "afternoon" | "evening";
+export type TrainingTime = "morning" | "afternoon" | "evening" | "rest";
+/** 计划页「碳循环日」下拉可选项：张老师五分化只有高碳(腿日)与低碳。 */
+export const plannerCarbDayOptions = ["high", "low"] as const;
 export type NutritionGoal = "cut" | "maintain" | "bulk";
-export type ViewName = "overview" | "planner" | "schedule" | "training" | "templates" | "foods" | "history" | "login";
+export type ViewName = "overview" | "planner" | "meals" | "schedule" | "training" | "templates" | "foods" | "history" | "login";
 
 export type MuscleGroup =
   | "chest"
@@ -49,7 +51,10 @@ export interface UserProfile {
   calorieDeficit?: number;
   goalType?: NutritionGoal;
   weeklyWeightChangePct?: number;
-  workoutType: WorkoutType;
+  /** 当日碳循环日（主字段，计划页直接选高碳/低碳）。休息日强制低碳。 */
+  carbDayType?: CarbDayType;
+  /** 旧数据遗留字段：早期按训练部位派生碳日，现仅用于兼容历史草稿/计划的回退解析。 */
+  workoutType?: WorkoutType;
   trainingTime: TrainingTime;
   planDate: string;
 }

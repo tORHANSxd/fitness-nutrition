@@ -12,7 +12,7 @@ export const defaultProfile: UserProfile = {
   proteinPerKg: 1.8,
   goalType: "cut",
   weeklyWeightChangePct: 0.5,
-  workoutType: "legs",
+  carbDayType: "high",
   trainingTime: "afternoon",
   planDate: new Date().toISOString().slice(0, 10)
 };

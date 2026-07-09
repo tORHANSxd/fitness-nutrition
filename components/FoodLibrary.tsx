@@ -1,10 +1,11 @@
 "use client";
 
 import type { User } from "@supabase/supabase-js";
-import { ArrowDown, ArrowUp, ArrowUpDown, Copy, Download, Pencil, Plus, RotateCcw, Save, Search, Trash2, Upload, X } from "lucide-react";
+import { Copy, Download, Pencil, Plus, RotateCcw, Save, Search, Trash2, Upload, X } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { foodCategories, type FoodFormState, type FoodItem } from "@/lib/types";
 import { deleteFood, saveFood } from "@/lib/storage";
+import { sortFoods } from "@/lib/foods";
 import { calculateFoodKcalPer100g, getFoodEnergyMismatch, round } from "@/lib/nutrition";
 import { csvToFoodForms, foodsToCsv, jsonToFoodForms } from "@/lib/dataIO";
 
@@ -15,7 +16,6 @@ interface FoodLibraryProps {
   onFoodsUpdated: (foods: FoodItem[]) => void;
 }
 
-type SortKey = "name" | "kcal" | "carbs" | "protein" | "fat";
 type SourceFilter = "all" | "public" | "user";
 
 const emptyForm: FoodFormState = {
@@ -50,7 +50,6 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated }: Foo
   const [search, setSearch] = useState("");
   const [activeCategories, setActiveCategories] = useState<Set<FoodItem["category"]>>(new Set());
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
-  const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "name", dir: "asc" });
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [editingFood, setEditingFood] = useState<FoodItem | null>(null);
@@ -94,26 +93,9 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated }: Foo
       }
       return true;
     });
-    const dir = sort.dir === "asc" ? 1 : -1;
-    return filtered.sort((a, b) => {
-      if (sort.key === "name") {
-        return a.name.localeCompare(b.name, "zh-CN") * dir;
-      }
-      const pick = (food: FoodItem) =>
-        sort.key === "kcal"
-          ? calculateFoodKcalPer100g(food)
-          : sort.key === "carbs"
-            ? food.carbsPer100g
-            : sort.key === "protein"
-              ? food.proteinPer100g
-              : food.fatPer100g;
-      return (pick(a) - pick(b)) * dir;
-    });
-  }, [foods, search, activeCategories, sourceFilter, sort]);
-
-  function toggleSort(key: SortKey) {
-    setSort((prev) => (prev.key === key ? { key, dir: prev.dir === "asc" ? "desc" : "asc" } : { key, dir: key === "name" ? "asc" : "desc" }));
-  }
+    // 全站统一排序：始终按「分类 → 拼音名」，不再提供按营养素列排序。
+    return sortFoods(filtered);
+  }, [foods, search, activeCategories, sourceFilter]);
 
   function toggleCategory(category: FoodItem["category"]) {
     setActiveCategories((prev) => {
@@ -409,12 +391,12 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated }: Foo
           <table className="w-full min-w-[920px] text-left text-sm">
             <thead className="bg-surface/80 text-xs uppercase tracking-normal text-muted">
               <tr>
-                <SortableTh label="食物" sortKey="name" sort={sort} onSort={toggleSort} />
+                <th className="px-4 py-3">食物</th>
                 <th className="px-4 py-3">分类</th>
-                <SortableTh label="热量" sortKey="kcal" sort={sort} onSort={toggleSort} />
-                <SortableTh label="脂肪" sortKey="fat" sort={sort} onSort={toggleSort} />
-                <SortableTh label="净碳水" sortKey="carbs" sort={sort} onSort={toggleSort} />
-                <SortableTh label="蛋白" sortKey="protein" sort={sort} onSort={toggleSort} />
+                <th className="px-4 py-3">热量</th>
+                <th className="px-4 py-3">脂肪</th>
+                <th className="px-4 py-3">净碳水</th>
+                <th className="px-4 py-3">蛋白</th>
                 <th className="px-4 py-3">口径</th>
                 <th className="px-4 py-3">来源/校验</th>
                 <th className="px-4 py-3">操作</th>
@@ -483,14 +465,3 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated }: Foo
   );
 }
 
-function SortableTh({ label, sortKey, sort, onSort }: { label: string; sortKey: SortKey; sort: { key: SortKey; dir: "asc" | "desc" }; onSort: (key: SortKey) => void }) {
-  const active = sort.key === sortKey;
-  const Icon = !active ? ArrowUpDown : sort.dir === "asc" ? ArrowUp : ArrowDown;
-  return (
-    <th className="px-4 py-3">
-      <button type="button" className={`inline-flex items-center gap-1 ${active ? "text-accent" : "hover:text-ink"}`} onClick={() => onSort(sortKey)}>
-        {label} <Icon size={12} />
-      </button>
-    </th>
-  );
-}

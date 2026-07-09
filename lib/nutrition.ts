@@ -187,7 +187,8 @@ export const carbDayLabels: Record<CarbDayType, string> = {
 export const trainingTimeLabels: Record<TrainingTime, string> = {
   morning: "上午训练",
   afternoon: "午后训练",
-  evening: "傍晚训练"
+  evening: "傍晚训练",
+  rest: "休息日"
 };
 
 export const goalLabels: Record<NutritionGoal, string> = {
@@ -486,6 +487,24 @@ export function getCarbDayType(workoutType: WorkoutType): CarbDayType {
   return "low";
 }
 
+// 解析当日碳循环日：①休息日（训练时间选休息日）强制低碳；②否则用计划页直接选的 carbDayType；
+// ③再回退旧数据的训练部位派生（腿日=高碳，旧 workoutType="rest" 经 getCarbDayType 也得低碳）；
+// ④信息缺失时默认低碳。显式 carbDayType 优先于遗留字段，避免旧休息日草稿把碳日锁死改不动。
+export function resolveCarbDayType(
+  profile: Pick<UserProfile, "carbDayType" | "workoutType" | "trainingTime">
+): CarbDayType {
+  if (profile.trainingTime === "rest") {
+    return "low";
+  }
+  if (profile.carbDayType) {
+    return profile.carbDayType;
+  }
+  if (profile.workoutType) {
+    return getCarbDayType(profile.workoutType);
+  }
+  return "low";
+}
+
 // 从张老师基线系数推导「当日碳水占（碳水+脂肪）能量的比例」：真正随碳循环摆动的是碳水与脂肪，
 // 高碳日碳重脂轻、低碳日碳轻脂重——这个比例即张老师三大营养素配比里可循环的部分。
 function zhangCarbFatSplit(carbDayType: CarbDayType): number {
@@ -504,8 +523,9 @@ function zhangCarbFatSplit(carbDayType: CarbDayType): number {
 // 活动能量变化；缺口默认 500，可在档案里按视频/自身调整）。蛋白固定 W×g/kg（凯圣王/张老师方案中蛋白
 // 本就每日固定、碳循环只在碳↔脂间摆动），其余热量按「当日碳:脂配比」拆成碳水与脂肪。于是配比仍是那一套、
 // 碳循环日总热量恒定，但目标真正跟着”消耗−缺口”走——修复”系数总热量与真实 TDEE 差出大窗口却浑然不觉”。
-export function calculateDailyTarget(profile: UserProfile): MacroTotals {
-  const carbDayType = getCarbDayType(profile.workoutType);
+// 按指定碳日算当日目标：总热量=TDEE−缺口，蛋白固定，其余热量按该碳日的碳:脂配比拆成碳水与脂肪。
+// 供 calculateDailyTarget 与周均对照复用；碳日由调用方（经 resolveCarbDayType）决定，本函数不含休息日强制。
+function dailyTargetForCarbDay(profile: UserProfile, carbDayType: CarbDayType): MacroTotals {
   const protein = profile.weightKg * getProteinPerKg(profile);
   const tdee = calculateTdee(profile);
   const carbFatKcal = Math.max(tdee - getCalorieDeficit(profile) - protein * 4, 0);
@@ -523,10 +543,14 @@ export function calculateDailyTarget(profile: UserProfile): MacroTotals {
   };
 }
 
+export function calculateDailyTarget(profile: UserProfile): MacroTotals {
+  return dailyTargetForCarbDay(profile, resolveCarbDayType(profile));
+}
+
 // 周均目标：一周 1 高碳(腿)+6 低碳，各日总热量均=当日 TDEE；此处给出周平均的宏量分布用于展示与对照。
 export function calculateCycleAverageTarget(profile: UserProfile): MacroTotals {
-  const high = calculateDailyTarget({ ...profile, workoutType: "legs" });
-  const low = calculateDailyTarget({ ...profile, workoutType: "chest" });
+  const high = dailyTargetForCarbDay(profile, "high");
+  const low = dailyTargetForCarbDay(profile, "low");
   const highDays = carbCycleDistribution.high.daysPerWeek;
   const lowDays = carbCycleDistribution.low.daysPerWeek;
   const weeklyAverage = (highValue: number, lowValue: number) =>
@@ -580,7 +604,8 @@ export function calculateMealsTotals(meals: MealPlan[], foods: FoodItem[]) {
 }
 
 export function createDefaultMeals(profile: UserProfile): MealPlan[] {
-  if (profile.workoutType === "rest") {
+  // 休息日（训练时间选休息日；或旧数据里训练部位=休息）无训练前加餐，回退三餐结构。
+  if (profile.trainingTime === "rest" || profile.workoutType === "rest") {
     return [
       { id: "breakfast", name: "早餐", ratio: 0.3, locked: false, entries: [] },
       { id: "lunch", name: "午餐", ratio: 0.4, locked: false, entries: [] },
@@ -588,7 +613,7 @@ export function createDefaultMeals(profile: UserProfile): MealPlan[] {
     ];
   }
 
-  const ratiosByTime: Record<TrainingTime, number[]> = {
+  const ratiosByTime: Record<Exclude<TrainingTime, "rest">, number[]> = {
     morning: [0.28, 0.32, 0.1, 0.3],
     afternoon: [0.25, 0.35, 0.1, 0.3],
     evening: [0.25, 0.3, 0.15, 0.3]
@@ -1335,7 +1360,7 @@ export function buildNutritionResult(profile: UserProfile, meals: MealPlan[], fo
     bmr: calculateBmr(profile),
     tdee,
     plannedCalorieDelta,
-    carbDayType: getCarbDayType(profile.workoutType),
+    carbDayType: resolveCarbDayType(profile),
     cycleAverageTarget,
     dailyTarget,
     actualTotals,

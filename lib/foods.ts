@@ -1,4 +1,28 @@
-import type { FoodItem } from "@/lib/types";
+import { foodCategories, type FoodItem } from "@/lib/types";
+
+// 分类排序权重：按 foodCategories 声明顺序（主食→蔬菜→水果→肉类→补剂→坚果）。
+const categoryOrder = new Map<string, number>(foodCategories.map((category, index) => [category, index]));
+
+/**
+ * 全站统一的食物排序：先按分类（foodCategories 顺序），同类内再按食物名称拼音升序。
+ * 名称用 zh-CN 本地化比较（按拼音，而非 Unicode 码点）。未知分类排到最后。
+ */
+export function compareFoodsByCategoryThenName(
+  a: Pick<FoodItem, "category" | "name">,
+  b: Pick<FoodItem, "category" | "name">
+): number {
+  const categoryDiff =
+    (categoryOrder.get(a.category) ?? foodCategories.length) - (categoryOrder.get(b.category) ?? foodCategories.length);
+  if (categoryDiff !== 0) {
+    return categoryDiff;
+  }
+  return a.name.localeCompare(b.name, "zh-CN", { numeric: true });
+}
+
+/** 返回按「分类→拼音名」排好序的新数组（不改动入参）。 */
+export function sortFoods<T extends Pick<FoodItem, "category" | "name">>(foods: T[]): T[] {
+  return [...foods].sort(compareFoodsByCategoryThenName);
+}
 
 // carbsPer100g 记录净碳水/可利用碳水；蔬菜不把不可供能的碳水组分计入三大营养素。
 export const builtinFoods: FoodItem[] = [

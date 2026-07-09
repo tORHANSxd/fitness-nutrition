@@ -19,6 +19,7 @@ import {
   getMacroRatioCheck,
   getCarbDayType,
   getProteinPerKg,
+  resolveCarbDayType,
   round
 } from "@/lib/nutrition";
 import type { FoodItem, MealPlan, UserProfile } from "@/lib/types";
@@ -169,7 +170,7 @@ describe("nutrition formulas", () => {
   it("checks macro ratios against carb cycle targets and goal ranges", () => {
     const target = calculateDailyTarget(profile);
     const targetRatio = calculateMacroRatio(target);
-    const check = getMacroRatioCheck(targetRatio, targetRatio, "cut", getCarbDayType(profile.workoutType));
+    const check = getMacroRatioCheck(targetRatio, targetRatio, "cut", resolveCarbDayType(profile));
 
     expect(check.cycleAligned).toBe(true);
     expect(check.goalAligned).toBe(true);
@@ -235,6 +236,50 @@ describe("nutrition formulas", () => {
   it("creates training and rest meals with expected counts", () => {
     expect(createDefaultMeals(profile)).toHaveLength(4);
     expect(createDefaultMeals({ ...profile, workoutType: "rest" })).toHaveLength(3);
+  });
+});
+
+describe("carb day model (explicit carbDayType + rest day)", () => {
+  it("resolves an explicit carbDayType, letting it win over the legacy workoutType", () => {
+    expect(resolveCarbDayType({ carbDayType: "high", trainingTime: "afternoon" })).toBe("high");
+    expect(resolveCarbDayType({ carbDayType: "low", trainingTime: "afternoon" })).toBe("low");
+  });
+
+  it("forces low carb on a rest day picked via trainingTime", () => {
+    expect(resolveCarbDayType({ carbDayType: "high", trainingTime: "rest" })).toBe("low");
+  });
+
+  it("falls back to deriving the carb day from a legacy workoutType when carbDayType is absent", () => {
+    expect(resolveCarbDayType({ workoutType: "legs", trainingTime: "afternoon" })).toBe("high");
+    expect(resolveCarbDayType({ workoutType: "chest", trainingTime: "afternoon" })).toBe("low");
+    expect(resolveCarbDayType({ trainingTime: "afternoon" })).toBe("low"); // 无任何信息时默认低碳
+  });
+
+  it("drives the daily target by the explicit carbDayType (carbs vs fat swing)", () => {
+    const high = calculateDailyTarget({ ...profile, workoutType: undefined, carbDayType: "high" });
+    const low = calculateDailyTarget({ ...profile, workoutType: undefined, carbDayType: "low" });
+    expect(high.carbs).toBeGreaterThan(low.carbs);
+    expect(high.fat).toBeLessThan(low.fat);
+    expect(round(high.kcal, 0)).toBe(round(low.kcal, 0)); // 总热量不随碳日变
+  });
+
+  it("collapses a rest day onto the low-carb target even if carbDayType says high", () => {
+    const rest = calculateDailyTarget({ ...profile, carbDayType: "high", trainingTime: "rest" });
+    const low = calculateDailyTarget({ ...profile, carbDayType: "low", trainingTime: "afternoon" });
+    expect(round(rest.carbs, 1)).toBe(round(low.carbs, 1));
+    expect(round(rest.fat, 1)).toBe(round(low.fat, 1));
+  });
+
+  it("creates 3 meals on a rest day chosen via trainingTime", () => {
+    expect(createDefaultMeals({ ...profile, trainingTime: "rest" })).toHaveLength(3);
+    expect(createDefaultMeals({ ...profile, trainingTime: "afternoon" })).toHaveLength(4);
+  });
+
+  it("reports the resolved carb day on the nutrition result", () => {
+    const result = buildNutritionResult({ ...profile, workoutType: undefined, carbDayType: "high" }, [], builtinFoods);
+    expect(result.carbDayType).toBe("high");
+    const restResult = buildNutritionResult({ ...profile, carbDayType: "high", trainingTime: "rest" }, [], builtinFoods);
+    expect(restResult.carbDayType).toBe("low");
   });
 });
 

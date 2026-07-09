@@ -1,16 +1,18 @@
 "use client";
 
 import type { User } from "@supabase/supabase-js";
-import { BarChart3, CalendarCheck, CalendarClock, CalendarRange, Dumbbell, LayoutGrid, LayoutTemplate, Library, LogOut, RefreshCw } from "lucide-react";
+import { BarChart3, CalendarCheck, CalendarClock, CalendarRange, Dumbbell, LayoutGrid, LayoutTemplate, Library, LogOut, RefreshCw, UtensilsCrossed } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { AuthPanel } from "@/components/AuthPanel";
 import { FoodLibrary } from "@/components/FoodLibrary";
 import { HistoryView } from "@/components/HistoryView";
-import { NutritionPlanner } from "@/components/NutritionPlanner";
+import { MealSplitView } from "@/components/MealSplitView";
 import { OverviewCalendar } from "@/components/OverviewCalendar";
+import { PlannerProfileView } from "@/components/PlannerProfileView";
 import { ScheduleCalendar } from "@/components/ScheduleCalendar";
 import { TemplateManager } from "@/components/TemplateManager";
 import { TrainingLog } from "@/components/TrainingLog";
+import { usePlanner } from "@/components/usePlanner";
 import { builtinFoods } from "@/lib/foods";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase";
 import { loadFoods, loadPlannerTemplates, savePlannerTemplates } from "@/lib/storage";
@@ -23,6 +25,7 @@ interface AppShellProps {
 const navItems: Array<{ id: ViewName; label: string; shortLabel: string; icon: typeof Dumbbell }> = [
   { id: "overview", label: "总览", shortLabel: "总览", icon: LayoutGrid },
   { id: "planner", label: "当天计划", shortLabel: "计划", icon: Dumbbell },
+  { id: "meals", label: "分餐计划", shortLabel: "分餐", icon: UtensilsCrossed },
   { id: "schedule", label: "安排日历", shortLabel: "安排", icon: CalendarCheck },
   { id: "training", label: "训练日历", shortLabel: "训练", icon: CalendarRange },
   { id: "templates", label: "模板管理", shortLabel: "模板", icon: LayoutTemplate },
@@ -48,7 +51,7 @@ export function AppShell({ initialView }: AppShellProps) {
       entries: meal.entries.map((entry) => ({ ...entry, id: crypto.randomUUID() }))
     }));
     setApplyRequest({ meals, nonce: Date.now() });
-    setView("planner");
+    setView("meals");
   }
 
   function editPlannerForDate(date: string, plan: SavedPlan | null) {
@@ -147,6 +150,9 @@ export function AppShell({ initialView }: AppShellProps) {
       setView("overview");
     }
   }, [user, view]);
+
+  // 计划器状态（profile/meals/草稿/求解结果）在此集中一次，供「当天计划」与「分餐计划」两页共享。
+  const planner = usePlanner({ foods, templates, user, onTemplatesChanged: persistTemplates, applyRequest, openDateRequest });
 
   function persistTemplates(nextTemplates: PlannerTemplates) {
     // 乐观更新：先本地反映，再异步落 Supabase；失败回滚到云端真实值。
@@ -316,7 +322,10 @@ export function AppShell({ initialView }: AppShellProps) {
               <OverviewCalendar user={user} onEditPlanner={editPlannerForDate} onEditTraining={editTrainingForDate} />
             </div>
             <div className={view === "planner" ? "animate-view" : "hidden"}>
-              <NutritionPlanner foods={foods} templates={templates} user={user} onFoodsChanged={refreshFoods} onTemplatesChanged={persistTemplates} applyRequest={applyRequest} openDateRequest={openDateRequest} />
+              <PlannerProfileView controller={planner} />
+            </div>
+            <div className={view === "meals" ? "animate-view" : "hidden"}>
+              <MealSplitView controller={planner} foods={foods} templates={templates} />
             </div>
             <div className={view === "schedule" ? "animate-view" : "hidden"}>
               <ScheduleCalendar user={user} foods={foods} onGoTraining={editTrainingForDate} onGoPlanner={editPlannerForDate} />
@@ -338,7 +347,7 @@ export function AppShell({ initialView }: AppShellProps) {
       </main>
 
       {/* 移动端底部导航 */}
-      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-7 gap-0.5 border-t border-line bg-ground/85 px-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl lg:hidden" aria-label="主导航">
+      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-8 gap-0.5 border-t border-line bg-ground/85 px-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl lg:hidden" aria-label="主导航">
         {navItems.map((item) => {
           const Icon = item.icon;
           const active = view === item.id;

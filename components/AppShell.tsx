@@ -191,9 +191,9 @@ export function AppShell({ initialView }: AppShellProps) {
   if (authReady && !user) {
     return (
       <div className="relative z-10 flex min-h-dvh items-center justify-center px-4 py-10">
-        <div className="w-full max-w-2xl">
+        <div className="w-full max-w-md">
           {/* anthropic 式登录头：星芒 + 大衬线标题，居中极简 */}
-          <div className="mb-10 flex flex-col items-center gap-4 text-center">
+          <div className="mb-8 flex flex-col items-center gap-4 text-center">
             <span className="text-accent">
               <BrandMark size={44} />
             </span>
@@ -203,10 +203,7 @@ export function AppShell({ initialView }: AppShellProps) {
             </div>
           </div>
           {configured ? (
-            <>
-              <AuthPanel user={user} onSignedIn={setUser} />
-              <p className="mt-4 text-center text-xs text-muted">所有数据按账户保存在 Supabase 云端；首次使用请先注册。</p>
-            </>
+            <AuthPanel user={user} onSignedIn={setUser} />
           ) : (
             <div className="panel px-6 py-8 text-center">
               <p className="text-sm text-ink">未配置 Supabase 云端存储。</p>

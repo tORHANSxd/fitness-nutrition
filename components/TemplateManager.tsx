@@ -35,10 +35,11 @@ export function TemplateManager({ templates, foods, onTemplatesChanged, onApplyD
         <div className="grid grid-cols-1 gap-4 p-4 xl:grid-cols-2">
           <TemplateSection count={templates.dayTemplates.length} emptyText="还没有全天模板，可在分餐计划中保存。" icon="day" title="全天模板">
             {templates.dayTemplates.map((template) => (
-              <div key={template.id} className="hover-lift rounded-xl border border-line bg-surface/70 p-3">
+              <div key={template.id} className="hover-lift min-w-0 rounded-xl border border-line bg-surface/70 p-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-semibold text-ink" title={template.name}>{template.name}</div>
+                    {/* 模板名=食物清单，可能很长：最多两行、超出省略（悬停看全名），不许撑破布局 */}
+                    <div className="line-clamp-2 break-all text-sm font-semibold leading-snug text-ink" title={template.name}>{template.name}</div>
                     <div className="mt-0.5 text-[11px] text-muted">
                       {template.meals.length} 餐 · {new Date(template.createdAt).toLocaleDateString("zh-CN")}
                     </div>
@@ -66,10 +67,10 @@ export function TemplateManager({ templates, foods, onTemplatesChanged, onApplyD
 
           <TemplateSection count={templates.mealTemplates.length} emptyText="还没有单餐模板，可在分餐计划中保存。" icon="meal" title="单餐模板">
             {templates.mealTemplates.map((template) => (
-              <div key={template.id} className="hover-lift rounded-xl border border-line bg-surface/70 p-3">
+              <div key={template.id} className="hover-lift min-w-0 rounded-xl border border-line bg-surface/70 p-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-semibold text-ink" title={template.name}>{template.name}</div>
+                    <div className="line-clamp-2 break-all text-sm font-semibold leading-snug text-ink" title={template.name}>{template.name}</div>
                     <div className="mt-0.5 text-[11px] text-muted">
                       {template.foods.length} 种食物 · {new Date(template.createdAt).toLocaleDateString("zh-CN")}
                     </div>
@@ -113,7 +114,8 @@ function FoodChips({ refs, foodsById }: { refs: TemplateFoodRef[]; foodsById: Ma
 function TemplateSection({ children, count, emptyText, icon, title }: { children: ReactNode; count: number; emptyText: string; icon: "day" | "meal"; title: string }) {
   const Icon = icon === "day" ? CalendarDays : Utensils;
   return (
-    <section className="rounded-md border border-line bg-panel p-3">
+    // min-w-0：grid 子项默认 min-width:auto，超长模板名会把整条轨道撑爆、按钮被顶出卡外
+    <section className="min-w-0 rounded-md border border-line bg-panel p-3">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-accent/10 text-accent ring-1 ring-accent/20">

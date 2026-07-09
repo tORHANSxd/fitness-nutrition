@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { AuthPanel } from "@/components/AuthPanel";
 import { FoodPickerDialog } from "@/components/FoodPickerDialog";
 import { MealSplitView } from "@/components/MealSplitView";
 import { PlannerProfileView } from "@/components/PlannerProfileView";
@@ -93,6 +94,22 @@ describe("FoodPickerDialog（先选分类，再选食物）", () => {
     expect(screen.getByText("苹果")).toBeInTheDocument();
     expect(screen.queryByText("白米饭")).not.toBeInTheDocument();
     expect(screen.queryByText("鸡胸肉")).not.toBeInTheDocument();
+  });
+});
+
+describe("AuthPanel（Claude 式单列登录卡）", () => {
+  it("renders the login form with email/password, primary action and a register link", () => {
+    render(<AuthPanel user={null} onSignedIn={vi.fn()} />);
+
+    expect(screen.getByRole("heading", { name: "登录" })).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("name@example.com")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("至少 6 位")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "登录" })).toBeInTheDocument();
+
+    // 模式切换是文字链接式按钮，而不是第二个大按钮。
+    fireEvent.click(screen.getByRole("button", { name: "注册" }));
+    expect(screen.getByRole("heading", { name: "注册" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "登录" })).toBeInTheDocument(); // 切回链接
   });
 });
 

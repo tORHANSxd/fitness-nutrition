@@ -79,6 +79,25 @@ select {
   min-width: 0;
 }
 
+/* iOS Safari：date 输入与 select 有 UA 内在最小宽度，长内容（本地化日期、超长模板名 option）
+   会顶开 width:100%、把框撑出卡片。统一驯服：去 UA 外观 + 锁最大宽度。 */
+input[type="date"],
+select {
+  max-width: 100%;
+}
+
+input[type="date"] {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+}
+
+/* iOS date 输入 shadow 部件：去掉默认外边距并左对齐，appearance:none 后文字不再飘。 */
+input[type="date"]::-webkit-date-and-time-value {
+  margin: 0;
+  text-align: left;
+}
+
 /* ------------------------------------------------------------
    组件类必须包进 @layer components：这样 JSX 里的工具类（pl-9、h-9、px-2 等）
    才能按 Tailwind 层级正确覆盖组件默认值（此前裸规则排在 utilities 之后，

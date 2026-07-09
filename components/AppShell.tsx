@@ -192,13 +192,14 @@ export function AppShell({ initialView }: AppShellProps) {
     return (
       <div className="relative z-10 flex min-h-dvh items-center justify-center px-4 py-10">
         <div className="w-full max-w-2xl">
-          <div className="mb-6 flex items-center gap-3">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-accent/[0.12] text-accent ring-1 ring-accent/25">
-              <BrandMark size={26} />
-            </div>
-            <div className="min-w-0 leading-tight">
-              <div className="text-xl font-semibold tracking-tight text-ink">健身营养</div>
-              <div className="text-sm text-muted">碳循环计划器 · 登录后开始使用</div>
+          {/* anthropic 式登录头：星芒 + 大衬线标题，居中极简 */}
+          <div className="mb-10 flex flex-col items-center gap-4 text-center">
+            <span className="text-accent">
+              <BrandMark size={44} />
+            </span>
+            <div>
+              <h1 className="text-4xl text-ink">健身营养</h1>
+              <p className="mt-2 text-sm text-muted">碳循环计划器 · 登录后开始使用</p>
             </div>
           </div>
           {configured ? (
@@ -225,52 +226,59 @@ export function AppShell({ initialView }: AppShellProps) {
     <div className="relative z-10 min-h-dvh lg:pl-64">
       <a className="skip-link" href="#main-content">跳到主要内容</a>
 
-      {/* 桌面：固定左侧边栏 */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-line bg-panel/60 px-4 py-6 backdrop-blur-xl lg:flex">
-        <div className="flex items-center gap-3 px-1">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent/[0.12] text-accent ring-1 ring-accent/25">
+      {/* 桌面：固定左侧边栏（claude.ai 式：燕麦底、紧凑导航、oat pill 激活态） */}
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col bg-panel px-3 py-5 lg:flex">
+        <div className="flex items-center gap-2.5 px-2">
+          <span className="shrink-0 text-accent">
             <BrandMark size={22} />
-          </div>
+          </span>
           <div className="min-w-0 leading-tight">
-            <div className="text-[15px] font-semibold tracking-tight text-ink">健身营养</div>
-            <div className="text-xs text-muted">碳循环计划器</div>
+            <div className="font-display text-[17px] text-ink">健身营养</div>
           </div>
         </div>
 
-        <nav className="mt-8 flex flex-col gap-1" aria-label="主导航">
+        <nav className="mt-7 flex flex-col gap-0.5" aria-label="主导航">
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = view === item.id;
             return (
               <button
                 key={item.id}
-                className={`group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${
-                  active ? "bg-raised font-semibold text-ink" : "text-muted hover:bg-panel hover:text-ink"
+                className={`group relative flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-[13.5px] transition-colors ${
+                  active ? "bg-raised font-medium text-ink" : "text-muted hover:bg-black/[0.04] hover:text-ink"
                 }`}
                 type="button"
                 onClick={() => setView(item.id)}
                 aria-current={active ? "page" : undefined}
               >
-                <Icon size={18} className="shrink-0" />
+                <Icon size={17} className={`shrink-0 ${active ? "text-accent2" : "text-muted-soft group-hover:text-muted"}`} />
                 <span className="truncate">{item.label}</span>
               </button>
             );
           })}
         </nav>
 
-        <div className="mt-auto flex flex-col gap-2 pt-6">
-          <div className="rounded-lg border border-line bg-ground/50 px-3 py-2.5">
-            <div className="flex items-center gap-2">
-              <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${configured && user ? "bg-accent" : "bg-muted"}`} />
-              <span className="truncate text-xs text-muted">{userStatus}</span>
-            </div>
+        <div className="mt-auto flex flex-col gap-1 border-t border-black/[0.06] pt-4">
+          <div className="flex items-center gap-2 px-2.5 pb-2">
+            <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${configured && user ? "bg-success" : "bg-muted-soft"}`} />
+            <span className="truncate text-xs text-muted">{userStatus}</span>
           </div>
-          <button className="btn-secondary h-10 justify-start px-3" type="button" onClick={refreshFoods} title="刷新食物库">
+          <button
+            className="flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-[13.5px] text-muted transition-colors hover:bg-black/[0.04] hover:text-ink"
+            type="button"
+            onClick={refreshFoods}
+            title="刷新食物库"
+          >
             <RefreshCw size={16} className={loadingFoods ? "animate-spin" : ""} />
             <span>刷新数据</span>
           </button>
           {user ? (
-            <button className="btn-secondary h-10 justify-start px-3" type="button" onClick={signOut} title="退出登录">
+            <button
+              className="flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-[13.5px] text-muted transition-colors hover:bg-black/[0.04] hover:text-ink"
+              type="button"
+              onClick={signOut}
+              title="退出登录"
+            >
               <LogOut size={16} />
               <span>退出登录</span>
             </button>
@@ -279,36 +287,33 @@ export function AppShell({ initialView }: AppShellProps) {
       </aside>
 
       {/* 移动/平板：顶部细 bar */}
-      <header className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-line bg-ground/80 px-4 py-3 backdrop-blur-xl lg:hidden">
+      <header className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-line bg-ground/90 px-4 py-3 backdrop-blur-xl lg:hidden">
         <div className="flex min-w-0 items-center gap-2.5">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent/[0.12] text-accent ring-1 ring-accent/25">
-            <BrandMark size={20} />
-          </div>
+          <span className="shrink-0 text-accent">
+            <BrandMark size={22} />
+          </span>
           <div className="min-w-0">
-            <div className="text-sm font-semibold tracking-tight text-ink">{activeLabel}</div>
+            <div className="font-display text-[16px] leading-tight text-ink">{activeLabel}</div>
             <div className="truncate text-[11px] text-muted">{userStatus}</div>
           </div>
         </div>
-        <div className="flex shrink-0 gap-2">
-          <button className="btn-secondary h-9 px-3" type="button" onClick={refreshFoods} title="刷新食物库">
-            <RefreshCw size={16} className={loadingFoods ? "animate-spin" : ""} />
+        <div className="flex shrink-0 gap-1.5">
+          <button className="btn-secondary h-9 min-h-0 px-3" type="button" onClick={refreshFoods} title="刷新食物库">
+            <RefreshCw size={15} className={loadingFoods ? "animate-spin" : ""} />
           </button>
           {user ? (
-            <button className="btn-secondary h-9 px-3" type="button" onClick={signOut} title="退出登录">
-              <LogOut size={16} />
+            <button className="btn-secondary h-9 min-h-0 px-3" type="button" onClick={signOut} title="退出登录">
+              <LogOut size={15} />
             </button>
           ) : null}
         </div>
       </header>
 
       <main className="mx-auto w-full max-w-[1240px] px-4 py-6 pb-28 md:px-8 lg:pb-12">
-        {/* 桌面页头 */}
-        <div className="mb-6 hidden items-end justify-between gap-4 lg:flex">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-ink">{activeLabel}</h1>
-            <p className="mt-1 text-sm text-muted">{userStatus}</p>
-          </div>
-          <p className="text-sm text-muted">{today}</p>
+        {/* 桌面页头：大衬线标题（Claude 官网排版锚点） */}
+        <div className="mb-8 hidden items-end justify-between gap-4 lg:flex">
+          <h1 className="text-[34px] text-ink">{activeLabel}</h1>
+          <p className="pb-1 text-sm text-muted">{today}</p>
         </div>
 
         {!authReady ? (

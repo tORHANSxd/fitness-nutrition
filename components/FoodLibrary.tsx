@@ -389,7 +389,7 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated }: Foo
         </div>
         <div className="scrollbar-thin overflow-x-auto">
           <table className="w-full min-w-[920px] text-left text-sm">
-            <thead className="bg-surface/80 text-xs uppercase tracking-normal text-muted">
+            <thead className="border-b border-line text-[11px] uppercase tracking-[0.08em] text-muted-soft">
               <tr>
                 <th className="px-4 py-3">食物</th>
                 <th className="px-4 py-3">分类</th>
@@ -408,7 +408,7 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated }: Foo
                 const badge = severityBadge[mismatch.severity as "ok" | "warn" | "error"];
                 const isDuplicate = duplicateNames.has(food.name.trim().toLowerCase());
                 return (
-                  <tr key={food.id} className="border-t border-line transition-colors hover:bg-accent/5">
+                  <tr key={food.id} className="border-t border-line transition-colors hover:bg-panel/40">
                     <td className="px-4 py-3 font-medium text-ink">
                       <div className="flex items-center gap-2">
                         <span>{food.name}</span>

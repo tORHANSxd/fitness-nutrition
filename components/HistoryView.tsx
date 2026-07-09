@@ -78,7 +78,7 @@ export function HistoryView({ user }: HistoryViewProps) {
       ) : null}
       <div className="scrollbar-thin overflow-x-auto">
         <table className="w-full min-w-[860px] text-left text-sm">
-          <thead className="bg-surface/80 text-xs uppercase tracking-normal text-muted">
+          <thead className="border-b border-line text-[11px] uppercase tracking-[0.08em] text-muted-soft">
             <tr>
               <th className="px-4 py-3">日期</th>
               <th className="px-4 py-3">训练时间</th>
@@ -102,7 +102,7 @@ export function HistoryView({ user }: HistoryViewProps) {
               plans.map((plan, index) => (
                 <tr
                   key={plan.id}
-                  className="border-t border-line animate-fade-up transition-colors hover:bg-accent/5"
+                  className="border-t border-line animate-fade-up transition-colors hover:bg-panel/40"
                   style={{ animationDelay: `${index * 40}ms` }}
                 >
                   <td className="px-4 py-3 font-medium text-ink">{plan.planDate}</td>

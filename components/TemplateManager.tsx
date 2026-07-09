@@ -35,7 +35,7 @@ export function TemplateManager({ templates, foods, onTemplatesChanged, onApplyD
         <div className="grid grid-cols-1 gap-4 p-4 xl:grid-cols-2">
           <TemplateSection count={templates.dayTemplates.length} emptyText="还没有全天模板，可在分餐计划中保存。" icon="day" title="全天模板">
             {templates.dayTemplates.map((template) => (
-              <div key={template.id} className="rounded-xl border border-line bg-surface/70 p-3">
+              <div key={template.id} className="hover-lift rounded-xl border border-line bg-surface/70 p-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-semibold text-ink" title={template.name}>{template.name}</div>
@@ -66,7 +66,7 @@ export function TemplateManager({ templates, foods, onTemplatesChanged, onApplyD
 
           <TemplateSection count={templates.mealTemplates.length} emptyText="还没有单餐模板，可在分餐计划中保存。" icon="meal" title="单餐模板">
             {templates.mealTemplates.map((template) => (
-              <div key={template.id} className="rounded-xl border border-line bg-surface/70 p-3">
+              <div key={template.id} className="hover-lift rounded-xl border border-line bg-surface/70 p-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-semibold text-ink" title={template.name}>{template.name}</div>

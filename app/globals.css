@@ -2,11 +2,17 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Claude 官网风：象牙奶油纸底、白卡片、珊瑚陶土强调、衬线大标题 + 无衬线正文。 */
+/* ============================================================
+   Claude 官网风设计系统 v2
+   —— 象牙纸底、白卡片、深墨/白 pill 按钮、珊瑚点缀、衬线大标题、
+      expo-out 克制动效。对齐 claude.ai / anthropic.com 的观感。
+   ============================================================ */
 :root {
   color-scheme: light;
   --ground: #faf9f5;
   --hairline: rgba(31, 30, 29, 0.1);
+  /* anthropic 官网动效曲线：柔和的 expo-out */
+  --ease-out-soft: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 * {
@@ -36,11 +42,18 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-/* 大标题走衬线（Claude 官网的 Copernicus 气质）：h1/h2 与 .font-display。 */
+/* 大标题走衬线（Copernicus 气质）：字重适中、字距微收、行高紧。 */
 h1,
 h2,
 .font-display {
   font-family: var(--font-serif), Georgia, "Songti SC", "SimSun", serif;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+h3,
+h4 {
   letter-spacing: -0.01em;
 }
 
@@ -52,12 +65,12 @@ select {
 
 button {
   transition:
-    background-color 160ms ease,
-    border-color 160ms ease,
-    color 160ms ease,
-    box-shadow 220ms ease,
-    opacity 160ms ease,
-    transform 140ms ease;
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease,
+    box-shadow 200ms var(--ease-out-soft),
+    opacity 150ms ease,
+    transform 200ms var(--ease-out-soft);
   touch-action: manipulation;
 }
 
@@ -66,77 +79,136 @@ select {
   min-width: 0;
 }
 
+/* Claude 式聚焦：边框转深墨 + 极淡外圈（不是霓虹 ring）。 */
 .focus-ring {
-  @apply focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent/60;
+  @apply focus:outline-none focus:border-[#B9B5A7] focus:shadow-[0_0_0_3px_rgba(31,30,29,0.06)];
 }
 
-/* 输入框：白底暖描边。移动端字号 16px（sm 及以上回落 14px），避免 iOS 聚焦 <16px 输入框时强制放大页面 */
+/* 输入框：白底、暖灰细边、hover 微深；移动端字号 16px（sm 及以上回落 14px），
+   避免 iOS 聚焦 <16px 输入框时强制放大页面。 */
 .field {
-  @apply h-11 rounded-lg border border-line bg-surface px-3 text-base text-ink placeholder:text-muted-soft focus-ring sm:text-sm;
+  @apply h-11 rounded-lg border border-line bg-surface px-3 text-base text-ink transition-colors placeholder:text-muted-soft hover:border-[#D5D0C2] focus-ring sm:text-sm;
 }
 
+/* ------------------------------------------------------------
+   按钮体系：anthropic 官网语言 = pill（rounded-full）。
+   主操作深墨底白字；品牌强调（btn-cta）珊瑚底白字；次操作白底细边。
+   ------------------------------------------------------------ */
 .btn {
-  @apply inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border px-3.5 text-sm font-semibold transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
+  @apply inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-full border px-4 text-sm font-medium transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
 }
 
-/* 主操作：珊瑚实底白字（Claude 主按钮） */
+/* 主操作：深墨 pill（anthropic 主 CTA） */
 .btn-primary {
+  @apply btn border-transparent bg-ink text-white hover:bg-[#3D3A34];
+}
+
+/* 品牌强调操作：珊瑚 pill */
+.btn-cta {
   @apply btn border-transparent bg-accent text-accent-ink hover:bg-accent2;
 }
 
-/* 次强操作：珊瑚浅底描边 */
-.btn-cta {
-  @apply btn border-accent/40 bg-accent/[0.08] text-accent2 hover:bg-accent/[0.14];
-}
-
-/* 次操作：白底描边（Claude 次按钮） */
+/* 次操作：白底细边 pill */
 .btn-secondary {
-  @apply btn border-line bg-surface text-ink hover:border-[#D5D0C2] hover:bg-panel;
+  @apply btn border-line bg-surface text-ink hover:border-[#CFC9BA] hover:bg-panel;
 }
 
 .btn-danger {
-  @apply btn border-rose/30 bg-rose/10 text-rose hover:bg-rose/[0.16];
+  @apply btn border-rose/25 bg-transparent text-rose hover:bg-rose/[0.08];
 }
 
-/* 卡片：白面 + 暖细描边 + 极轻投影（Claude 卡片不玩玻璃） */
+/* 卡片：白面 + 暖细描边 + 极轻投影。 */
 .panel {
   @apply rounded-2xl border border-line bg-surface shadow-soft;
 }
 
+/* 悬浮可点卡片（日历格、模板卡等）：hover 轻提升 + 阴影加深。 */
+.hover-lift {
+  transition:
+    transform 250ms var(--ease-out-soft),
+    box-shadow 250ms var(--ease-out-soft),
+    border-color 150ms ease;
+}
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px -12px rgba(31, 30, 29, 0.22);
+}
+
 .metric-label {
-  @apply text-[11px] font-semibold uppercase tracking-[0.1em] text-muted;
+  @apply text-[11px] font-medium uppercase tracking-[0.08em] text-muted;
+}
+
+/* 大数字（指标卡）：衬线，Claude 定价页数字气质。 */
+.metric-number {
+  font-family: var(--font-serif), Georgia, "Songti SC", serif;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 小型珊瑚 eyebrow 标签（官网 section 眉题） */
+.eyebrow {
+  @apply text-[11px] font-semibold uppercase tracking-[0.14em] text-accent2;
 }
 
 /* 旧渐变标题类：重定义为衬线深墨标题（保留类名，组件无需改 JSX） */
 .text-gradient {
-  @apply font-display font-semibold tracking-tight text-ink;
-}
-
-.hover-lift {
-  @apply transition-transform duration-200 hover:-translate-y-0.5;
+  @apply font-display text-ink;
 }
 
 .skip-link {
-  @apply fixed left-3 top-3 z-50 -translate-y-16 rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-ink transition-transform focus:translate-y-0;
+  @apply fixed left-3 top-3 z-50 -translate-y-16 rounded-full bg-ink px-4 py-2 text-sm font-medium text-white transition-transform focus:translate-y-0;
 }
 
 .scrollbar-thin {
   scrollbar-width: thin;
-  scrollbar-color: rgba(217, 119, 87, 0.35) transparent;
+  scrollbar-color: rgba(31, 30, 29, 0.18) transparent;
 }
 
+/* ------------------------------------------------------------
+   动效：expo-out、克制。
+   ------------------------------------------------------------ */
 .animate-view {
-  animation: view-in 220ms ease-out;
+  animation: view-in 400ms var(--ease-out-soft);
 }
 
 @keyframes view-in {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(10px);
   }
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/* 对话框：遮罩淡入 + 面板轻缩放浮现 */
+.dialog-overlay {
+  animation: overlay-in 200ms ease-out;
+}
+
+.dialog-panel {
+  animation: dialog-in 260ms var(--ease-out-soft);
+}
+
+@keyframes overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 

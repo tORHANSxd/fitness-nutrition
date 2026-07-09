@@ -17,9 +17,9 @@ export function MetricCard({ label, value, unit, tone = "normal" }: MetricCardPr
     <div className="relative">
       <span className={`absolute inset-y-1 left-0 w-0.5 rounded-full ${railColor}`} />
       <div className="metric-label pl-3">{label}</div>
-      <div className={`mt-1 pl-3 text-xl font-semibold tabular-nums ${color}`}>
+      <div className={`metric-number mt-1 pl-3 text-[22px] ${color}`}>
         {round(value, unit === "kcal" ? 0 : 1)}
-        <span className="ml-1 text-sm font-medium text-muted">{unit}</span>
+        <span className="ml-1 font-sans text-sm font-normal text-muted">{unit}</span>
       </div>
     </div>
   );

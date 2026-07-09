@@ -86,7 +86,7 @@ export function AuthPanel({ user, onSignedIn }: AuthPanelProps) {
           <div className="space-y-3">
             <label className="block">
               <span className="metric-label mb-1 block">邮箱</span>
-              <span className="flex items-center gap-2 rounded-md border border-line bg-surface px-3">
+              <span className="flex items-center gap-2 rounded-lg border border-line bg-surface px-3 transition-colors focus-within:border-[#B9B5A7] focus-within:shadow-[0_0_0_3px_rgba(31,30,29,0.06)] hover:border-[#D5D0C2]">
                 <Mail size={16} className="text-muted" />
                 <input
                   className="h-10 flex-1 border-0 bg-transparent text-sm outline-none"
@@ -99,7 +99,7 @@ export function AuthPanel({ user, onSignedIn }: AuthPanelProps) {
             </label>
             <label className="block">
               <span className="metric-label mb-1 block">密码</span>
-              <span className="flex items-center gap-2 rounded-md border border-line bg-surface px-3">
+              <span className="flex items-center gap-2 rounded-lg border border-line bg-surface px-3 transition-colors focus-within:border-[#B9B5A7] focus-within:shadow-[0_0_0_3px_rgba(31,30,29,0.06)] hover:border-[#D5D0C2]">
                 <KeyRound size={16} className="text-muted" />
                 <input
                   className="h-10 flex-1 border-0 bg-transparent text-sm outline-none"

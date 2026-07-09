@@ -115,28 +115,29 @@ export function MealSplitView({ controller, foods, templates }: MealSplitViewPro
           </div>
         ) : null}
 
-        {/* segmented 餐次标签：底部 accent 指示线 */}
-        <div className="mt-3 flex gap-0 overflow-x-auto border-y border-line bg-surface/60">
-          {meals.map((meal) => {
-            const recommendation = recommendationsByMeal.get(meal.id);
-            const active = meal.id === activeMeal?.id;
-            return (
-              <button
-                key={meal.id}
-                className={`relative flex min-h-[3.5rem] flex-1 flex-col items-start justify-center whitespace-nowrap border-r border-line px-4 py-2.5 text-left transition-colors last:border-r-0 ${
-                  active ? "bg-accent/[0.07] text-accent" : "text-muted hover:bg-black/[0.02] hover:text-ink"
-                }`}
-                type="button"
-                onClick={() => setActiveMealId(meal.id)}
-              >
-                {active && <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-t-full bg-accent" />}
-                <span className="text-sm font-semibold">{meal.name}</span>
-                <span className="mt-0.5 text-xs opacity-70">
-                  {round(recommendation?.target.carbs ?? 0, 0)}g 碳 / {round(recommendation?.target.protein ?? 0, 0)}g 蛋
-                </span>
-              </button>
-            );
-          })}
+        {/* 餐次 pill-tab 组（claude.ai 设置页 tab 语言：oat 容器内白 pill 激活） */}
+        <div className="border-b border-line px-4 py-3">
+          <div className="scrollbar-thin inline-flex max-w-full gap-1 overflow-x-auto rounded-full bg-panel p-1">
+            {meals.map((meal) => {
+              const recommendation = recommendationsByMeal.get(meal.id);
+              const active = meal.id === activeMeal?.id;
+              return (
+                <button
+                  key={meal.id}
+                  className={`flex shrink-0 items-baseline gap-2 whitespace-nowrap rounded-full px-4 py-2 text-sm transition-colors ${
+                    active ? "bg-surface font-medium text-ink shadow-soft" : "text-muted hover:text-ink"
+                  }`}
+                  type="button"
+                  onClick={() => setActiveMealId(meal.id)}
+                >
+                  <span>{meal.name}</span>
+                  <span className={`text-[11px] ${active ? "text-accent2" : "text-muted-soft"}`}>
+                    {round(recommendation?.target.carbs ?? 0, 0)}碳/{round(recommendation?.target.protein ?? 0, 0)}蛋
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
         <div className="p-0">
           {activeMeal ? (
@@ -415,7 +416,7 @@ function MealEditor({
 
       <div className="scrollbar-thin hidden overflow-x-auto md:block">
         <table className="w-full min-w-[1080px] text-left text-sm">
-          <thead className="border-b border-line bg-panel text-[11px] uppercase tracking-wider text-muted">
+          <thead className="border-b border-line text-[11px] uppercase tracking-[0.08em] text-muted-soft">
             <tr>
               <th className="px-4 py-2.5 font-semibold">食物</th>
               <th className="px-4 py-2.5 font-semibold">克重</th>
@@ -445,7 +446,7 @@ function MealEditor({
                 const totals = food ? calculateFoodTotals(food, entry.grams) : { kcal: 0, carbs: 0, protein: 0, fat: 0 };
 
                 return (
-                  <tr key={entry.id} className="border-t border-line transition-colors hover:bg-black/[0.02]">
+                  <tr key={entry.id} className="border-t border-line transition-colors hover:bg-panel/40">
                     <td className="px-4 py-2.5">
                       <FoodPickerButton food={food} className="w-52" onClick={() => setPickerTarget(entry.id)} />
                       {food ? <div className="mt-1 text-xs text-muted">{convertWeightLabel(food, entry.grams)}</div> : null}

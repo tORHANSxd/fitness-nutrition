@@ -60,8 +60,8 @@ const config: Config = {
         float: { "0%,100%": { transform: "translateY(0)" }, "50%": { transform: "translateY(-4px)" } }
       },
       animation: {
-        "view-in": "view-in 220ms ease-out",
-        "fade-up": "fade-up 460ms cubic-bezier(0.22,1,0.36,1) both",
+        "view-in": "view-in 400ms cubic-bezier(0.16,1,0.3,1)",
+        "fade-up": "fade-up 500ms cubic-bezier(0.16,1,0.3,1) both",
         shimmer: "shimmer 2.4s infinite",
         "glow-pulse": "glow-pulse 2.8s ease-in-out infinite",
         float: "float 5s ease-in-out infinite"

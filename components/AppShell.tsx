@@ -198,7 +198,7 @@ export function AppShell({ initialView }: AppShellProps) {
               <BrandMark size={44} />
             </span>
             <div>
-              <h1 className="text-4xl text-ink">健身营养</h1>
+              <h1 className="text-4xl text-ink">NutriTrain</h1>
               <p className="mt-2 text-sm text-muted">碳循环计划器 · 登录后开始使用</p>
             </div>
           </div>
@@ -233,7 +233,7 @@ export function AppShell({ initialView }: AppShellProps) {
             <BrandMark size={22} />
           </span>
           <div className="min-w-0 leading-tight">
-            <div className="font-display text-[17px] text-ink">健身营养</div>
+            <div className="font-display text-[17px] text-ink">NutriTrain</div>
           </div>
         </div>
 

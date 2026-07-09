@@ -7,8 +7,8 @@ const inter = Inter({ subsets: ["latin"], weight: ["400", "500", "600"], variabl
 const sourceSerif = Source_Serif_4({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-serif", display: "swap" });
 
 export const metadata: Metadata = {
-  title: "健身营养计划",
-  description: "基于 BMR、TDEE 和碳循环的在线健身饮食计划器"
+  title: "NutriTrain · 碳循环计划器",
+  description: "NutriTrain —— 基于 BMR、TDEE 和碳循环的在线健身饮食计划器"
 };
 
 // 手机端视口：锁定为设备宽度、禁止整屏缩放（消除 iOS 聚焦输入框时的自动放大与手势缩放导致

@@ -34,7 +34,7 @@ interface TrainingLogProps {
 const carbDayDotClass: Record<CarbDayType, string> = {
   high: "bg-accent",
   mid: "bg-accent/45",
-  low: "bg-white/20"
+  low: "bg-[#CFCABD]"
 };
 
 const experienceLabels: Record<ExperienceLevel, string> = {
@@ -274,7 +274,7 @@ export function TrainingLog({ user, onRequireLogin, dateRequest }: TrainingLogPr
                 key={key}
                 type="button"
                 className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-                  split === key ? "bg-accent text-accent-ink" : "border border-line bg-white/[0.04] text-muted hover:text-ink"
+                  split === key ? "bg-accent text-accent-ink" : "border border-line bg-panel text-muted hover:text-ink"
                 }`}
                 onClick={() => setSplit(key)}
               >
@@ -316,11 +316,11 @@ export function TrainingLog({ user, onRequireLogin, dateRequest }: TrainingLogPr
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-base font-semibold text-ink">训练日历</h2>
             <div className="flex items-center gap-2">
-              <button className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/25 bg-white/[0.08] text-ink transition-colors hover:border-accent/50 hover:bg-accent/15 hover:text-accent" type="button" onClick={() => setMonthCursor(new Date(monthCursor.getFullYear(), monthCursor.getMonth() - 1, 1))} aria-label="上个月">
+              <button className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-line bg-surface text-ink transition-colors hover:border-accent/50 hover:bg-accent/15 hover:text-accent" type="button" onClick={() => setMonthCursor(new Date(monthCursor.getFullYear(), monthCursor.getMonth() - 1, 1))} aria-label="上个月">
                 <ChevronLeft size={16} />
               </button>
               <span className="min-w-[110px] text-center text-sm font-medium text-ink">{monthLabel}</span>
-              <button className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/25 bg-white/[0.08] text-ink transition-colors hover:border-accent/50 hover:bg-accent/15 hover:text-accent" type="button" onClick={() => setMonthCursor(new Date(monthCursor.getFullYear(), monthCursor.getMonth() + 1, 1))} aria-label="下个月">
+              <button className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-line bg-surface text-ink transition-colors hover:border-accent/50 hover:bg-accent/15 hover:text-accent" type="button" onClick={() => setMonthCursor(new Date(monthCursor.getFullYear(), monthCursor.getMonth() + 1, 1))} aria-label="下个月">
                 <ChevronRight size={16} />
               </button>
             </div>
@@ -342,7 +342,7 @@ export function TrainingLog({ user, onRequireLogin, dateRequest }: TrainingLogPr
                     isSelected
                       ? "border-accent bg-accent/15 text-ink"
                       : cell.inMonth
-                        ? "border-line bg-white/[0.03] text-ink hover:border-accent/40"
+                        ? "border-line bg-black/[0.02] text-ink hover:border-accent/40"
                         : "border-transparent text-muted/55"
                   }`}
                 >
@@ -355,7 +355,7 @@ export function TrainingLog({ user, onRequireLogin, dateRequest }: TrainingLogPr
           <div className="mt-3 flex items-center gap-3 text-[11px] text-muted">
             <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-accent" />高碳</span>
             <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-accent/45" />中碳</span>
-            <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-white/20" />低碳</span>
+            <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-[#CFCABD]" />低碳</span>
             {loading ? <span className="ml-auto">加载中…</span> : null}
           </div>
 
@@ -385,14 +385,14 @@ export function TrainingLog({ user, onRequireLogin, dateRequest }: TrainingLogPr
                   const status = volumeStatus(sets, lm);
                   const pct = Math.min(100, (sets / lm.mrv) * 100);
                   const barColor =
-                    status === "under" ? "bg-[#5cc1f0]/80" : status === "over" ? "bg-rose/80" : status === "near-max" ? "bg-[#e0a23a]/85" : "bg-accent/80";
+                    status === "under" ? "bg-[#6E8CA8]/80" : status === "over" ? "bg-rose/80" : status === "near-max" ? "bg-[#e0a23a]/85" : "bg-accent/80";
                   return (
                     <div key={m} className="text-xs">
                       <div className="flex items-center justify-between">
                         <span className="text-ink">{muscleGroupLabels[m]}</span>
                         <span className="text-muted">{sets} 组 · {volumeStatusLabels[status]}</span>
                       </div>
-                      <div className="mt-0.5 h-1.5 w-full overflow-hidden rounded-full bg-white/[0.06]" title={`MEV ${lm.mev} / MAV ${lm.mav} / MRV ${lm.mrv}`}>
+                      <div className="mt-0.5 h-1.5 w-full overflow-hidden rounded-full bg-black/[0.08]" title={`MEV ${lm.mev} / MAV ${lm.mav} / MRV ${lm.mrv}`}>
                         <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
                       </div>
                     </div>
@@ -460,7 +460,7 @@ export function TrainingLog({ user, onRequireLogin, dateRequest }: TrainingLogPr
                 <span>动作</span><span>部位</span><span>重量kg</span><span>次数</span><span>RIR</span><span></span>
               </div>
               {draft.sets.map((set) => (
-                <div key={set.id} className="grid grid-cols-2 gap-1.5 rounded-lg border border-line bg-white/[0.02] p-1.5 sm:grid-cols-[1.6fr_1fr_0.9fr_0.7fr_0.7fr_auto] sm:border-0 sm:bg-transparent sm:p-0">
+                <div key={set.id} className="grid grid-cols-2 gap-1.5 rounded-lg border border-line bg-panel/50 p-1.5 sm:grid-cols-[1.6fr_1fr_0.9fr_0.7fr_0.7fr_auto] sm:border-0 sm:bg-transparent sm:p-0">
                   <input className="field h-9" value={set.exercise} placeholder="动作" onChange={(e) => updateSet(set.id, { exercise: e.target.value })} />
                   <select className="field h-9" value={set.muscleGroup} onChange={(e) => updateSet(set.id, { muscleGroup: e.target.value as MuscleGroup })}>
                     {muscleGroupOrder.map((m) => (
@@ -536,7 +536,7 @@ function ReferencePanel() {
           <h3 className="mb-2 text-sm font-semibold text-ink">%1RM ↔ 次数 ↔ 目标（NSCA）</h3>
           <div className="overflow-hidden rounded-xl border border-line">
             <table className="w-full text-xs">
-              <thead className="bg-white/[0.04] text-muted">
+              <thead className="bg-panel text-muted">
                 <tr><th className="px-3 py-2 text-left">目标</th><th className="px-3 py-2">%1RM</th><th className="px-3 py-2">次数</th></tr>
               </thead>
               <tbody>

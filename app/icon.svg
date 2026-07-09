@@ -1,4 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="12" fill="#0f766e"/>
-  <path d="M16 37h6V27h-6v10Zm26 0h6V27h-6v10ZM24 34h16v-4H24v4Zm-14 6h4V24h-4v16Zm40 0h4V24h-4v16Z" fill="#ffffff"/>
+  <!-- Claude 风星芒（starburst）：珊瑚陶土色射线，奶油底。 -->
+  <rect width="64" height="64" rx="14" fill="#FAF9F5"/>
+  <g stroke="#D97757" stroke-width="5.2" stroke-linecap="round">
+    <line x1="32" y1="32" x2="32" y2="12"/>
+    <line x1="32" y1="32" x2="42.4" y2="14.9"/>
+    <line x1="32" y1="32" x2="49.1" y2="21.6"/>
+    <line x1="32" y1="32" x2="52" y2="32"/>
+    <line x1="32" y1="32" x2="49.1" y2="42.4"/>
+    <line x1="32" y1="32" x2="42.4" y2="49.1"/>
+    <line x1="32" y1="32" x2="32" y2="52"/>
+    <line x1="32" y1="32" x2="21.6" y2="49.1"/>
+    <line x1="32" y1="32" x2="14.9" y2="42.4"/>
+    <line x1="32" y1="32" x2="12" y2="32"/>
+    <line x1="32" y1="32" x2="14.9" y2="21.6"/>
+    <line x1="32" y1="32" x2="21.6" y2="14.9"/>
+  </g>
 </svg>

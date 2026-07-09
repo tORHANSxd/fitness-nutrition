@@ -3,10 +3,18 @@
 import type { User } from "@supabase/supabase-js";
 import { useEffect, useMemo, useState } from "react";
 import { createStarterMeals, defaultProfile } from "@/lib/demoState";
+import { createCustomFood, customFoodsFromMeals } from "@/lib/foods";
 import { buildNutritionResult, createDefaultMeals, getDefaultMealEntrySettings, normalizeMealRatios, round } from "@/lib/nutrition";
 import { loadPlannerDraft, savePlan, savePlannerDraft } from "@/lib/storage";
-import { buildAutoTemplateName } from "@/lib/templates";
+import {
+  buildTemplateName,
+  materializeDayTemplate,
+  materializeTemplateEntries,
+  templateNameExists,
+  templateRefsFromEntries
+} from "@/lib/templates";
 import type {
+  CustomFoodDraft,
   DayTemplate,
   FoodItem,
   MealFoodEntry,
@@ -43,14 +51,17 @@ export interface PlannerController {
   updateProfile: <K extends keyof UserProfile>(key: K, value: UserProfile[K]) => void;
   updateMeal: (mealId: string, mapper: (meal: MealPlan) => MealPlan) => void;
   addFoodToMeal: (mealId: string, foodId: string) => void;
+  /** 临时自定义食物：三大营养素/100g 自由填，热量自动 4/4/9；随计划保存，不进食物库。 */
+  addCustomFoodToMeal: (mealId: string, draft: CustomFoodDraft) => void;
   updateEntry: (mealId: string, entryId: string, mapper: (entry: MealFoodEntry) => MealFoodEntry) => void;
   removeEntry: (mealId: string, entryId: string) => void;
   applyRecommendations: () => void;
   persistPlan: () => Promise<void>;
   normalizeRatios: () => void;
-  saveMealTemplate: (meal: MealPlan, draftName?: string) => void;
+  /** 模板只记食物；名字自动生成（分类→拼音 · 连接，无编号），同名直接拒绝创建。 */
+  saveMealTemplate: (meal: MealPlan) => void;
   applyMealTemplate: (mealId: string, templateId: string) => void;
-  saveDayTemplate: (draftName?: string) => void;
+  saveDayTemplate: () => void;
   applyDayTemplate: (templateId: string) => void;
 }
 
@@ -65,8 +76,10 @@ export function usePlanner({ foods, templates, user, onTemplatesChanged, applyRe
   const [hydrated, setHydrated] = useState(false);
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
-  const foodsById = useMemo(() => new Map(foods.map((food) => [food.id, food])), [foods]);
-  const result = useMemo(() => buildNutritionResult(profile, meals, foods), [foods, meals, profile]);
+  // 食物解析链 = 食物库 + 当前计划里内嵌的临时自定义食物，求解器与展示共用同一份。
+  const allFoods = useMemo(() => [...foods, ...customFoodsFromMeals(meals)], [foods, meals]);
+  const foodsById = useMemo(() => new Map(allFoods.map((food) => [food.id, food])), [allFoods]);
+  const result = useMemo(() => buildNutritionResult(profile, meals, allFoods), [allFoods, meals, profile]);
   const recommendationsByMeal = useMemo(
     () => new Map(result.mealRecommendations.map((recommendation) => [recommendation.mealId, recommendation])),
     [result.mealRecommendations]
@@ -202,6 +215,28 @@ export function usePlanner({ foods, templates, user, onTemplatesChanged, applyRe
     }));
   }
 
+  function addCustomFoodToMeal(mealId: string, draft: CustomFoodDraft) {
+    const food = createCustomFood(draft);
+    const meal = meals.find((item) => item.id === mealId);
+    const defaults = getDefaultMealEntrySettings(food, meal);
+    updateMeal(mealId, (meal) => ({
+      ...meal,
+      entries: [
+        ...meal.entries,
+        {
+          id: crypto.randomUUID(),
+          foodId: food.id,
+          grams: defaults.grams,
+          locked: false,
+          minGrams: defaults.minGrams,
+          maxGrams: defaults.maxGrams,
+          customFood: { ...draft, name: food.name }
+        }
+      ]
+    }));
+    setMessage(`已添加自定义食物：${food.name}（${round(food.kcalPer100g, 0)} kcal/100g）。`);
+  }
+
   function updateEntry(mealId: string, entryId: string, mapper: (entry: MealFoodEntry) => MealFoodEntry) {
     updateMeal(mealId, (meal) => ({
       ...meal,
@@ -265,30 +300,17 @@ export function usePlanner({ foods, templates, user, onTemplatesChanged, applyRe
     setMeals((current) => normalizeMealRatios(current));
   }
 
-  function cloneEntries(entries: MealFoodEntry[]): MealFoodEntry[] {
-    return entries.map((entry) => ({
-      ...entry,
-      id: crypto.randomUUID()
-    }));
-  }
-
-  function cloneMealsForUse(sourceMeals: MealPlan[]): MealPlan[] {
-    return sourceMeals.map((meal) => ({
-      ...meal,
-      entries: cloneEntries(meal.entries)
-    }));
-  }
-
-  function saveMealTemplate(meal: MealPlan, draftName?: string) {
-    const sequence = templates.mealTemplates.length + 1;
-    const trimmedName = draftName?.trim();
+  function saveMealTemplate(meal: MealPlan) {
+    const refs = templateRefsFromEntries(meal.entries);
+    const name = buildTemplateName(refs, foodsById);
+    if (templateNameExists(templates.mealTemplates, name)) {
+      setMessage(`已存在同名单餐模板「${name}」，未重复创建。`);
+      return;
+    }
     const template: MealTemplate = {
       id: crypto.randomUUID(),
-      name: trimmedName || buildAutoTemplateName(meal.entries, foodsById, sequence, `${meal.name}模板`),
-      sourceMealName: meal.name,
-      mealRatio: meal.ratio,
-      mealLocked: meal.locked,
-      entries: cloneEntries(meal.entries),
+      name,
+      foods: refs,
       createdAt: new Date().toISOString()
     };
     onTemplatesChanged({
@@ -305,27 +327,30 @@ export function usePlanner({ foods, templates, user, onTemplatesChanged, applyRe
     }
     updateMeal(mealId, (meal) => ({
       ...meal,
-      ratio: template.mealRatio,
-      locked: template.mealLocked,
-      entries: cloneEntries(template.entries)
+      entries: materializeTemplateEntries(template.foods, foodsById, meal)
     }));
-    setMessage(`已套用单餐模板：${template.name}`);
+    setMessage(`已套用单餐模板：${template.name}（克重为分类默认值，推荐会实时求解）。`);
   }
 
-  function saveDayTemplate(draftName?: string) {
-    const sequence = templates.dayTemplates.length + 1;
-    const trimmedName = draftName?.trim();
+  function saveDayTemplate() {
+    const dayMeals = meals.map((meal) => ({
+      id: meal.id,
+      name: meal.name,
+      ratio: meal.ratio,
+      foods: templateRefsFromEntries(meal.entries)
+    }));
+    const name = buildTemplateName(
+      dayMeals.flatMap((meal) => meal.foods),
+      foodsById
+    );
+    if (templateNameExists(templates.dayTemplates, name)) {
+      setMessage(`已存在同名全天模板「${name}」，未重复创建。`);
+      return;
+    }
     const template: DayTemplate = {
       id: crypto.randomUUID(),
-      name:
-        trimmedName ||
-        buildAutoTemplateName(
-          meals.flatMap((meal) => meal.entries),
-          foodsById,
-          sequence,
-          "全天模板"
-        ),
-      meals: cloneMealsForUse(meals),
+      name,
+      meals: dayMeals,
       createdAt: new Date().toISOString()
     };
     onTemplatesChanged({
@@ -340,8 +365,8 @@ export function usePlanner({ foods, templates, user, onTemplatesChanged, applyRe
     if (!template) {
       return;
     }
-    setMeals(cloneMealsForUse(template.meals));
-    setMessage(`已套用全天模板：${template.name}`);
+    setMeals(materializeDayTemplate(template, foodsById));
+    setMessage(`已套用全天模板：${template.name}（克重为分类默认值，推荐会实时求解）。`);
   }
 
   return {
@@ -357,6 +382,7 @@ export function usePlanner({ foods, templates, user, onTemplatesChanged, applyRe
     updateProfile,
     updateMeal,
     addFoodToMeal,
+    addCustomFoodToMeal,
     updateEntry,
     removeEntry,
     applyRecommendations,

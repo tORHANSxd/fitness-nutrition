@@ -90,7 +90,7 @@ alter table public.food_overrides add constraint food_overrides_pkey PRIMARY KEY
 alter table public.food_overrides add constraint food_overrides_user_id_base_food_id_key UNIQUE (user_id, base_food_id);
 alter table public.food_overrides add constraint food_overrides_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 alter table public.food_overrides add constraint food_overrides_carbs_per_100g_check CHECK ((carbs_per_100g >= (0)::numeric));
-alter table public.food_overrides add constraint food_overrides_category_check CHECK ((category = ANY (ARRAY['主食'::text, '蔬菜'::text, '水果'::text, '肉类'::text, '补剂'::text, '坚果'::text])));
+alter table public.food_overrides add constraint food_overrides_category_check CHECK ((category = ANY (ARRAY['主食'::text, '蔬菜'::text, '水果'::text, '肉类'::text, '补剂'::text, '坚果'::text, '食物配料'::text])));
 alter table public.food_overrides add constraint food_overrides_cooked_raw_ratio_check CHECK (((cooked_raw_ratio IS NULL) OR (cooked_raw_ratio > (0)::numeric)));
 alter table public.food_overrides add constraint food_overrides_fat_per_100g_check CHECK ((fat_per_100g >= (0)::numeric));
 alter table public.food_overrides add constraint food_overrides_kcal_per_100g_check CHECK ((kcal_per_100g >= (0)::numeric));
@@ -118,7 +118,7 @@ create table if not exists public.foods (
 alter table public.foods add constraint foods_pkey PRIMARY KEY (id);
 alter table public.foods add constraint foods_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 alter table public.foods add constraint foods_carbs_per_100g_check CHECK ((carbs_per_100g >= (0)::numeric));
-alter table public.foods add constraint foods_category_check CHECK ((category = ANY (ARRAY['主食'::text, '蔬菜'::text, '水果'::text, '肉类'::text, '补剂'::text, '坚果'::text])));
+alter table public.foods add constraint foods_category_check CHECK ((category = ANY (ARRAY['主食'::text, '蔬菜'::text, '水果'::text, '肉类'::text, '补剂'::text, '坚果'::text, '食物配料'::text])));
 alter table public.foods add constraint foods_cooked_raw_ratio_check CHECK (((cooked_raw_ratio IS NULL) OR (cooked_raw_ratio > (0)::numeric)));
 alter table public.foods add constraint foods_fat_per_100g_check CHECK ((fat_per_100g >= (0)::numeric));
 alter table public.foods add constraint foods_kcal_per_100g_check CHECK ((kcal_per_100g >= (0)::numeric));

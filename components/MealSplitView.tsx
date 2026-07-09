@@ -4,8 +4,9 @@ import { Check, ChevronDown, Lock, Plus, Save, Trash2, Unlock, Wand2 } from "luc
 import { useState } from "react";
 import { FoodPickerDialog } from "@/components/FoodPickerDialog";
 import type { PlannerController } from "@/components/usePlanner";
+import { createCustomFood } from "@/lib/foods";
 import { buildNutritionResult, calculateFoodTotals, convertWeightLabel, getDefaultMealEntrySettings, round } from "@/lib/nutrition";
-import type { FoodItem, MacroRatio, MacroTotals, MealFoodEntry, MealPlan, MealTemplate, PlannerTemplates } from "@/lib/types";
+import type { CustomFoodDraft, FoodItem, MacroRatio, MacroTotals, MealFoodEntry, MealPlan, MealTemplate, PlannerTemplates } from "@/lib/types";
 
 interface MealSplitViewProps {
   controller: PlannerController;
@@ -24,6 +25,7 @@ export function MealSplitView({ controller, foods, templates }: MealSplitViewPro
     message,
     saving,
     addFoodToMeal,
+    addCustomFoodToMeal,
     updateEntry,
     removeEntry,
     updateMeal,
@@ -122,7 +124,7 @@ export function MealSplitView({ controller, foods, templates }: MealSplitViewPro
               <button
                 key={meal.id}
                 className={`relative flex min-h-[3.5rem] flex-1 flex-col items-start justify-center whitespace-nowrap border-r border-line px-4 py-2.5 text-left transition-colors last:border-r-0 ${
-                  active ? "bg-accent/[0.07] text-accent" : "text-muted hover:bg-white/[0.03] hover:text-ink"
+                  active ? "bg-accent/[0.07] text-accent" : "text-muted hover:bg-black/[0.02] hover:text-ink"
                 }`}
                 type="button"
                 onClick={() => setActiveMealId(meal.id)}
@@ -146,9 +148,10 @@ export function MealSplitView({ controller, foods, templates }: MealSplitViewPro
               recommendation={recommendationsByMeal.get(activeMeal.id)}
               mealTemplates={templates.mealTemplates}
               onAddFood={(foodId) => addFoodToMeal(activeMeal.id, foodId)}
+              onAddCustomFood={(draft) => addCustomFoodToMeal(activeMeal.id, draft)}
               onApplyMealTemplate={(templateId) => applyMealTemplate(activeMeal.id, templateId)}
               onRemoveEntry={(entryId) => removeEntry(activeMeal.id, entryId)}
-              onSaveMealTemplate={(templateName) => saveMealTemplate(activeMeal, templateName)}
+              onSaveMealTemplate={() => saveMealTemplate(activeMeal)}
               onUpdateMeal={(mapper) => updateMeal(activeMeal.id, mapper)}
               onUpdateEntry={(entryId, mapper) => updateEntry(activeMeal.id, entryId, mapper)}
             />
@@ -166,9 +169,10 @@ interface MealEditorProps {
   recommendation: ReturnType<typeof buildNutritionResult>["mealRecommendations"][number] | undefined;
   mealTemplates: MealTemplate[];
   onAddFood: (foodId: string) => void;
+  onAddCustomFood: (draft: CustomFoodDraft) => void;
   onApplyMealTemplate: (templateId: string) => void;
   onRemoveEntry: (entryId: string) => void;
-  onSaveMealTemplate: (templateName?: string) => void;
+  onSaveMealTemplate: () => void;
   onUpdateMeal: (mapper: (meal: MealPlan) => MealPlan) => void;
   onUpdateEntry: (entryId: string, mapper: (entry: MealFoodEntry) => MealFoodEntry) => void;
 }
@@ -180,6 +184,7 @@ function MealEditor({
   recommendation,
   mealTemplates,
   onAddFood,
+  onAddCustomFood,
   onApplyMealTemplate,
   onRemoveEntry,
   onSaveMealTemplate,
@@ -187,7 +192,6 @@ function MealEditor({
   onUpdateEntry
 }: MealEditorProps) {
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
-  const [templateName, setTemplateName] = useState("");
   // 选食面板目标："add" 表示新增食物，字符串表示替换该 entry 的食物，null 表示关闭。
   const [pickerTarget, setPickerTarget] = useState<"add" | string | null>(null);
 
@@ -196,6 +200,7 @@ function MealEditor({
     onUpdateEntry(entryId, (current) => ({
       ...current,
       foodId,
+      customFood: undefined, // 换回库存食物时清掉内嵌的临时定义
       ...(nextFood ? getDefaultMealEntrySettings(nextFood, meal) : {})
     }));
   }
@@ -206,6 +211,27 @@ function MealEditor({
     } else if (pickerTarget) {
       changeEntryFood(pickerTarget, foodId);
     }
+  }
+
+  function handlePickCustom(draft: CustomFoodDraft) {
+    if (pickerTarget === "add") {
+      onAddCustomFood(draft);
+      return;
+    }
+    if (!pickerTarget) {
+      return;
+    }
+    // 替换模式：该条目改指一个新的临时自定义食物，克重界限按其分类默认值重置。
+    const food = createCustomFood(draft);
+    const defaults = getDefaultMealEntrySettings(food, meal);
+    onUpdateEntry(pickerTarget, (current) => ({
+      ...current,
+      foodId: food.id,
+      customFood: { ...draft, name: food.name },
+      grams: defaults.grams,
+      minGrams: defaults.minGrams,
+      maxGrams: defaults.maxGrams
+    }));
   }
 
   const currentPickerFoodId = pickerTarget && pickerTarget !== "add" ? meal.entries.find((entry) => entry.id === pickerTarget)?.foodId : undefined;
@@ -250,25 +276,10 @@ function MealEditor({
             <Plus size={16} />
             添加食物
           </button>
-          <div className="flex w-full gap-2 sm:w-auto">
-            <input
-              className="field h-11 min-w-0 flex-1 sm:w-44"
-              value={templateName}
-              onChange={(event) => setTemplateName(event.target.value)}
-              placeholder="模板名可空"
-            />
-            <button
-              className="btn-secondary h-11"
-              type="button"
-              onClick={() => {
-                onSaveMealTemplate(templateName);
-                setTemplateName("");
-              }}
-            >
-              <Save size={16} />
-              保存本餐
-            </button>
-          </div>
+          <button className="btn-secondary h-11" type="button" onClick={() => onSaveMealTemplate()} title="模板只记录食物组合，名字自动生成">
+            <Save size={16} />
+            存为单餐模板
+          </button>
           <div className="flex w-full gap-2 sm:w-auto">
             <select className="field h-11 min-w-0 flex-1 sm:w-44" value={selectedTemplateId} onChange={(event) => setSelectedTemplateId(event.target.value)}>
               <option value="">选择单餐模板</option>
@@ -434,7 +445,7 @@ function MealEditor({
                 const totals = food ? calculateFoodTotals(food, entry.grams) : { kcal: 0, carbs: 0, protein: 0, fat: 0 };
 
                 return (
-                  <tr key={entry.id} className="border-t border-line transition-colors hover:bg-white/[0.03]">
+                  <tr key={entry.id} className="border-t border-line transition-colors hover:bg-black/[0.02]">
                     <td className="px-4 py-2.5">
                       <FoodPickerButton food={food} className="w-52" onClick={() => setPickerTarget(entry.id)} />
                       {food ? <div className="mt-1 text-xs text-muted">{convertWeightLabel(food, entry.grams)}</div> : null}
@@ -516,6 +527,7 @@ function MealEditor({
         currentFoodId={currentPickerFoodId}
         title={pickerTarget === "add" ? `给「${meal.name}」添加食物` : "更换食物"}
         onSelect={handlePick}
+        onSelectCustom={handlePickCustom}
         onClose={() => setPickerTarget(null)}
       />
     </section>

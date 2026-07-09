@@ -1,8 +1,7 @@
 import type { Config } from "tailwindcss";
 
-// 紫色玻璃拟态主题（Finlytic 风，沿用 landing 的紫色/玻璃/动效）。
-// 单一品牌强调色 = 紫 #7b39fc；状态色（绿/琥珀/玫红）保留语义；表面为深navy-purple玻璃。
-// 令牌名保持不变，组件无需改 JSX 即随主题切换；硬编码的 blue 色阶重定向到紫色调。
+// Claude 官网风主题：奶油纸感底色 + 白卡片 + 珊瑚陶土 accent（#D97757）+ 暖灰墨字。
+// 令牌名保持不变，组件无需改 JSX 即随主题切换；旧紫色/霓虹引用全部重定向到珊瑚色。
 const config: Config = {
   content: [
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
@@ -12,37 +11,46 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        ink: "#f1eefb", // 主文字（冷调 off-white，略提亮）
-        muted: "#b6aed9", // 次要文字（紫灰，提亮以改善小字可读性）
-        "muted-soft": "#8e86ac", // 三级/弱化文字（仅用于确需更弱处）
-        ground: "#0a0814", // 页面底（深 navy-purple，勿命名 base）
-        surface: "#120e22", // 卡片表面
-        panel: "#1a1436", // 内层/抬升表面
-        raised: "#231a46", // 更高一层
-        line: "#3d3469", // 紫调细描边（提亮以增强卡片/表格分隔可见度）
-        accent: "#7b39fc", // 品牌强调色（紫）
-        "accent-ink": "#f7f5ff", // 强调色上的浅文字
-        accent2: "#a855f7", // 次紫（渐变/光晕/图表）
-        neon: "#7b39fc", // 兼容旧引用
-        success: "#34d399", // 状态：完成/已付（绿）
-        amber: { DEFAULT: "#e0a23a", 50: "rgba(224,162,58,0.12)", 800: "#f0c069" }, // 状态：排队中
-        rose: { DEFAULT: "#e5687f", 50: "rgba(229,104,127,0.12)" }, // 状态：危险/超额
-        // 组件硬编码的原生色阶 → 紫色调（维持单强调）
+        ink: "#1F1E1D", // 主文字（暖近黑）
+        muted: "#6E6C66", // 次要文字（暖灰）
+        "muted-soft": "#9C9A93", // 三级/弱化文字
+        ground: "#FAF9F5", // 页面底（象牙奶油）
+        surface: "#FFFFFF", // 卡片表面（白）
+        panel: "#F4F1E9", // 内层/燕麦色表面
+        raised: "#E8E4DA", // 更高一层/选中底
+        line: "#E3DFD3", // 暖调细描边
+        accent: "#D97757", // 品牌强调色（Claude 珊瑚陶土）
+        "accent-ink": "#FFFFFF", // 强调色上的文字
+        accent2: "#C6613F", // 深珊瑚（hover/图表）
+        neon: "#D97757", // 兼容旧引用
+        success: "#5E8B62", // 状态：完成（低饱和绿）
+        amber: { DEFAULT: "#C28A2D", 50: "rgba(194,138,45,0.12)", 800: "#8A6116" }, // 状态：偏差/排队
+        rose: { DEFAULT: "#BF4D43", 50: "rgba(191,77,67,0.10)" }, // 状态：危险/超额（暖红）
+        // 组件硬编码的原生色阶 → 珊瑚色调（维持单强调）
         blue: {
-          50: "rgba(123,57,252,0.10)",
-          100: "rgba(123,57,252,0.18)",
-          200: "rgba(123,57,252,0.32)",
-          800: "#6a2fe0"
+          50: "rgba(217,119,87,0.08)",
+          100: "rgba(217,119,87,0.14)",
+          200: "rgba(217,119,87,0.28)",
+          800: "#B25A3C"
         },
-        slate: { 100: "rgba(255,255,255,0.06)" }
+        slate: { 100: "rgba(0,0,0,0.05)" }
+      },
+      fontFamily: {
+        display: [
+          "var(--font-serif)",
+          "Georgia",
+          "Songti SC",
+          "SimSun",
+          "serif"
+        ]
       },
       boxShadow: {
-        soft: "0 18px 50px -20px rgba(0,0,0,0.75)",
-        glow: "0 0 0 1px rgba(123,57,252,0.30), 0 16px 44px -16px rgba(123,57,252,0.45)",
-        "glow-neon": "0 10px 32px -12px rgba(123,57,252,0.45)"
+        soft: "0 1px 2px rgba(31,30,29,0.04), 0 12px 32px -20px rgba(31,30,29,0.16)",
+        glow: "0 0 0 1px rgba(217,119,87,0.25), 0 10px 30px -14px rgba(217,119,87,0.35)",
+        "glow-neon": "0 6px 20px -10px rgba(217,119,87,0.35)"
       },
       backgroundImage: {
-        "neon-grad": "linear-gradient(135deg, #7b39fc 0%, #a855f7 100%)"
+        "neon-grad": "linear-gradient(135deg, #D97757 0%, #C6613F 100%)"
       },
       keyframes: {
         "view-in": { from: { opacity: "0", transform: "translateY(8px)" }, to: { opacity: "1", transform: "translateY(0)" } },

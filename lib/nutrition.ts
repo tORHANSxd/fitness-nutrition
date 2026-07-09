@@ -108,7 +108,9 @@ const defaultPortionRules: Record<FoodCategory, FoodPortionRule> = {
   水果: { defaultGrams: 120, maxGrams: 250, softTargetWeight: 0.34 },
   肉类: { defaultGrams: 150, maxGrams: 260, softTargetWeight: 0.26 },
   补剂: { defaultGrams: 30, maxGrams: 40, softTargetWeight: 1.3 },
-  坚果: { defaultGrams: 20, maxGrams: 35, softTargetWeight: 1.1 }
+  坚果: { defaultGrams: 20, maxGrams: 35, softTargetWeight: 1.1 },
+  // 食物配料（油/盐/糖等烹调用料）：小份量、软目标权重与补剂一致；食用油有专属 10/20g 分支。
+  食物配料: { defaultGrams: 10, maxGrams: 30, softTargetWeight: 1.3 }
 };
 
 const presenceFloorRatios: Record<FoodCategory, number> = {
@@ -117,7 +119,9 @@ const presenceFloorRatios: Record<FoodCategory, number> = {
   水果: 0.4,
   肉类: 0.15,
   补剂: 0.15,
-  坚果: 0.3
+  坚果: 0.3,
+  // 配料不强制出现：允许求解器压到 0（与旧行为一致——食用油此前经补剂 isCookingOil 分支拿到 0 下限）。
+  食物配料: 0
 };
 
 const comfortMaxMultipliers: Record<FoodCategory, number> = {
@@ -126,7 +130,8 @@ const comfortMaxMultipliers: Record<FoodCategory, number> = {
   水果: 1.7,
   肉类: 1.45,
   补剂: 1.15,
-  坚果: 1.25
+  坚果: 1.25,
+  食物配料: 1.15
 };
 
 const multiFoodHardMaxMultipliers: Record<FoodCategory, number> = {
@@ -135,7 +140,8 @@ const multiFoodHardMaxMultipliers: Record<FoodCategory, number> = {
   水果: 2.1,
   肉类: 1.8,
   补剂: 1,
-  坚果: 1.5
+  坚果: 1.5,
+  食物配料: 1
 };
 
 const cookedMainMultiFoodHardMax = 420;
@@ -154,8 +160,12 @@ const categoryGramWeights: Record<FoodCategory, number> = {
   水果: 0.24,
   肉类: 0.27,
   补剂: 0.04,
-  坚果: 0.06
+  坚果: 0.06,
+  食物配料: 0.04
 };
+
+// 不参与餐盘结构评分的“非结构”类：补剂与食物配料都是功能性小份量，不算主食/蔬果/蛋白结构。
+const nonStructureCategories: ReadonlySet<FoodCategory> = new Set(["补剂", "食物配料"]);
 
 export const carbCycleMacroSource =
   "张老师五分化碳循环：一周5练（胸/背/腿/肩/手臂）+2休息，仅腿日高碳、其余6天低碳；蛋白每日固定W×1.6-2.2g。每日总热量 = 当日TDEE（BMR×活动系数+运动消耗）− 减脂热量缺口，蛋白外的热量按碳:脂配比拆分——高碳日碳重脂轻（碳水约占碳+脂能量79%）、低碳日碳轻脂重（约46%）。配比沿用张老师，总热量随真实消耗−缺口走。";
@@ -359,9 +369,14 @@ function isProteinSupplement(food: FoodItem) {
 }
 
 function isCookingOil(food: FoodItem) {
+  // 食用油现属「食物配料」；兼容旧数据/用户覆盖里仍标为补剂的油。名单保持显式，避免误伤鱼油等补剂。
   return (
-    food.category === "补剂" &&
-    (isSupplementNamed(food, "食用油") || isSupplementNamed(food, "cooking oil") || isSupplementNamed(food, "vegetable oil"))
+    (food.category === "食物配料" || food.category === "补剂") &&
+    (isSupplementNamed(food, "食用油") ||
+      isSupplementNamed(food, "橄榄油") ||
+      isSupplementNamed(food, "cooking oil") ||
+      isSupplementNamed(food, "vegetable oil") ||
+      isSupplementNamed(food, "olive oil"))
   );
 }
 
@@ -420,15 +435,16 @@ export function getFoodPortionRule(food: FoodItem, meal?: Pick<MealPlan, "id" | 
   if (food.category === "肉类" && food.weightBasis === "raw") {
     return { ...base, defaultGrams: 160, maxGrams: 280 };
   }
+  // 食用油（食物配料，兼容旧补剂标注）：固定小份量 10/20g。
+  if (isCookingOil(food)) {
+    return { defaultGrams: 10, maxGrams: 20, softTargetWeight: 2.4 };
+  }
   if (food.category === "补剂") {
     if (isSupplementNamed(food, "肌酸") || isSupplementNamed(food, "creatine")) {
       return { defaultGrams: 5, maxGrams: 5, softTargetWeight: 2.4 };
     }
     if (isSupplementNamed(food, "鱼油") || isSupplementNamed(food, "fish oil")) {
       return { defaultGrams: 2, maxGrams: 5, softTargetWeight: 2.4 };
-    }
-    if (isCookingOil(food)) {
-      return { defaultGrams: 10, maxGrams: 20, softTargetWeight: 2.4 };
     }
     if (isSupplementNamed(food, "电解质") || isSupplementNamed(food, "electrolyte")) {
       return { defaultGrams: 8, maxGrams: 20, softTargetWeight: 1.8 };
@@ -672,7 +688,7 @@ function multiFoodHardMaxFor(food: FoodItem, portionRule: FoodPortionRule, bound
   // 补剂（含蛋白粉/食用油等）与坚果：不再施加“多食材内部硬上限”，直接沿用该食材自身上限
   // （用户设置的 maxGrams 或分类默认 maxGrams），避免被死锁在远低于上限的份量、调不动
   // （此前蛋白粉=30×1、坚果=20×1.5 都被硬锁在 30g）。过量仍由 comfortMax 软惩罚抑制——软不硬。
-  if (food.category === "补剂" || food.category === "坚果") {
+  if (nonStructureCategories.has(food.category) || food.category === "坚果") {
     return boundsMax;
   }
   const categoryMax = portionRule.defaultGrams * multiFoodHardMaxMultipliers[food.category];
@@ -831,7 +847,7 @@ function mealStructureScore(models: SolverEntryModel[], gramsByEntryId: Record<s
     }
   }
 
-  const structureModels = models.filter((model) => model.food.category !== "补剂");
+  const structureModels = models.filter((model) => !nonStructureCategories.has(model.food.category));
   const totalGrams = structureModels.reduce((sum, model) => sum + (gramsByEntryId[model.entry.id] ?? model.entry.grams), 0);
 
   if (structureModels.length > 1 && totalGrams > 0) {

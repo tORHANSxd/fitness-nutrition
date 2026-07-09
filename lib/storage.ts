@@ -4,10 +4,10 @@ import type { User } from "@supabase/supabase-js";
 import { builtinFoods } from "@/lib/foods";
 import { calculateFoodKcalPer100g } from "@/lib/nutrition";
 import { foodToOverrideRow, foodToRow, getSupabaseClient, mapFoodOverrideRow, mapFoodRow, mapPlanRow } from "@/lib/supabase";
+import { dayTemplateFromRow, mealTemplateFromRow } from "@/lib/templates";
 import type {
   DayTemplate,
   FoodItem,
-  MealFoodEntry,
   MealPlan,
   MealTemplate,
   NutritionResult,
@@ -102,6 +102,8 @@ export async function savePlannerDraft(profile: UserProfile, meals: MealPlan[], 
 
 // ---------------------------------------------------------------------------
 // 计划模板（planner_templates：每模板一行，template_type = meal|day，整体存 payload）
+// v2 只存食物引用（payload.foods / payload.meals[].foods），不存克重；
+// 旧克重制行在读入时丢弃，下次保存整组替换时自动从库里清掉。
 // ---------------------------------------------------------------------------
 
 interface PlannerTemplateRow {
@@ -112,29 +114,6 @@ interface PlannerTemplateRow {
   created_at?: string;
 }
 
-function rowToMealTemplate(row: PlannerTemplateRow): MealTemplate {
-  const payload = (row.payload ?? {}) as Partial<MealTemplate>;
-  return {
-    id: String(row.id),
-    name: String(row.name),
-    sourceMealName: payload.sourceMealName ?? "",
-    mealRatio: typeof payload.mealRatio === "number" ? payload.mealRatio : 0,
-    mealLocked: Boolean(payload.mealLocked),
-    entries: (payload.entries as MealFoodEntry[]) ?? [],
-    createdAt: payload.createdAt ?? String(row.created_at ?? "")
-  };
-}
-
-function rowToDayTemplate(row: PlannerTemplateRow): DayTemplate {
-  const payload = (row.payload ?? {}) as Partial<DayTemplate>;
-  return {
-    id: String(row.id),
-    name: String(row.name),
-    meals: (payload.meals as MealPlan[]) ?? [],
-    createdAt: payload.createdAt ?? String(row.created_at ?? "")
-  };
-}
-
 function mealTemplateToRow(template: MealTemplate, userId: string) {
   return {
     id: template.id,
@@ -142,10 +121,7 @@ function mealTemplateToRow(template: MealTemplate, userId: string) {
     template_type: "meal" as const,
     name: template.name,
     payload: {
-      sourceMealName: template.sourceMealName,
-      mealRatio: template.mealRatio,
-      mealLocked: template.mealLocked,
-      entries: template.entries,
+      foods: template.foods,
       createdAt: template.createdAt
     },
     updated_at: new Date().toISOString()
@@ -179,8 +155,14 @@ export async function loadPlannerTemplates(user: User | null): Promise<PlannerTe
   }
 
   const rows = (data ?? []) as PlannerTemplateRow[];
-  const mealTemplates = rows.filter((row) => row.template_type === "meal").map(rowToMealTemplate);
-  const dayTemplates = rows.filter((row) => row.template_type === "day").map(rowToDayTemplate);
+  const mealTemplates = rows
+    .filter((row) => row.template_type === "meal")
+    .map(mealTemplateFromRow)
+    .filter((template): template is MealTemplate => template !== null);
+  const dayTemplates = rows
+    .filter((row) => row.template_type === "day")
+    .map(dayTemplateFromRow)
+    .filter((template): template is DayTemplate => template !== null);
   return {
     mealTemplates: mealTemplates.slice(0, mealTemplateLimit),
     dayTemplates: dayTemplates.slice(0, dayTemplateLimit)

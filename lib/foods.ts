@@ -1,4 +1,4 @@
-import { foodCategories, type FoodItem } from "@/lib/types";
+import { foodCategories, type CustomFoodDraft, type FoodItem, type MealPlan } from "@/lib/types";
 
 // 分类排序权重：按 foodCategories 声明顺序（主食→蔬菜→水果→肉类→补剂→坚果）。
 const categoryOrder = new Map<string, number>(foodCategories.map((category, index) => [category, index]));
@@ -22,6 +22,44 @@ export function compareFoodsByCategoryThenName(
 /** 返回按「分类→拼音名」排好序的新数组（不改动入参）。 */
 export function sortFoods<T extends Pick<FoodItem, "category" | "name">>(foods: T[]): T[] {
   return [...foods].sort(compareFoodsByCategoryThenName);
+}
+
+// ---------------------------------------------------------------------------
+// 临时自定义食物：只存在于分餐条目内嵌的 customFood 里（随计划/草稿 jsonb 落库），
+// 不写入食物库。热量一律由三大营养素按 4/4/9 推导。
+// ---------------------------------------------------------------------------
+
+function customFoodKcal(draft: Pick<CustomFoodDraft, "carbsPer100g" | "proteinPer100g" | "fatPer100g">) {
+  return draft.carbsPer100g * 4 + draft.proteinPer100g * 4 + draft.fatPer100g * 9;
+}
+
+/** 把自定义营养定义物化为 FoodItem（id 前缀 custom-，仅在当前计划内有效）。 */
+export function createCustomFood(draft: CustomFoodDraft, id?: string): FoodItem {
+  return {
+    id: id ?? `custom-${crypto.randomUUID()}`,
+    name: draft.name.trim() || "自定义食物",
+    category: draft.category,
+    kcalPer100g: customFoodKcal(draft),
+    carbsPer100g: draft.carbsPer100g,
+    proteinPer100g: draft.proteinPer100g,
+    fatPer100g: draft.fatPer100g,
+    weightBasis: "cooked",
+    cookedRawRatio: null,
+    source: "user"
+  };
+}
+
+/** 提取整份计划里内嵌的全部自定义食物，供求解器/总量计算与常规食物同链使用。 */
+export function customFoodsFromMeals(meals: MealPlan[]): FoodItem[] {
+  const byId = new Map<string, FoodItem>();
+  for (const meal of meals) {
+    for (const entry of meal.entries) {
+      if (entry.customFood && !byId.has(entry.foodId)) {
+        byId.set(entry.foodId, createCustomFood(entry.customFood, entry.foodId));
+      }
+    }
+  }
+  return Array.from(byId.values());
 }
 
 // carbsPer100g 记录净碳水/可利用碳水；蔬菜不把不可供能的碳水组分计入三大营养素。
@@ -341,7 +379,7 @@ export const builtinFoods: FoodItem[] = [
   {
     id: "public-cooking-oil",
     name: "食用油",
-    category: "补剂",
+    category: "食物配料",
     kcalPer100g: 884,
     fatPer100g: 100,
     carbsPer100g: 0,

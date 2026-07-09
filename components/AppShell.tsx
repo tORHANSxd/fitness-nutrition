@@ -1,9 +1,11 @@
 "use client";
 
 import type { User } from "@supabase/supabase-js";
-import { BarChart3, CalendarCheck, CalendarClock, CalendarRange, Dumbbell, LayoutGrid, LayoutTemplate, Library, LogOut, RefreshCw, UtensilsCrossed } from "lucide-react";
+import { CalendarCheck, CalendarClock, CalendarRange, Dumbbell, LayoutGrid, LayoutTemplate, Library, LogOut, RefreshCw, Ruler, UtensilsCrossed } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { AuthPanel } from "@/components/AuthPanel";
+import { BrandMark } from "@/components/BrandMark";
+import { BodyLogView } from "@/components/BodyLogView";
 import { FoodLibrary } from "@/components/FoodLibrary";
 import { HistoryView } from "@/components/HistoryView";
 import { MealSplitView } from "@/components/MealSplitView";
@@ -16,6 +18,7 @@ import { usePlanner } from "@/components/usePlanner";
 import { builtinFoods } from "@/lib/foods";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase";
 import { loadFoods, loadPlannerTemplates, savePlannerTemplates } from "@/lib/storage";
+import { materializeDayTemplate } from "@/lib/templates";
 import type { DayTemplate, FoodItem, MealPlan, PlannerTemplates, SavedPlan, ViewName } from "@/lib/types";
 
 interface AppShellProps {
@@ -28,6 +31,7 @@ const navItems: Array<{ id: ViewName; label: string; shortLabel: string; icon: t
   { id: "meals", label: "分餐计划", shortLabel: "分餐", icon: UtensilsCrossed },
   { id: "schedule", label: "安排日历", shortLabel: "安排", icon: CalendarCheck },
   { id: "training", label: "训练日历", shortLabel: "训练", icon: CalendarRange },
+  { id: "body", label: "体测记录", shortLabel: "体测", icon: Ruler },
   { id: "templates", label: "模板管理", shortLabel: "模板", icon: LayoutTemplate },
   { id: "foods", label: "食物库", shortLabel: "食物", icon: Library },
   { id: "history", label: "历史记录", shortLabel: "历史", icon: CalendarClock }
@@ -46,11 +50,9 @@ export function AppShell({ initialView }: AppShellProps) {
   const configured = isSupabaseConfigured();
 
   function applyDayTemplate(template: DayTemplate) {
-    const meals = template.meals.map((meal) => ({
-      ...meal,
-      entries: meal.entries.map((entry) => ({ ...entry, id: crypto.randomUUID() }))
-    }));
-    setApplyRequest({ meals, nonce: Date.now() });
+    // 模板只记食物：应用时物化为条目（克重取分类默认值），推荐由求解器实时计算。
+    const foodsById = new Map(foods.map((food) => [food.id, food]));
+    setApplyRequest({ meals: materializeDayTemplate(template, foodsById), nonce: Date.now() });
     setView("meals");
   }
 
@@ -192,7 +194,7 @@ export function AppShell({ initialView }: AppShellProps) {
         <div className="w-full max-w-2xl">
           <div className="mb-6 flex items-center gap-3">
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-accent/[0.12] text-accent ring-1 ring-accent/25">
-              <BarChart3 size={24} />
+              <BrandMark size={26} />
             </div>
             <div className="min-w-0 leading-tight">
               <div className="text-xl font-semibold tracking-tight text-ink">健身营养</div>
@@ -208,9 +210,9 @@ export function AppShell({ initialView }: AppShellProps) {
             <div className="panel px-6 py-8 text-center">
               <p className="text-sm text-ink">未配置 Supabase 云端存储。</p>
               <p className="mt-2 text-xs text-muted">
-                所有数据仅保存在云端（除登录信息外不写本地）。请在 <code className="rounded bg-white/10 px-1">.env.local</code> 配置
-                <code className="mx-1 rounded bg-white/10 px-1">NEXT_PUBLIC_SUPABASE_URL</code> 与
-                <code className="mx-1 rounded bg-white/10 px-1">NEXT_PUBLIC_SUPABASE_ANON_KEY</code> 后重启。
+                所有数据仅保存在云端（除登录信息外不写本地）。请在 <code className="rounded bg-black/[0.06] px-1">.env.local</code> 配置
+                <code className="mx-1 rounded bg-black/[0.06] px-1">NEXT_PUBLIC_SUPABASE_URL</code> 与
+                <code className="mx-1 rounded bg-black/[0.06] px-1">NEXT_PUBLIC_SUPABASE_ANON_KEY</code> 后重启。
               </p>
             </div>
           )}
@@ -224,10 +226,10 @@ export function AppShell({ initialView }: AppShellProps) {
       <a className="skip-link" href="#main-content">跳到主要内容</a>
 
       {/* 桌面：固定左侧边栏 */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-line bg-surface/70 px-4 py-6 backdrop-blur-xl lg:flex">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-line bg-panel/60 px-4 py-6 backdrop-blur-xl lg:flex">
         <div className="flex items-center gap-3 px-1">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent/[0.12] text-accent ring-1 ring-accent/25">
-            <BarChart3 size={20} />
+            <BrandMark size={22} />
           </div>
           <div className="min-w-0 leading-tight">
             <div className="text-[15px] font-semibold tracking-tight text-ink">健身营养</div>
@@ -243,7 +245,7 @@ export function AppShell({ initialView }: AppShellProps) {
               <button
                 key={item.id}
                 className={`group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${
-                  active ? "bg-neon-grad text-white shadow-glow-neon" : "text-muted hover:bg-white/[0.05] hover:text-ink"
+                  active ? "bg-raised font-semibold text-ink" : "text-muted hover:bg-panel hover:text-ink"
                 }`}
                 type="button"
                 onClick={() => setView(item.id)}
@@ -280,7 +282,7 @@ export function AppShell({ initialView }: AppShellProps) {
       <header className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-line bg-ground/80 px-4 py-3 backdrop-blur-xl lg:hidden">
         <div className="flex min-w-0 items-center gap-2.5">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent/[0.12] text-accent ring-1 ring-accent/25">
-            <BarChart3 size={18} />
+            <BrandMark size={20} />
           </div>
           <div className="min-w-0">
             <div className="text-sm font-semibold tracking-tight text-ink">{activeLabel}</div>
@@ -333,6 +335,9 @@ export function AppShell({ initialView }: AppShellProps) {
             <div className={view === "training" ? "animate-view" : "hidden"}>
               <TrainingLog user={user} onRequireLogin={() => setView("login")} dateRequest={trainingDateRequest} />
             </div>
+            <div className={view === "body" ? "animate-view" : "hidden"}>
+              <BodyLogView user={user} />
+            </div>
             <div className={view === "templates" ? "animate-view" : "hidden"}>
               <TemplateManager templates={templates} foods={foods} onTemplatesChanged={persistTemplates} onApplyDayTemplate={applyDayTemplate} />
             </div>
@@ -347,7 +352,7 @@ export function AppShell({ initialView }: AppShellProps) {
       </main>
 
       {/* 移动端底部导航 */}
-      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-8 gap-0.5 border-t border-line bg-ground/85 px-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl lg:hidden" aria-label="主导航">
+      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-9 gap-0.5 border-t border-line bg-ground/85 px-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl lg:hidden" aria-label="主导航">
         {navItems.map((item) => {
           const Icon = item.icon;
           const active = view === item.id;

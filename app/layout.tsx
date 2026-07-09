@@ -1,9 +1,10 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Manrope } from "next/font/google";
+import { Inter, Source_Serif_4 } from "next/font/google";
 import "./globals.css";
 
-const manrope = Manrope({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-manrope", display: "swap" });
-const inter = Inter({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-inter", display: "swap" });
+// Claude 官网风字体：正文无衬线（Styrene 气质 → Inter），大标题衬线（Copernicus 气质 → Source Serif 4）。
+const inter = Inter({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-sans", display: "swap" });
+const sourceSerif = Source_Serif_4({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-serif", display: "swap" });
 
 export const metadata: Metadata = {
   title: "健身营养计划",
@@ -19,7 +20,7 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: "cover",
-  themeColor: "#0a0814"
+  themeColor: "#FAF9F5"
 };
 
 export default function RootLayout({
@@ -28,7 +29,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="zh-CN" suppressHydrationWarning className={`${manrope.variable} ${inter.variable}`}>
+    <html lang="zh-CN" suppressHydrationWarning className={`${inter.variable} ${sourceSerif.variable}`}>
       <body>{children}</body>
     </html>
   );

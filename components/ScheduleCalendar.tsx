@@ -20,7 +20,7 @@ interface ScheduleCalendarProps {
 const carbDayDotClass: Record<CarbDayType, string> = {
   high: "bg-accent",
   mid: "bg-accent/45",
-  low: "bg-white/20"
+  low: "bg-[#CFCABD]"
 };
 
 function monthMatrix(cursor: Date): Array<Array<{ date: Date; key: string; inMonth: boolean }>> {
@@ -195,11 +195,11 @@ export function ScheduleCalendar({ user, foods, onGoTraining, onGoPlanner }: Sch
             <p className="text-xs text-muted">每格同时显示训练与碳水日；点某天排期。</p>
           </div>
           <div className="flex items-center gap-2">
-            <button className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/25 bg-white/[0.08] text-ink transition-colors hover:border-accent/50 hover:bg-accent/15 hover:text-accent" type="button" onClick={() => setMonthCursor(new Date(monthCursor.getFullYear(), monthCursor.getMonth() - 1, 1))} aria-label="上个月">
+            <button className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-line bg-surface text-ink transition-colors hover:border-accent/50 hover:bg-accent/15 hover:text-accent" type="button" onClick={() => setMonthCursor(new Date(monthCursor.getFullYear(), monthCursor.getMonth() - 1, 1))} aria-label="上个月">
               <ChevronLeft size={16} />
             </button>
             <span className="min-w-[110px] text-center text-sm font-medium text-ink">{monthLabel}</span>
-            <button className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/25 bg-white/[0.08] text-ink transition-colors hover:border-accent/50 hover:bg-accent/15 hover:text-accent" type="button" onClick={() => setMonthCursor(new Date(monthCursor.getFullYear(), monthCursor.getMonth() + 1, 1))} aria-label="下个月">
+            <button className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-line bg-surface text-ink transition-colors hover:border-accent/50 hover:bg-accent/15 hover:text-accent" type="button" onClick={() => setMonthCursor(new Date(monthCursor.getFullYear(), monthCursor.getMonth() + 1, 1))} aria-label="下个月">
               <ChevronRight size={16} />
             </button>
           </div>
@@ -219,7 +219,7 @@ export function ScheduleCalendar({ user, foods, onGoTraining, onGoPlanner }: Sch
                 type="button"
                 onClick={() => { setSelectedDate(cell.key); setMessage(null); setError(null); }}
                 className={`flex min-h-[68px] flex-col rounded-lg border p-1.5 text-left transition-colors ${
-                  isSelected ? "border-accent bg-accent/15" : cell.inMonth ? "border-line bg-white/[0.03] hover:border-accent/40" : "border-transparent opacity-55"
+                  isSelected ? "border-accent bg-accent/15" : cell.inMonth ? "border-line bg-black/[0.02] hover:border-accent/40" : "border-transparent opacity-55"
                 }`}
               >
                 <span className={`text-xs ${isToday ? "font-bold text-accent" : "text-ink"}`}>{cell.date.getDate()}</span>
@@ -239,7 +239,7 @@ export function ScheduleCalendar({ user, foods, onGoTraining, onGoPlanner }: Sch
         <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-muted">
           <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-accent" />高碳</span>
           <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-accent/45" />中碳</span>
-          <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-white/20" />低碳</span>
+          <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-[#CFCABD]" />低碳</span>
           <span>🍚 = 已排饮食目标</span>
         </div>
       </section>

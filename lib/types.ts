@@ -1,4 +1,4 @@
-export const foodCategories = ["主食", "蔬菜", "水果", "肉类", "补剂", "坚果"] as const;
+export const foodCategories = ["主食", "蔬菜", "水果", "肉类", "补剂", "坚果", "食物配料"] as const;
 
 export type FoodCategory = (typeof foodCategories)[number];
 export type WeightBasis = "raw" | "cooked";
@@ -9,7 +9,7 @@ export type TrainingTime = "morning" | "afternoon" | "evening" | "rest";
 /** 计划页「碳循环日」下拉可选项：张老师五分化只有高碳(腿日)与低碳。 */
 export const plannerCarbDayOptions = ["high", "low"] as const;
 export type NutritionGoal = "cut" | "maintain" | "bulk";
-export type ViewName = "overview" | "planner" | "meals" | "schedule" | "training" | "templates" | "foods" | "history" | "login";
+export type ViewName = "overview" | "planner" | "meals" | "schedule" | "training" | "body" | "templates" | "foods" | "history" | "login";
 
 export type MuscleGroup =
   | "chest"
@@ -75,6 +75,15 @@ export interface FoodItem {
   source: "public" | "user";
 }
 
+/** 分餐里临时自定义食物的营养定义（每 100g）：三大营养素自由填，热量由 4/4/9 自动推导。 */
+export interface CustomFoodDraft {
+  name: string;
+  category: FoodCategory;
+  carbsPer100g: number;
+  proteinPer100g: number;
+  fatPer100g: number;
+}
+
 export interface MealFoodEntry {
   id: string;
   foodId: string;
@@ -82,6 +91,8 @@ export interface MealFoodEntry {
   locked: boolean;
   minGrams?: number | null;
   maxGrams?: number | null;
+  /** 临时自定义食物：营养定义内嵌在条目里，随计划/草稿一起保存，不进食物库。 */
+  customFood?: CustomFoodDraft;
 }
 
 export interface MealPlan {
@@ -135,20 +146,31 @@ export interface PlannerDraft {
   updatedAt: string;
 }
 
+/** 模板里的食物引用：只记「哪种食物」，不记克重；临时自定义食物随引用内嵌其营养定义。 */
+export interface TemplateFoodRef {
+  foodId: string;
+  customFood?: CustomFoodDraft;
+}
+
 export interface MealTemplate {
   id: string;
+  /** 名字自动生成：食物名按「分类→拼音」以 · 连接，无编号；同名禁止重复创建。 */
   name: string;
-  sourceMealName: string;
-  mealRatio: number;
-  mealLocked: boolean;
-  entries: MealFoodEntry[];
+  foods: TemplateFoodRef[];
   createdAt: string;
+}
+
+export interface DayTemplateMeal {
+  id: string;
+  name: string;
+  ratio: number;
+  foods: TemplateFoodRef[];
 }
 
 export interface DayTemplate {
   id: string;
   name: string;
-  meals: MealPlan[];
+  meals: DayTemplateMeal[];
   createdAt: string;
 }
 

@@ -31,8 +31,8 @@ const emptyForm: FoodFormState = {
 
 const severityBadge: Record<"ok" | "warn" | "error", { label: string; cls: string } | null> = {
   ok: null,
-  warn: { label: "能量偏差", cls: "border-[#e0a23a]/50 bg-[#e0a23a]/15 text-[#f0c069]" },
-  error: { label: "能量不符", cls: "border-rose/50 bg-rose/15 text-[#f3a3b1]" }
+  warn: { label: "能量偏差", cls: "border-amber/40 bg-amber-50 text-amber-800" },
+  error: { label: "能量不符", cls: "border-rose/40 bg-rose-50 text-rose" }
 };
 
 function downloadFile(filename: string, content: string, mime: string) {

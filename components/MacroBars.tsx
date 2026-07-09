@@ -19,25 +19,25 @@ interface MacroBarsProps {
   meals: MealPlan[];
 }
 
-// 深色数据色：热量用与紫主题协调的柔和淡紫（替换原扎眼的亮绿），其余为去饱和辅助色。
+// Claude 风数据色：珊瑚为主，配暖金、蓝灰、暖玫等低饱和辅助色（亮底可读）。
 const colors = {
-  kcal: "#9d88d6",
-  carbs: "#e0a23a",
-  protein: "#6b96c4",
-  fat: "#cf7e8e"
+  kcal: "#D97757",
+  carbs: "#C28A2D",
+  protein: "#6E8CA8",
+  fat: "#C15F5F"
 };
 
 const tooltipStyle = {
-  backgroundColor: "rgba(15,19,24,0.96)",
-  borderColor: "rgba(255,255,255,0.10)",
+  backgroundColor: "#FFFFFF",
+  borderColor: "rgba(31,30,29,0.12)",
   borderRadius: 10,
-  boxShadow: "0 16px 40px -18px rgba(0,0,0,0.7)",
-  color: "#c7cdd9"
+  boxShadow: "0 8px 24px -12px rgba(31,30,29,0.25)",
+  color: "#1F1E1D"
 };
 
-const gridStyle = { stroke: "rgba(255,255,255,0.06)", strokeDasharray: "3 3" };
-const axisStyle = { fill: "rgba(138,147,163,0.65)", fontSize: 12 };
-const cursorFill = { fill: "rgba(255,255,255,0.04)" };
+const gridStyle = { stroke: "rgba(31,30,29,0.08)", strokeDasharray: "3 3" };
+const axisStyle = { fill: "rgba(110,108,102,0.9)", fontSize: 12 };
+const cursorFill = { fill: "rgba(31,30,29,0.04)" };
 
 export function MacroBars({ result, meals }: MacroBarsProps) {
   const [isNarrow, setIsNarrow] = useState(false);
@@ -114,7 +114,7 @@ export function MacroBars({ result, meals }: MacroBarsProps) {
               {isNarrow ? <XAxis dataKey="name" tick={axisStyle} axisLine={false} tickLine={false} /> : <XAxis type="number" tick={axisStyle} axisLine={false} tickLine={false} />}
               {isNarrow ? <YAxis tick={axisStyle} axisLine={false} tickLine={false} /> : <YAxis dataKey="name" type="category" width={54} tick={axisStyle} axisLine={false} tickLine={false} />}
               <Tooltip contentStyle={tooltipStyle} cursor={cursorFill} />
-              <Legend wrapperStyle={{ color: "rgba(151,163,214,0.75)", fontSize: 12 }} />
+              <Legend wrapperStyle={{ color: "rgba(110,108,102,0.9)", fontSize: 12 }} />
               <Bar dataKey="kcal" fill={colors.kcal} name="热量 kcal" radius={[3, 3, 3, 3]} />
               {commonBars}
             </BarChart>
@@ -134,7 +134,7 @@ export function MacroBars({ result, meals }: MacroBarsProps) {
               {isNarrow ? <XAxis dataKey="name" tick={axisStyle} axisLine={false} tickLine={false} /> : <XAxis type="number" tick={axisStyle} axisLine={false} tickLine={false} />}
               {isNarrow ? <YAxis tick={axisStyle} axisLine={false} tickLine={false} /> : <YAxis dataKey="name" type="category" width={84} tick={axisStyle} axisLine={false} tickLine={false} />}
               <Tooltip contentStyle={tooltipStyle} cursor={cursorFill} />
-              <Legend wrapperStyle={{ color: "rgba(151,163,214,0.75)", fontSize: 12 }} />
+              <Legend wrapperStyle={{ color: "rgba(110,108,102,0.9)", fontSize: 12 }} />
               {commonBars}
             </BarChart>
           </ResponsiveContainer>

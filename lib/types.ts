@@ -4,10 +4,9 @@ export type FoodCategory = (typeof foodCategories)[number];
 export type WeightBasis = "raw" | "cooked";
 export type Sex = "male" | "female";
 export type WorkoutType = "chest" | "back" | "legs" | "shoulders" | "arms" | "rest";
+/** v2 无碳循环：新数据一律 mid（标准日）；high/low 仅存在于历史计划/记录里，供展示。 */
 export type CarbDayType = "high" | "mid" | "low";
 export type TrainingTime = "morning" | "afternoon" | "evening" | "rest";
-/** 计划页「碳循环日」下拉可选项：张老师五分化只有高碳(腿日)与低碳。 */
-export const plannerCarbDayOptions = ["high", "low"] as const;
 export type NutritionGoal = "cut" | "maintain" | "bulk";
 export type ViewName = "overview" | "planner" | "meals" | "schedule" | "training" | "body" | "templates" | "foods" | "history" | "login";
 
@@ -22,7 +21,7 @@ export type MuscleGroup =
   | "triceps"
   | "calves"
   | "abs";
-export type TrainingSplit = "ppl" | "pplLumbarSafe" | "upperLower" | "fullBody";
+export type TrainingSplit = "fiveDayV2" | "pplLumbarSafe" | "upperLower" | "fullBody";
 export type ExperienceLevel = "beginner" | "intermediate" | "advanced";
 export type OneRmFormula = "epley" | "brzycki";
 
@@ -46,14 +45,21 @@ export interface UserProfile {
   weightKg: number;
   activityFactor: number;
   exerciseKcal: number;
+  /** v2 计划（2026-07-10）：每日摄入目标热量 kcal，固定值（缺省 2300）；每 2 周按体重降幅手动校准。 */
+  targetKcal?: number;
+  /** v2 计划：每日蛋白目标（绝对克数，推荐 175–195；缺省 175）。体脂下降后往上调，不随体重公式走。 */
+  proteinTargetG?: number;
+  /** v2 计划：每日脂肪目标（绝对克数，推荐 60–65、不低于 0.6g/kg；缺省 62）。碳水 = 剩余热量 ÷ 4。 */
+  fatTargetG?: number;
+  /** 旧方针遗留（张老师碳循环）：蛋白 g/kg。仅为历史草稿/计划反序列化兼容保留，不再参与计算。 */
   proteinPerKg?: number;
-  /** 减脂热量缺口（kcal/天）：当日目标热量 = TDEE − 该值。缺省 500（≈每周减0.5kg）。 */
+  /** 旧方针遗留：减脂热量缺口。v2 直接固定 targetKcal，此字段不再参与计算。 */
   calorieDeficit?: number;
   goalType?: NutritionGoal;
   weeklyWeightChangePct?: number;
-  /** 当日碳循环日（主字段，计划页直接选高碳/低碳）。休息日强制低碳。 */
+  /** 旧方针遗留：碳循环日。v2 无碳循环（每天都是标准日 mid），仅为历史数据展示保留。 */
   carbDayType?: CarbDayType;
-  /** 旧数据遗留字段：早期按训练部位派生碳日，现仅用于兼容历史草稿/计划的回退解析。 */
+  /** 旧数据遗留字段：早期按训练部位派生碳日。 */
   workoutType?: WorkoutType;
   trainingTime: TrainingTime;
   planDate: string;

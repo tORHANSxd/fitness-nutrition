@@ -2,22 +2,22 @@ import { builtinFoods } from "@/lib/foods";
 import { createDefaultMeals } from "@/lib/nutrition";
 import type { MealPlan, UserProfile } from "@/lib/types";
 
+// v2 计划（2026-07-10）默认档案：2002 年男性，174cm / 93.2kg（2026-07-04 体测）。
+// activityFactor 1.1 + 运动 800 → TDEE≈2895，落在文档估算区间 2850–2950；
+// 目标固定 2300 kcal（缺省 targetKcal），对应赤字约 595——文档"每周 −0.5~0.7kg"。
 export const defaultProfile: UserProfile = {
   sex: "male",
-  age: 23,
+  age: 24,
   heightCm: 174,
-  weightKg: 94.5,
+  weightKg: 93.2,
   activityFactor: 1.1,
   exerciseKcal: 800,
-  proteinPerKg: 1.8,
   goalType: "cut",
-  weeklyWeightChangePct: 0.5,
-  carbDayType: "high",
   trainingTime: "afternoon",
   planDate: new Date().toISOString().slice(0, 10)
 };
 
-// 默认体重 94.5kg、腿日（高碳，约 397g 碳水）。把碳水分摊到 4 餐并保留高密度碳水（燕麦 66%），
+// v2 每日固定目标 2300 kcal / 碳水约 260g。把碳水分摊到 4 餐并保留高密度碳水（燕麦 66%），
 // 让任何单餐都不必逼近 ~950g 的克数上限，求解器即可把全天推荐稳定落进硬性容忍带。
 export function createStarterMeals(profile: UserProfile): MealPlan[] {
   const meals = createDefaultMeals(profile);

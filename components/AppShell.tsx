@@ -199,7 +199,7 @@ export function AppShell({ initialView }: AppShellProps) {
             </span>
             <div>
               <h1 className="text-4xl text-ink">NutriTrain</h1>
-              <p className="mt-2 text-sm text-muted">碳循环计划器 · 登录后开始使用</p>
+              <p className="mt-2 text-sm text-muted">训练与营养计划器 · 登录后开始使用</p>
             </div>
           </div>
           {configured ? (

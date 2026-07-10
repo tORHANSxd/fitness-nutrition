@@ -48,7 +48,7 @@ function blankSession(dateKey: string): WorkoutSession {
     id: "",
     sessionDate: dateKey,
     splitLabel: "",
-    carbDayType: "low",
+    carbDayType: "mid",
     bodyweightKg: null,
     recovery: null,
     note: "",
@@ -98,7 +98,7 @@ export function TrainingLog({ user, onRequireLogin, dateRequest }: TrainingLogPr
   const [sessions, setSessions] = useState<WorkoutSession[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>(todayKey);
   const [draft, setDraft] = useState<WorkoutSession>(() => blankSession(todayKey));
-  const [split, setSplit] = useState<TrainingSplit>("ppl");
+  const [split, setSplit] = useState<TrainingSplit>("fiveDayV2");
   const [experience, setExperience] = useState<ExperienceLevel>("intermediate");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);

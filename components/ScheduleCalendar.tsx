@@ -4,7 +4,7 @@ import type { User } from "@supabase/supabase-js";
 import { CalendarCheck, ChevronLeft, ChevronRight, Dumbbell, Trash2, Utensils } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { defaultProfile } from "@/lib/demoState";
-import { buildNutritionResult, carbDayLabels, resolveCarbDayType, round } from "@/lib/nutrition";
+import { buildNutritionResult, carbDayLabels, round } from "@/lib/nutrition";
 import { loadPlannerDraft, loadPlans, savePlan } from "@/lib/storage";
 import { carbDayLabelsForTraining, muscleGroupLabels, programTemplates, splitLabels, toDateKey } from "@/lib/training";
 import { deleteWorkoutSession, loadWorkoutSessions, saveWorkoutSession, TrainingAuthError } from "@/lib/trainingStorage";
@@ -49,7 +49,7 @@ export function ScheduleCalendar({ user, foods, onGoTraining, onGoPlanner }: Sch
   const [sessions, setSessions] = useState<WorkoutSession[]>([]);
   const [plans, setPlans] = useState<SavedPlan[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>(todayKey);
-  const [split, setSplit] = useState<TrainingSplit>("ppl");
+  const [split, setSplit] = useState<TrainingSplit>("fiveDayV2");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -152,8 +152,8 @@ export function ScheduleCalendar({ user, foods, onGoTraining, onGoPlanner }: Sch
     }
     const draft = await loadPlannerDraft(user).catch(() => null);
     const baseProfile = draft?.profile ?? defaultProfile;
-    // 有训练课则直接采用该课的碳日（TrainingLog 里选的高/中/低），否则沿用档案解析出的碳日。
-    const carbDayType: CarbDayType = selectedSession ? selectedSession.carbDayType : resolveCarbDayType(baseProfile);
+    // v2 无碳循环：饮食目标与碳日解耦，新计划一律标准日(mid)；标注沿用训练课记录仅为展示。
+    const carbDayType: CarbDayType = selectedSession ? selectedSession.carbDayType : "mid";
     const profile = { ...baseProfile, carbDayType, planDate: selectedDate };
     const result = buildNutritionResult(profile, [], foods);
     setBusy(true);
@@ -255,7 +255,7 @@ export function ScheduleCalendar({ user, foods, onGoTraining, onGoPlanner }: Sch
             <div className="flex gap-1">
               {(Object.keys(splitLabels) as TrainingSplit[]).map((key) => (
                 <button key={key} type="button" className={`rounded px-2 py-0.5 text-[11px] ${split === key ? "bg-accent/20 text-accent" : "text-muted hover:text-ink"}`} onClick={() => setSplit(key)}>
-                  {key === "ppl" ? "PPL" : key === "pplLumbarSafe" ? "腰突" : key === "upperLower" ? "上下" : "全身"}
+                  {key === "fiveDayV2" ? "v2" : key === "pplLumbarSafe" ? "腰突" : key === "upperLower" ? "上下" : "全身"}
                 </button>
               ))}
             </div>
@@ -293,7 +293,7 @@ export function ScheduleCalendar({ user, foods, onGoTraining, onGoPlanner }: Sch
               已排目标：{carbDayLabels[selectedPlan.result.carbDayType]} · {round(selectedPlan.result.dailyTarget.kcal, 0)} kcal · 碳 {round(selectedPlan.result.dailyTarget.carbs, 0)}g / 蛋 {round(selectedPlan.result.dailyTarget.protein, 0)}g / 脂 {round(selectedPlan.result.dailyTarget.fat, 0)}g
             </div>
           ) : (
-            <p className="mb-2 text-xs text-muted">未排饮食目标。可按所选训练日自动生成碳循环目标骨架。</p>
+            <p className="mb-2 text-xs text-muted">未排饮食目标。可一键生成当日固定目标骨架（2300 kcal 档案值）。</p>
           )}
           <div className="flex gap-2">
             <button className="btn-primary h-8 flex-1 text-xs" type="button" onClick={generateDietTarget} disabled={busy}>

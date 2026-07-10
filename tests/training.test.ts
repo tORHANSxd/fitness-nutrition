@@ -6,13 +6,15 @@ import {
   deloadSignals,
   estimate1RM,
   loadFromPercent,
+  programTemplates,
   rpeFromRir,
   sessionTonnage,
+  splitLabels,
   volumeStatus,
   weekStartKey,
   weeklyWorkingSets
 } from "@/lib/training";
-import type { WorkoutSession, WorkoutSet } from "@/lib/types";
+import type { MuscleGroup, WorkoutSession, WorkoutSet } from "@/lib/types";
 
 function makeSet(partial: Partial<WorkoutSet>): WorkoutSet {
   return {
@@ -144,5 +146,53 @@ describe("deloadSignals", () => {
     expect(
       deloadSignals({ e1rmDeclined: true, overReachingVolume: false, lowRecovery: false, weeksTrained: 3 }).triggered
     ).toBe(false);
+  });
+});
+
+describe("v2 五分化模板（2026-07-10 计划）", () => {
+  const template = programTemplates.fiveDayV2;
+
+  it("周一~周五共 5 天，且全部为标准日（无碳循环）", () => {
+    expect(template).toBeDefined();
+    expect(template.daysPerWeek).toBe(5);
+    expect(template.days).toHaveLength(5);
+    const weekdays = ["周一", "周二", "周三", "周四", "周五"];
+    template.days.forEach((day, index) => {
+      expect(day.dayLabel).toContain(weekdays[index]);
+      expect(day.carbDay).toBe("mid");
+    });
+  });
+
+  it("单次动作数为 7/7/7/8/7（对应文档的单次容量上限）", () => {
+    expect(template.days.map((day) => day.exercises.length)).toEqual([7, 7, 7, 8, 7]);
+  });
+
+  it("周直接组数贴合文档容量地图（胸13/股四14/二头8/三头6/腘绳7/小腿7）", () => {
+    const weekly = {} as Record<MuscleGroup, number>;
+    for (const day of template.days) {
+      for (const exercise of day.exercises) {
+        weekly[exercise.muscleGroup] = (weekly[exercise.muscleGroup] ?? 0) + exercise.sets;
+      }
+    }
+    expect(weekly.chest).toBe(13);
+    expect(weekly.quads).toBe(14);
+    expect(weekly.biceps).toBe(8);
+    expect(weekly.triceps).toBe(6);
+    expect(weekly.hamstrings).toBe(7);
+    expect(weekly.calves).toBe(7);
+  });
+
+  it("保留计划标志性的拉长位动作", () => {
+    const allExercises = template.days.flatMap((day) => day.exercises.map((item) => item.exercise)).join("/");
+    expect(allExercises).toContain("绳索过顶臂屈伸");
+    expect(allExercises).toContain("上斜哑铃弯举");
+    expect(allExercises).toContain("坐姿腿弯举");
+    expect(allExercises).toContain("罗马尼亚硬拉");
+  });
+
+  it("旧「5练1高碳」模板已退役，v2 模板成为列表首位", () => {
+    expect(Object.keys(programTemplates)[0]).toBe("fiveDayV2");
+    expect(Object.keys(programTemplates)).not.toContain("ppl");
+    expect(splitLabels.fiveDayV2).toContain("五分化");
   });
 });

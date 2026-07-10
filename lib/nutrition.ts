@@ -47,35 +47,16 @@ const dailyMacroBandWeights: Record<keyof MacroRatio, number> = {
 // 也要求总热量不超目标 +50 kcal——这是用户新增的“宁可少、不要明显超”的硬约束。仅约束上盈，亏由克数容忍带兜底。
 const dailyKcalSurplusCap = 50;
 
-// 张老师五分化碳循环：每周仅 1 天高碳（腿日），其余 6 天低碳。
-// 周碳水总量 W×2×7、周脂肪总量 W×0.8×7 在两类碳日间重分配，保持周均不变。
-// 高碳日 = 周碳水 30% / 周脂肪 9%（≈4.2g/kg 碳水、0.5g/kg 脂肪），干净饮食可达成。
-// 低碳日 = 周碳水 70% 摊 6 天 / 周脂肪 91% 摊 6 天（≈1.63g/kg 碳水、0.85g/kg 脂肪）。
-const carbCycleDistribution: Record<CarbDayType, { daysPerWeek: number; carbShare: number; fatShare: number }> = {
-  high: { daysPerWeek: 1, carbShare: 0.3, fatShare: 0.09 },
-  mid: { daysPerWeek: 6, carbShare: 0.7, fatShare: 0.91 },
-  low: { daysPerWeek: 6, carbShare: 0.7, fatShare: 0.91 }
-};
-
-const easyFatGainBaseCarbsPerKg = 2;
-const easyFatGainBaseFatPerKg = 0.8;
-const defaultProteinPerKg = 1.8;
-const proteinPerKgRange = { min: 1.6, max: 2.2 };
-// 减脂热量缺口（kcal/天）：当日目标 = TDEE − 缺口。默认 500（≈每周减0.5kg，凯圣王建议200-400、不超500，循证共识300-500）。
-const defaultCalorieDeficit = 500;
-const calorieDeficitRange = { min: 0, max: 1200 };
-
-const goalDefaults: Record<NutritionGoal, number> = {
-  cut: 0.5,
-  maintain: 0,
-  bulk: 0.25
-};
-
-const goalRanges: Record<NutritionGoal, { min: number; max: number }> = {
-  cut: { min: 0.25, max: 1 },
-  maintain: { min: 0, max: 0 },
-  bulk: { min: 0.1, max: 0.5 }
-};
+// v2 计划（2026-07-10《训练与营养计划》）：每日目标固定、无碳循环——
+// 2300 kcal、蛋白 175g 起（推荐区间 175–195，随体脂下降上调）、脂肪 60–65g（不低于 0.6g/kg），
+// 剩余热量全部给碳水（约 235–260g）。周六日休息也是同一目标。
+// 热量校准走文档第五节规则：每 2 周按体重周均降幅手动调 targetKcal ±100–150，公式不自动漂移。
+const defaultTargetKcal = 2300;
+const targetKcalRange = { min: 1200, max: 6000 };
+const defaultProteinTargetG = 175;
+const proteinTargetRange = { min: 80, max: 300 };
+const defaultFatTargetG = 62;
+const fatTargetRange = { min: 30, max: 150 };
 
 interface FoodPortionRule {
   defaultGrams: number;
@@ -167,30 +148,16 @@ const categoryGramWeights: Record<FoodCategory, number> = {
 // 不参与餐盘结构评分的“非结构”类：补剂与食物配料都是功能性小份量，不算主食/蔬果/蛋白结构。
 const nonStructureCategories: ReadonlySet<FoodCategory> = new Set(["补剂", "食物配料"]);
 
-export const carbCycleMacroSource =
-  "张老师五分化碳循环：一周5练（胸/背/腿/肩/手臂）+2休息，仅腿日高碳、其余6天低碳；蛋白每日固定W×1.6-2.2g。每日总热量 = 当日TDEE（BMR×活动系数+运动消耗）− 减脂热量缺口，蛋白外的热量按碳:脂配比拆分——高碳日碳重脂轻（碳水约占碳+脂能量79%）、低碳日碳轻脂重（约46%）。配比沿用张老师，总热量随真实消耗−缺口走。";
+export const v2PlanMacroSource =
+  "v2 计划（2026-07-10）：每日摄入目标固定 2300 kcal、蛋白 175–195g（起步 175）、脂肪 60–65g，碳水吃掉剩余热量（约 235–260g）。无碳循环——训练日与休息日同一目标；每 2 周按体重周均降幅 ±100–150 kcal 手动校准。";
 
 export const foodPortionSource =
   "分类份量参考中国居民平衡膳食餐盘和健康餐盘法：主餐保留可见蛋白份量，主食、蔬果、蛋白按餐盘结构评分；补剂和坚果按健身常用单次份量设上限。";
 
-export const energyTargetSource =
-  "热量目标：每日总热量 = 当日TDEE（BMR×活动系数+运动消耗）− 减脂热量缺口（默认500kcal/天，可在档案按视频/自身调整）；蛋白固定W×1.6-2.2g/kg，其余热量按当日碳循环碳:脂配比拆成碳水与脂肪。碳循环各日总热量恒定、只在碳↔脂间摆动（凯圣王/张老师减脂缺口区间约200-500kcal）。";
-
-export const macroRatioCheckSource =
-  "配比检查：按当前体重公式反推的目标供能占比±5个百分点判断碳水、蛋白、脂肪是否贴合。";
-
-export const workoutLabels: Record<WorkoutType, string> = {
-  chest: "胸：卧推飞鸟",
-  back: "背：引体划船",
-  legs: "腿：深蹲硬拉",
-  shoulders: "肩：推举侧平举",
-  arms: "手臂：弯举臂屈伸",
-  rest: "休息日"
-};
-
+// 碳日标签：v2 无碳循环，新计划一律记为 mid（标准日）；high/low 仅用于展示历史计划。
 export const carbDayLabels: Record<CarbDayType, string> = {
   high: "高碳日",
-  mid: "中碳日",
+  mid: "标准日",
   low: "低碳日"
 };
 
@@ -199,12 +166,6 @@ export const trainingTimeLabels: Record<TrainingTime, string> = {
   afternoon: "午后训练",
   evening: "傍晚训练",
   rest: "休息日"
-};
-
-export const goalLabels: Record<NutritionGoal, string> = {
-  cut: "减脂",
-  maintain: "维持",
-  bulk: "增肌"
 };
 
 export const goalMacroRatioRanges: Record<NutritionGoal, Record<keyof MacroRatio, MacroRatioRange>> = {
@@ -222,24 +183,6 @@ export const goalMacroRatioRanges: Record<NutritionGoal, Record<keyof MacroRatio
     carbs: { min: 45, max: 65 },
     protein: { min: 15, max: 30 },
     fat: { min: 20, max: 35 }
-  }
-};
-
-export const carbDayMacroRatioRanges: Record<CarbDayType, Record<keyof MacroRatio, MacroRatioRange>> = {
-  high: {
-    carbs: { min: 55, max: 72 },
-    protein: { min: 14, max: 26 },
-    fat: { min: 12, max: 24 }
-  },
-  mid: {
-    carbs: { min: 42, max: 58 },
-    protein: { min: 15, max: 30 },
-    fat: { min: 22, max: 40 }
-  },
-  low: {
-    carbs: { min: 20, max: 40 },
-    protein: { min: 14, max: 35 },
-    fat: { min: 35, max: 65 }
   }
 };
 
@@ -471,125 +414,49 @@ export function calculateTdee(profile: UserProfile) {
   return calculateBmr(profile) * profile.activityFactor + profile.exerciseKcal;
 }
 
-export function getNutritionGoal(profile: Pick<UserProfile, "goalType">): NutritionGoal {
-  return profile.goalType ?? "cut";
-}
-
-export function getWeeklyWeightChangePct(profile: Pick<UserProfile, "goalType" | "weeklyWeightChangePct">) {
-  const goal = getNutritionGoal(profile);
-  const range = goalRanges[goal];
-  const rawValue = profile.weeklyWeightChangePct ?? goalDefaults[goal];
-  return clamp(rawValue, range.min, range.max);
-}
-
-export function getProteinPerKg(profile: Pick<UserProfile, "proteinPerKg">) {
-  return clamp(profile.proteinPerKg ?? defaultProteinPerKg, proteinPerKgRange.min, proteinPerKgRange.max);
-}
-
-export function getCalorieDeficit(profile: Pick<UserProfile, "calorieDeficit">) {
-  return clamp(profile.calorieDeficit ?? defaultCalorieDeficit, calorieDeficitRange.min, calorieDeficitRange.max);
-}
-
 function caloriesFromMacros(target: Pick<MacroTotals, "carbs" | "protein" | "fat">) {
   const calories = calculateMacroCalories({ kcal: 0, ...target });
   return calories.carbs + calories.protein + calories.fat;
 }
 
-export function getCarbDayType(workoutType: WorkoutType): CarbDayType {
-  // 张老师五分化：腿日为唯一高碳日（糖原消耗最大），其余训练日与休息日均低碳。
-  if (workoutType === "legs") {
-    return "high";
-  }
-  return "low";
+export function getTargetKcal(profile: Pick<UserProfile, "targetKcal">) {
+  return clamp(profile.targetKcal ?? defaultTargetKcal, targetKcalRange.min, targetKcalRange.max);
 }
 
-// 解析当日碳循环日：①休息日（训练时间选休息日）强制低碳；②否则用计划页直接选的 carbDayType；
-// ③再回退旧数据的训练部位派生（腿日=高碳，旧 workoutType="rest" 经 getCarbDayType 也得低碳）；
-// ④信息缺失时默认低碳。显式 carbDayType 优先于遗留字段，避免旧休息日草稿把碳日锁死改不动。
-export function resolveCarbDayType(
-  profile: Pick<UserProfile, "carbDayType" | "workoutType" | "trainingTime">
-): CarbDayType {
-  if (profile.trainingTime === "rest") {
-    return "low";
-  }
-  if (profile.carbDayType) {
-    return profile.carbDayType;
-  }
-  if (profile.workoutType) {
-    return getCarbDayType(profile.workoutType);
-  }
-  return "low";
+export function getProteinTargetG(profile: Pick<UserProfile, "proteinTargetG">) {
+  return clamp(profile.proteinTargetG ?? defaultProteinTargetG, proteinTargetRange.min, proteinTargetRange.max);
 }
 
-// 从张老师基线系数推导「当日碳水占（碳水+脂肪）能量的比例」：真正随碳循环摆动的是碳水与脂肪，
-// 高碳日碳重脂轻、低碳日碳轻脂重——这个比例即张老师三大营养素配比里可循环的部分。
-function zhangCarbFatSplit(carbDayType: CarbDayType): number {
-  const distribution = carbCycleDistribution[carbDayType];
-  const carbGPerKg = (easyFatGainBaseCarbsPerKg * 7 * distribution.carbShare) / distribution.daysPerWeek;
-  const fatGPerKg = (easyFatGainBaseFatPerKg * 7 * distribution.fatShare) / distribution.daysPerWeek;
-  const carbKcal = carbGPerKg * 4;
-  const fatKcal = fatGPerKg * 9;
-  if (carbKcal + fatKcal <= 0) {
-    return 0.5;
-  }
-  return carbKcal / (carbKcal + fatKcal);
+export function getFatTargetG(profile: Pick<UserProfile, "fatTargetG">) {
+  return clamp(profile.fatTargetG ?? defaultFatTargetG, fatTargetRange.min, fatTargetRange.max);
 }
 
-// 每日目标：总热量 = 当日 TDEE − 减脂热量缺口（TDEE=BMR×活动系数+运动消耗，随实际运动/Apple Watch
-// 活动能量变化；缺口默认 500，可在档案里按视频/自身调整）。蛋白固定 W×g/kg（凯圣王/张老师方案中蛋白
-// 本就每日固定、碳循环只在碳↔脂间摆动），其余热量按「当日碳:脂配比」拆成碳水与脂肪。于是配比仍是那一套、
-// 碳循环日总热量恒定，但目标真正跟着”消耗−缺口”走——修复”系数总热量与真实 TDEE 差出大窗口却浑然不觉”。
-// 按指定碳日算当日目标：总热量=TDEE−缺口，蛋白固定，其余热量按该碳日的碳:脂配比拆成碳水与脂肪。
-// 供 calculateDailyTarget 与周均对照复用；碳日由调用方（经 resolveCarbDayType）决定，本函数不含休息日强制。
-function dailyTargetForCarbDay(profile: UserProfile, carbDayType: CarbDayType): MacroTotals {
-  const protein = profile.weightKg * getProteinPerKg(profile);
-  const tdee = calculateTdee(profile);
-  const carbFatKcal = Math.max(tdee - getCalorieDeficit(profile) - protein * 4, 0);
-  const carbShare = zhangCarbFatSplit(carbDayType);
-  const target = {
-    kcal: 0,
-    carbs: (carbFatKcal * carbShare) / 4,
-    protein,
-    fat: (carbFatKcal * (1 - carbShare)) / 9
-  };
-
-  return {
-    ...target,
-    kcal: caloriesFromMacros(target)
-  };
-}
-
+// v2 每日目标：总热量固定 targetKcal，蛋白/脂肪为绝对克数目标，碳水吃掉剩余热量
+// (kcal − P×4 − F×9)/4。与体重公式、碳循环日、训练/休息全部解耦；旧 carbDayType/
+// proteinPerKg/calorieDeficit 字段不再参与计算，TDEE 只作赤字监控参考。
 export function calculateDailyTarget(profile: UserProfile): MacroTotals {
-  return dailyTargetForCarbDay(profile, resolveCarbDayType(profile));
-}
-
-// 周均目标：一周 1 高碳(腿)+6 低碳，各日总热量均=当日 TDEE；此处给出周平均的宏量分布用于展示与对照。
-export function calculateCycleAverageTarget(profile: UserProfile): MacroTotals {
-  const high = dailyTargetForCarbDay(profile, "high");
-  const low = dailyTargetForCarbDay(profile, "low");
-  const highDays = carbCycleDistribution.high.daysPerWeek;
-  const lowDays = carbCycleDistribution.low.daysPerWeek;
-  const weeklyAverage = (highValue: number, lowValue: number) =>
-    (highValue * highDays + lowValue * lowDays) / (highDays + lowDays);
-  const target = {
-    kcal: 0,
-    carbs: weeklyAverage(high.carbs, low.carbs),
-    protein: high.protein,
-    fat: weeklyAverage(high.fat, low.fat)
-  };
+  const protein = getProteinTargetG(profile);
+  const fat = getFatTargetG(profile);
+  const carbs = Math.max((getTargetKcal(profile) - protein * 4 - fat * 9) / 4, 0);
+  const target = { kcal: 0, carbs, protein, fat };
 
   return {
     ...target,
     kcal: caloriesFromMacros(target)
   };
+}
+
+// v2 无碳循环：周均即每日目标。保留导出以兼容 NutritionResult.cycleAverageTarget 展示。
+export function calculateCycleAverageTarget(profile: UserProfile): MacroTotals {
+  return calculateDailyTarget(profile);
 }
 
 export function calculateCalorieTarget(profile: UserProfile) {
-  return calculateCycleAverageTarget(profile).kcal;
+  return calculateDailyTarget(profile).kcal;
 }
 
-// 当日总热量相对维持(TDEE)的盈亏。当前模型每日总热量=当日 TDEE，故常态约为 0；
-// 若某天运动消耗不同导致当日 TDEE 变化，或后续引入减脂/增肌热量偏移，这里会反映差值。
+// 当日目标相对维持(TDEE)的盈亏：v2 默认档案约 −595 kcal，对应文档"赤字 550–650"；
+// 体重变化后此值随 TDEE 漂移，是"每 2 周校准 targetKcal"的观察指标。
 export function calculatePlannedCalorieDelta(profile: UserProfile) {
   return calculateDailyTarget(profile).kcal - calculateTdee(profile);
 }
@@ -1376,7 +1243,8 @@ export function buildNutritionResult(profile: UserProfile, meals: MealPlan[], fo
     bmr: calculateBmr(profile),
     tdee,
     plannedCalorieDelta,
-    carbDayType: resolveCarbDayType(profile),
+    // v2 无碳循环：每份新计划一律记为标准日(mid)；high/low 只存在于历史计划里。
+    carbDayType: "mid",
     cycleAverageTarget,
     dailyTarget,
     actualTotals,
@@ -1407,4 +1275,24 @@ export function normalizeMealRatios(meals: MealPlan[]) {
     return meals;
   }
   return meals.map((meal) => ({ ...meal, ratio: meal.ratio / sum }));
+}
+
+// 首页「本周碳水日」统计：碳日是饮食计划的属性，按当周（周一起 7 天）已保存计划的
+// result.carbDayType 计数——不按训练记录数（训练与饮食可以只记其一）。
+export function weeklyCarbDayCounts(
+  plans: Array<{ planDate: string; result: Pick<NutritionResult, "carbDayType"> }>,
+  weekStart: string
+): Record<CarbDayType, number> {
+  const start = new Date(`${weekStart}T00:00:00`);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 7);
+  const counts: Record<CarbDayType, number> = { high: 0, mid: 0, low: 0 };
+  for (const plan of plans) {
+    const date = new Date(`${plan.planDate}T00:00:00`);
+    const carbDayType = plan.result?.carbDayType;
+    if (date >= start && date < end && carbDayType && carbDayType in counts) {
+      counts[carbDayType] += 1;
+    }
+  }
+  return counts;
 }

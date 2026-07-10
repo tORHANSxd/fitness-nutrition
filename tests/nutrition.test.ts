@@ -17,12 +17,13 @@ import {
   getDefaultMealEntrySettings,
   getFoodEnergyMismatch,
   getMacroRatioCheck,
-  getCarbDayType,
-  getProteinPerKg,
-  resolveCarbDayType,
-  round
+  getFatTargetG,
+  getProteinTargetG,
+  getTargetKcal,
+  round,
+  weeklyCarbDayCounts
 } from "@/lib/nutrition";
-import type { FoodItem, MealPlan, UserProfile } from "@/lib/types";
+import type { CarbDayType, FoodItem, MealPlan, UserProfile } from "@/lib/types";
 
 const profile: UserProfile = {
   sex: "male",
@@ -85,79 +86,57 @@ describe("nutrition formulas", () => {
     expect(calculateBmr({ ...profile, sex: "female" })).toBe(1614);
   });
 
-  it("maps workout type to carb day type", () => {
-    expect(getCarbDayType("legs")).toBe("high");
-    expect(getCarbDayType("back")).toBe("low");
-    expect(getCarbDayType("chest")).toBe("low");
-    expect(getCarbDayType("shoulders")).toBe("low");
-    expect(getCarbDayType("arms")).toBe("low");
-    expect(getCarbDayType("rest")).toBe("low");
+  it("fixes the daily target to the v2 plan macros (2300 kcal / P175 / F62 / C260.5)", () => {
+    // v2 计划（2026-07-10）：每日摄入目标固定，蛋白与脂肪为绝对克数，碳水吃掉剩余热量。
+    const target = calculateDailyTarget(profile);
+    expect(round(target.kcal, 0)).toBe(2300);
+    expect(round(target.protein, 1)).toBe(175);
+    expect(round(target.fat, 1)).toBe(62);
+    expect(round(target.carbs, 1)).toBe(260.5);
+    // 4/4/9 自洽。
+    expect(round(target.carbs * 4 + target.protein * 4 + target.fat * 9, 0)).toBe(round(target.kcal, 0));
+    // 目标与体重解耦：换一个体重，目标不变（校准走手动调 targetKcal，而不是公式反推）。
+    expect(round(calculateDailyTarget({ ...profile, weightKg: 70 }).kcal, 0)).toBe(2300);
+    // 周均 = 每日（无碳循环）；calculateCalorieTarget 同步。
+    expect(calculateCycleAverageTarget(profile)).toEqual(target);
+    expect(round(calculateCalorieTarget(profile), 0)).toBe(2300);
   });
 
-  it("anchors the daily target to TDEE minus the calorie deficit, with fixed protein", () => {
-    const tdee = calculateTdee(profile);
-    expect(round(tdee, 0)).toBe(2881);
-    // 缺省缺口 500：当日/周均总热量 = TDEE − 500（不再是体重系数反推的固定低值）。
-    expect(round(calculateCalorieTarget(profile), 0)).toBe(round(tdee - 500, 0));
-    expect(round(calculateCycleAverageTarget(profile).kcal, 0)).toBe(round(tdee - 500, 0));
-    // 蛋白固定 W×g/kg（默认 1.8）。
-    expect(round(calculateCycleAverageTarget(profile).protein, 1)).toBe(round(profile.weightKg * 1.8, 1));
-    // 当日相对维持的盈亏 = −缺口。
-    expect(round(calculatePlannedCalorieDelta(profile), 0)).toBe(-500);
-    // 自定义缺口生效：当日目标 = TDEE − 该缺口。
-    expect(round(calculateDailyTarget({ ...profile, calorieDeficit: 300 }).kcal, 0)).toBe(round(tdee - 300, 0));
+  it("lets custom v2 targets override the defaults, carbs absorbing the remainder", () => {
+    const target = calculateDailyTarget({ ...profile, targetKcal: 2200, proteinTargetG: 185, fatTargetG: 60 });
+    expect(round(target.kcal, 0)).toBe(2200);
+    expect(round(target.protein, 1)).toBe(185);
+    expect(round(target.fat, 1)).toBe(60);
+    // 碳水 = (2200 − 185×4 − 60×9) / 4 = 230。
+    expect(round(target.carbs, 1)).toBe(230);
   });
 
-  it("uses the requested default body profile for the Kaisheng plan", () => {
+  it("clamps v2 target fields into sane ranges", () => {
+    expect(getTargetKcal({ targetKcal: 500 })).toBe(1200);
+    expect(getTargetKcal({ targetKcal: 9000 })).toBe(6000);
+    expect(getTargetKcal({})).toBe(2300);
+    expect(getProteinTargetG({ proteinTargetG: 20 })).toBe(80);
+    expect(getProteinTargetG({ proteinTargetG: 500 })).toBe(300);
+    expect(getProteinTargetG({})).toBe(175);
+    expect(getFatTargetG({ fatTargetG: 5 })).toBe(30);
+    expect(getFatTargetG({ fatTargetG: 400 })).toBe(150);
+    expect(getFatTargetG({})).toBe(62);
+  });
+
+  it("uses the v2 default body profile (93.2kg, TDEE ≈ 2895, deficit ≈ 595)", () => {
     expect(defaultProfile.sex).toBe("male");
-    expect(defaultProfile.age).toBe(23);
+    expect(defaultProfile.age).toBe(24);
     expect(defaultProfile.heightCm).toBe(174);
-    expect(defaultProfile.weightKg).toBe(94.5);
+    expect(defaultProfile.weightKg).toBe(93.2);
     expect(defaultProfile.activityFactor).toBe(1.1);
     expect(defaultProfile.exerciseKcal).toBe(800);
 
-    expect(round(calculateBmr(defaultProfile), 1)).toBe(1922.5);
-    expect(round(calculateTdee(defaultProfile), 0)).toBe(2915);
-    // 周均与当日总热量 = TDEE − 缺省缺口 500 = 2415；当日相对维持盈亏 = −500。
-    expect(round(calculateCycleAverageTarget(defaultProfile).kcal, 0)).toBe(2415);
-    expect(round(calculateDailyTarget(defaultProfile).kcal, 0)).toBe(2415);
-    expect(round(calculatePlannedCalorieDelta(defaultProfile), 0)).toBe(-500);
-  });
-
-  it("keeps daily total at TDEE and cycles carbs vs fat by Zhang ratios (1 high + 6 low)", () => {
-    const tdee = calculateTdee(profile);
-    const fixedProtein = round(profile.weightKg * getProteinPerKg(profile), 1);
-
-    for (const workoutType of ["legs", "back", "chest", "shoulders", "arms", "rest"] as const) {
-      const target = calculateDailyTarget({ ...profile, workoutType });
-      const macroCalories = target.carbs * 4 + target.protein * 4 + target.fat * 9;
-
-      // 4/4/9 自洽，且每日总热量 = 当日 TDEE − 缺省缺口 500；蛋白每日固定 W×g/kg。
-      expect(round(macroCalories, 0)).toBe(round(target.kcal, 0));
-      expect(round(target.kcal, 0)).toBe(round(tdee - 500, 0));
-      expect(round(target.protein, 1)).toBe(fixedProtein);
-    }
-
-    // 高碳日(腿)碳重脂轻，低碳日碳轻脂重；两者总热量相同(=TDEE)。
-    const high = calculateDailyTarget({ ...profile, workoutType: "legs" });
-    const low = calculateDailyTarget({ ...profile, workoutType: "chest" });
-
-    expect(high.carbs).toBeGreaterThan(low.carbs);
-    expect(high.fat).toBeLessThan(low.fat);
-    expect(round(high.kcal, 0)).toBe(round(low.kcal, 0));
-
-    // 周均(1 高 + 6 低)与 calculateCycleAverageTarget 一致。
-    const avg = calculateCycleAverageTarget(profile);
-    expect(round((high.carbs + low.carbs * 6) / 7, 1)).toBe(round(avg.carbs, 1));
-    expect(round((high.fat + low.fat * 6) / 7, 1)).toBe(round(avg.fat, 1));
-  });
-
-  it("clamps daily fixed protein inside Kaisheng 1.6-2.2 g/kg range", () => {
-    expect(getProteinPerKg({ proteinPerKg: 1.2 })).toBe(1.6);
-    expect(getProteinPerKg({ proteinPerKg: 1.9 })).toBe(1.9);
-    expect(getProteinPerKg({ proteinPerKg: 2.6 })).toBe(2.2);
-    expect(round(calculateDailyTarget({ ...profile, proteinPerKg: 1.6 }).protein, 1)).toBe(128);
-    expect(round(calculateDailyTarget({ ...profile, proteinPerKg: 2.2 }).protein, 1)).toBe(176);
+    expect(round(calculateBmr(defaultProfile), 1)).toBe(1904.5);
+    // TDEE ≈ 2895，落在 v2 文档估算区间 2850–2950。
+    expect(round(calculateTdee(defaultProfile), 0)).toBe(2895);
+    expect(round(calculateDailyTarget(defaultProfile).kcal, 0)).toBe(2300);
+    // 相对维持的盈亏 ≈ −595，对应文档"赤字约 550–650"。
+    expect(round(calculatePlannedCalorieDelta(defaultProfile), 0)).toBe(-595);
   });
 
   it("calculates macro calorie ratios from grams", () => {
@@ -167,23 +146,13 @@ describe("nutrition formulas", () => {
     expect(round(ratio.fat, 0)).toBe(29);
   });
 
-  it("checks macro ratios against carb cycle targets and goal ranges", () => {
+  it("checks macro ratios against the v2 target ratio (±5 pct-points)", () => {
     const target = calculateDailyTarget(profile);
     const targetRatio = calculateMacroRatio(target);
-    const check = getMacroRatioCheck(targetRatio, targetRatio, "cut", resolveCarbDayType(profile));
+    const check = getMacroRatioCheck(targetRatio, targetRatio, "cut", "mid");
 
     expect(check.cycleAligned).toBe(true);
     expect(check.goalAligned).toBe(true);
-  });
-
-  it("keeps high, mid, and low carb day ratios inside carb-cycle ranges", () => {
-    for (const workoutType of ["legs", "chest", "back", "rest"] as const) {
-      const target = calculateDailyTarget({ ...profile, workoutType });
-      const ratio = calculateMacroRatio(target);
-      const check = getMacroRatioCheck(ratio, ratio, "cut", getCarbDayType(workoutType));
-
-      expect(check.goalAligned).toBe(true);
-    }
   });
 
   it("detects food energy data that conflicts with macro calories", () => {
@@ -239,47 +208,30 @@ describe("nutrition formulas", () => {
   });
 });
 
-describe("carb day model (explicit carbDayType + rest day)", () => {
-  it("resolves an explicit carbDayType, letting it win over the legacy workoutType", () => {
-    expect(resolveCarbDayType({ carbDayType: "high", trainingTime: "afternoon" })).toBe("high");
-    expect(resolveCarbDayType({ carbDayType: "low", trainingTime: "afternoon" })).toBe("low");
+describe("v2 plan: no carb cycling (every day is a standard day)", () => {
+  it("keeps the daily target identical across legacy carb day / workout type / rest day", () => {
+    const base = calculateDailyTarget(profile);
+    const variants = [
+      calculateDailyTarget({ ...profile, carbDayType: "high" }),
+      calculateDailyTarget({ ...profile, carbDayType: "low" }),
+      calculateDailyTarget({ ...profile, workoutType: "legs" }),
+      calculateDailyTarget({ ...profile, workoutType: undefined, trainingTime: "rest" })
+    ];
+    for (const target of variants) {
+      expect(target).toEqual(base);
+    }
   });
 
-  it("forces low carb on a rest day picked via trainingTime", () => {
-    expect(resolveCarbDayType({ carbDayType: "high", trainingTime: "rest" })).toBe("low");
+  it("reports every plan as a standard (mid) day regardless of legacy fields", () => {
+    const result = buildNutritionResult({ ...profile, workoutType: undefined, carbDayType: "high" }, [], builtinFoods);
+    expect(result.carbDayType).toBe("mid");
+    const restResult = buildNutritionResult({ ...profile, carbDayType: "low", trainingTime: "rest" }, [], builtinFoods);
+    expect(restResult.carbDayType).toBe("mid");
   });
 
-  it("falls back to deriving the carb day from a legacy workoutType when carbDayType is absent", () => {
-    expect(resolveCarbDayType({ workoutType: "legs", trainingTime: "afternoon" })).toBe("high");
-    expect(resolveCarbDayType({ workoutType: "chest", trainingTime: "afternoon" })).toBe("low");
-    expect(resolveCarbDayType({ trainingTime: "afternoon" })).toBe("low"); // 无任何信息时默认低碳
-  });
-
-  it("drives the daily target by the explicit carbDayType (carbs vs fat swing)", () => {
-    const high = calculateDailyTarget({ ...profile, workoutType: undefined, carbDayType: "high" });
-    const low = calculateDailyTarget({ ...profile, workoutType: undefined, carbDayType: "low" });
-    expect(high.carbs).toBeGreaterThan(low.carbs);
-    expect(high.fat).toBeLessThan(low.fat);
-    expect(round(high.kcal, 0)).toBe(round(low.kcal, 0)); // 总热量不随碳日变
-  });
-
-  it("collapses a rest day onto the low-carb target even if carbDayType says high", () => {
-    const rest = calculateDailyTarget({ ...profile, carbDayType: "high", trainingTime: "rest" });
-    const low = calculateDailyTarget({ ...profile, carbDayType: "low", trainingTime: "afternoon" });
-    expect(round(rest.carbs, 1)).toBe(round(low.carbs, 1));
-    expect(round(rest.fat, 1)).toBe(round(low.fat, 1));
-  });
-
-  it("creates 3 meals on a rest day chosen via trainingTime", () => {
+  it("still creates 3 meals on a rest day and 4 on a training day (meal shape only)", () => {
     expect(createDefaultMeals({ ...profile, trainingTime: "rest" })).toHaveLength(3);
     expect(createDefaultMeals({ ...profile, trainingTime: "afternoon" })).toHaveLength(4);
-  });
-
-  it("reports the resolved carb day on the nutrition result", () => {
-    const result = buildNutritionResult({ ...profile, workoutType: undefined, carbDayType: "high" }, [], builtinFoods);
-    expect(result.carbDayType).toBe("high");
-    const restResult = buildNutritionResult({ ...profile, carbDayType: "high", trainingTime: "rest" }, [], builtinFoods);
-    expect(restResult.carbDayType).toBe("low");
   });
 });
 
@@ -671,7 +623,7 @@ describe("meal solving", () => {
       { kcal: 0, carbs: 0, protein: 0, fat: 0 }
     );
 
-    expect(round(result.dailyTarget.protein, 1)).toBe(round(userProfile.weightKg * getProteinPerKg(userProfile), 1));
+    expect(round(result.dailyTarget.protein, 1)).toBe(175);
     expect(round(result.mealRecommendations[0].target.protein, 1)).not.toBe(round(result.dailyTarget.protein * meals[0].ratio, 1));
     // 硬性容忍带与 isDailyMacroBandAligned 一致：亏 ≤10g、盈 ≤5g（recommendedRemaining = 目标 - 推荐）。
     for (const key of ["carbs", "protein", "fat"] as const) {
@@ -791,7 +743,7 @@ describe("meal solving", () => {
   });
 
   it("trims fatty filler to approach macros when foods are too fat-dense to hit the band", () => {
-    // 用户高碳腿日真实场景：食材脂肪密度偏高（偏肥的鸡肉、含脂燕麦、混合坚果），
+    // 严控脂肪目标（fatTargetG 45）+ 脂肪密度偏高的食材（偏肥的鸡肉、含脂燕麦、混合坚果）：
     // 物理上无法同时达到 高碳水/高蛋白/低脂。宏量优先收尾应在保留主餐动物蛋白的前提下，
     // 压低坚果等填充类食材，让三大宏量都比纯结构解更贴近目标。
     const foods: FoodItem[] = [
@@ -809,12 +761,12 @@ describe("meal solving", () => {
       { id: "dinner", name: "晚餐", ratio: 0.3, locked: false, entries: [entry("public-brown-rice-cooked", 360, 360), entry("u-chicken", 150, 260), entry("u-asparagus", 420, 420), entry("u-nuts", 6, 35)] }
     ];
     const userProfile: UserProfile = {
-      sex: "male", age: 23, heightCm: 174, weightKg: 94.5, activityFactor: 1.1, exerciseKcal: 800,
-      proteinPerKg: 1.8, workoutType: "legs", trainingTime: "afternoon", planDate: "2026-06-22"
+      sex: "male", age: 24, heightCm: 174, weightKg: 93.2, activityFactor: 1.1, exerciseKcal: 800,
+      fatTargetG: 45, trainingTime: "afternoon", planDate: "2026-06-22"
     };
     const result = buildNutritionResult(userProfile, meals, foods);
 
-    // 收尾后三项都应尽量贴近目标（TDEE 锚定模型下的可达最近点）：碳水/蛋白亏 ≤14g、脂肪盈 ≤12.5g。
+    // 收尾后三项都应尽量贴近目标（可达最近点）：碳水/蛋白亏 ≤14g、脂肪盈 ≤13g。
     expect(result.recommendedRemaining.carbs).toBeLessThanOrEqual(14);
     expect(result.recommendedRemaining.protein).toBeLessThanOrEqual(14);
     expect(result.recommendedRemaining.fat).toBeGreaterThanOrEqual(-13); // 脂肪盈余 ≤13g
@@ -894,5 +846,33 @@ describe("meal solving", () => {
     const almond = nutResult.mealRecommendations[0].recommendedEntries.almond;
     expect(almond).toBeGreaterThan(30);
     expect(almond).toBeLessThanOrEqual(70);
+  });
+});
+
+describe("weekly carb day stats (overview)", () => {
+  it("counts carb days from saved plans inside the Monday-start week window", () => {
+    const mk = (planDate: string, carb: CarbDayType) => ({ planDate, result: { carbDayType: carb } });
+    const plans = [
+      // 用户真实场景（2026-07-06 周一起始的一周）：本周保存了 4 天饮食计划。
+      mk("2026-07-06", "low"),
+      mk("2026-07-07", "low"),
+      mk("2026-07-08", "high"),
+      mk("2026-07-09", "low"),
+      mk("2026-07-05", "high"), // 上周日：不计入
+      mk("2026-07-13", "mid") // 下周一：不计入
+    ];
+    expect(weeklyCarbDayCounts(plans, "2026-07-06")).toEqual({ high: 1, mid: 0, low: 3 });
+  });
+
+  it("returns all zeros when the week has no saved plans", () => {
+    expect(weeklyCarbDayCounts([], "2026-07-06")).toEqual({ high: 0, mid: 0, low: 0 });
+  });
+
+  it("ignores plans whose result lacks a valid carb day type", () => {
+    const plans = [
+      { planDate: "2026-07-07", result: { carbDayType: undefined as unknown as CarbDayType } },
+      { planDate: "2026-07-08", result: { carbDayType: "mid" as CarbDayType } }
+    ];
+    expect(weeklyCarbDayCounts(plans, "2026-07-06")).toEqual({ high: 0, mid: 1, low: 0 });
   });
 });

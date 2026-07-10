@@ -113,28 +113,27 @@ describe("AuthPanel（Claude 式单列登录卡）", () => {
   });
 });
 
-describe("PlannerProfileView 碳循环日 / 训练时间", () => {
-  function carbSelect() {
-    return screen.getByText("碳循环日").closest("label")!.querySelector("select") as HTMLSelectElement;
+describe("PlannerProfileView v2 固定目标 / 训练时间", () => {
+  function fieldInput(labelText: string) {
+    return screen.getByText(labelText).closest("label")!.querySelector("input") as HTMLInputElement;
   }
   function timeSelect() {
     return screen.getByText("训练时间").closest("label")!.querySelector("select") as HTMLSelectElement;
   }
 
-  it("offers only 高碳日/低碳日 and stays enabled on a training day", () => {
-    render(<PlannerProfileView controller={makeController({ trainingTime: "afternoon", carbDayType: "high" })} />);
-    const select = carbSelect();
-    expect(select).not.toBeDisabled();
-    expect(within(select).getAllByRole("option").map((option) => option.textContent)).toEqual(["高碳日", "低碳日"]);
-    expect(select).toHaveValue("high");
+  it("shows the v2 fixed targets (2300 kcal / P175 / F62) and no carb-day picker", () => {
+    render(<PlannerProfileView controller={makeController({ trainingTime: "afternoon" })} />);
+    expect(screen.queryByText("碳循环日")).not.toBeInTheDocument();
+    expect(fieldInput("每日目标 kcal")).toHaveValue(2300);
+    expect(fieldInput("蛋白目标 g")).toHaveValue(175);
+    expect(fieldInput("脂肪目标 g")).toHaveValue(62);
   });
 
-  it("locks the carb day to low and shows a hint on a rest day", () => {
+  it("treats a rest day as the same standard day (no forced low carb)", () => {
     render(<PlannerProfileView controller={makeController({ trainingTime: "rest", carbDayType: "high" })} />);
-    const select = carbSelect();
-    expect(select).toBeDisabled();
-    expect(select).toHaveValue("low"); // resolveCarbDayType 休息日强制低碳
-    expect(screen.getByText("休息日固定低碳。")).toBeInTheDocument();
+    expect(screen.queryByText("休息日固定低碳。")).not.toBeInTheDocument();
+    // 顶栏碳日徽章一律显示"标准日"（v2 无碳循环，历史 carbDayType 不再影响新计算）。
+    expect(screen.getByText("标准日")).toBeInTheDocument();
   });
 
   it("adds a rest-day option to training time", () => {

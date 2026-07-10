@@ -41,14 +41,15 @@ export const muscleGroupOrder: MuscleGroup[] = [
   "abs"
 ];
 
+// v2 无碳循环：新训练记录一律"标准"；高碳/低碳仅用于展示历史记录。
 export const carbDayLabelsForTraining: Record<CarbDayType, string> = {
   high: "高碳",
-  mid: "中碳",
+  mid: "标准",
   low: "低碳"
 };
 
 export const splitLabels: Record<TrainingSplit, string> = {
-  ppl: "推/拉/腿 5天",
+  fiveDayV2: "v2 五分化 5天（周一~五）",
   pplLumbarSafe: "推/拉/腿 5天（腰突）",
   upperLower: "上下分化 4天",
   fullBody: "全身 3天"
@@ -284,72 +285,90 @@ export function deloadSignals(input: {
 // ---------------------------------------------------------------------------
 
 export const programTemplates: Record<TrainingSplit, ProgramTemplate> = {
-  ppl: {
-    id: "ppl",
-    name: "推/拉/腿 5天（贴合 5练1高碳）",
-    summary: "容量上限高，腿日为唯一高碳日，正好对应「5练1高碳」碳循环。",
+  // v2 计划（2026-07-10《训练与营养计划》）：PPL+UL 五分化，周一~周五对应推/拉/腿(股四头)/上肢/腿(后链)，
+  // 周六日完全休息。核心原则：拉长位动作优先、单次每肌群 ≤6–8 有效组、每肌群每周 2 次；
+  // 无碳循环——carbDay 一律 mid（标准日）。周四是刻意的"下肢主动恢复日"，不要改成第三个腿日。
+  fiveDayV2: {
+    id: "fiveDayV2",
+    name: "v2 五分化（周一~五 · 拉长位优先）",
+    summary:
+      "2026-07-10 计划：推 / 拉 / 腿(股四头) / 上肢 / 腿(后链)，每肌群每周 2 次、单次 ≤8 有效组。优先拉长位动作（过顶臂屈伸、上斜弯举、坐姿腿弯举、深程腿举）；孤立动作末组可加拉长半程或递减组，复合动作绝不用。周六日完全休息；复合 RIR 2、孤立末组 RIR 0–1。",
     daysPerWeek: 5,
     days: [
       {
-        dayLabel: "D1 推",
-        splitLabel: "推 Push",
+        dayLabel: "周一 推",
+        splitLabel: "推 Push（胸主）",
         muscleGroups: ["chest", "shoulders", "triceps"],
         carbDay: "mid",
         exercises: [
-          { exercise: "卧推", muscleGroup: "chest", sets: 4, repRange: [5, 8], targetRir: 2 },
-          { exercise: "上斜哑铃推", muscleGroup: "chest", sets: 3, repRange: [8, 12], targetRir: 2 },
-          { exercise: "坐姿推举", muscleGroup: "shoulders", sets: 3, repRange: [6, 10], targetRir: 2 },
-          { exercise: "侧平举", muscleGroup: "shoulders", sets: 3, repRange: [12, 20], targetRir: 1 },
-          { exercise: "绳索下压", muscleGroup: "triceps", sets: 3, repRange: [10, 15], targetRir: 1 }
+          { exercise: "杠铃平板卧推", muscleGroup: "chest", sets: 4, repRange: [5, 8], targetRir: 2 },
+          { exercise: "上斜哑铃卧推(30°)", muscleGroup: "chest", sets: 3, repRange: [8, 12], targetRir: 2 },
+          { exercise: "坐姿哑铃推举", muscleGroup: "shoulders", sets: 3, repRange: [8, 12], targetRir: 2 },
+          { exercise: "绳索中低位夹胸(可LP)", muscleGroup: "chest", sets: 3, repRange: [12, 15], targetRir: 1 },
+          { exercise: "哑铃侧平举(可DS)", muscleGroup: "shoulders", sets: 3, repRange: [12, 15], targetRir: 1 },
+          { exercise: "绳索屈臂下压", muscleGroup: "triceps", sets: 3, repRange: [10, 12], targetRir: 1 },
+          { exercise: "绳索面拉", muscleGroup: "shoulders", sets: 3, repRange: [15, 20], targetRir: 1 }
         ]
       },
       {
-        dayLabel: "D2 拉",
-        splitLabel: "拉 Pull",
-        muscleGroups: ["back", "biceps"],
+        dayLabel: "周二 拉",
+        splitLabel: "拉 Pull（背主）",
+        muscleGroups: ["back", "shoulders", "biceps"],
         carbDay: "mid",
         exercises: [
-          { exercise: "引体/高位下拉", muscleGroup: "back", sets: 4, repRange: [6, 10], targetRir: 2 },
-          { exercise: "杠铃划船", muscleGroup: "back", sets: 4, repRange: [8, 12], targetRir: 2 },
-          { exercise: "面拉", muscleGroup: "shoulders", sets: 3, repRange: [12, 20], targetRir: 1 },
-          { exercise: "弯举", muscleGroup: "biceps", sets: 4, repRange: [8, 12], targetRir: 1 }
+          { exercise: "高位下拉(顶部伸展)", muscleGroup: "back", sets: 4, repRange: [6, 10], targetRir: 2 },
+          { exercise: "胸支撑划船", muscleGroup: "back", sets: 4, repRange: [8, 12], targetRir: 2 },
+          { exercise: "坐姿绳索划船(V柄)", muscleGroup: "back", sets: 3, repRange: [10, 12], targetRir: 2 },
+          { exercise: "直臂下拉(可LP)", muscleGroup: "back", sets: 2, repRange: [12, 15], targetRir: 1 },
+          { exercise: "器械反向飞鸟", muscleGroup: "shoulders", sets: 3, repRange: [12, 15], targetRir: 1 },
+          { exercise: "上斜哑铃弯举(30°)", muscleGroup: "biceps", sets: 3, repRange: [8, 12], targetRir: 1 },
+          { exercise: "锤式弯举(可DS)", muscleGroup: "biceps", sets: 2, repRange: [10, 15], targetRir: 1 }
         ]
       },
       {
-        dayLabel: "D3 腿",
-        splitLabel: "腿 Legs",
-        muscleGroups: ["quads", "hamstrings", "glutes", "calves"],
-        carbDay: "high",
-        exercises: [
-          { exercise: "深蹲", muscleGroup: "quads", sets: 4, repRange: [5, 8], targetRir: 2 },
-          { exercise: "罗马尼亚硬拉", muscleGroup: "hamstrings", sets: 4, repRange: [8, 12], targetRir: 2 },
-          { exercise: "腿举", muscleGroup: "quads", sets: 3, repRange: [10, 15], targetRir: 1 },
-          { exercise: "臀推", muscleGroup: "glutes", sets: 3, repRange: [8, 12], targetRir: 2 },
-          { exercise: "提踵", muscleGroup: "calves", sets: 4, repRange: [10, 15], targetRir: 1 }
-        ]
-      },
-      {
-        dayLabel: "D4 推",
-        splitLabel: "推 Push(肥大)",
-        muscleGroups: ["chest", "shoulders", "triceps"],
+        dayLabel: "周三 腿·股四头",
+        splitLabel: "腿 Legs（股四头）",
+        muscleGroups: ["quads", "calves", "abs"],
         carbDay: "mid",
         exercises: [
-          { exercise: "上斜杠铃推", muscleGroup: "chest", sets: 4, repRange: [8, 12], targetRir: 2 },
-          { exercise: "夹胸/飞鸟", muscleGroup: "chest", sets: 3, repRange: [12, 15], targetRir: 1 },
-          { exercise: "侧平举", muscleGroup: "shoulders", sets: 4, repRange: [12, 20], targetRir: 1 },
-          { exercise: "过顶臂屈伸", muscleGroup: "triceps", sets: 3, repRange: [10, 15], targetRir: 1 }
+          { exercise: "杠铃深蹲(高杠·每次只加2.5kg)", muscleGroup: "quads", sets: 4, repRange: [5, 8], targetRir: 2 },
+          { exercise: "腿举(低脚位深程)", muscleGroup: "quads", sets: 3, repRange: [10, 15], targetRir: 2 },
+          { exercise: "保加利亚分腿蹲(每侧)", muscleGroup: "quads", sets: 2, repRange: [8, 12], targetRir: 2 },
+          { exercise: "坐姿腿屈伸(可LP)", muscleGroup: "quads", sets: 2, repRange: [12, 15], targetRir: 1 },
+          { exercise: "站姿提踵(底部停1秒)", muscleGroup: "calves", sets: 4, repRange: [10, 15], targetRir: 1 },
+          { exercise: "平板支撑RKC(秒)", muscleGroup: "abs", sets: 3, repRange: [30, 45], targetRir: 1 },
+          { exercise: "死虫(每侧)", muscleGroup: "abs", sets: 3, repRange: [8, 10], targetRir: 1 }
         ]
       },
       {
-        dayLabel: "D5 拉",
-        splitLabel: "拉 Pull(肥大)",
-        muscleGroups: ["back", "biceps"],
-        carbDay: "low",
+        dayLabel: "周四 上肢",
+        splitLabel: "上肢 Upper（第二频次）",
+        muscleGroups: ["chest", "back", "shoulders", "triceps", "biceps", "abs"],
+        carbDay: "mid",
         exercises: [
-          { exercise: "坐姿划船", muscleGroup: "back", sets: 4, repRange: [8, 12], targetRir: 2 },
-          { exercise: "直臂下拉", muscleGroup: "back", sets: 3, repRange: [12, 15], targetRir: 1 },
-          { exercise: "锤式弯举", muscleGroup: "biceps", sets: 3, repRange: [10, 15], targetRir: 1 },
-          { exercise: "核心循环", muscleGroup: "abs", sets: 3, repRange: [12, 20], targetRir: 1 }
+          { exercise: "器械坐姿推胸", muscleGroup: "chest", sets: 3, repRange: [8, 12], targetRir: 2 },
+          { exercise: "宽握高位下拉", muscleGroup: "back", sets: 3, repRange: [8, 12], targetRir: 2 },
+          { exercise: "单臂哑铃划船(每侧)", muscleGroup: "back", sets: 3, repRange: [10, 12], targetRir: 2 },
+          { exercise: "绳索单臂侧平举(可DS)", muscleGroup: "shoulders", sets: 3, repRange: [12, 20], targetRir: 1 },
+          { exercise: "绳索过顶臂屈伸(长头关键)", muscleGroup: "triceps", sets: 3, repRange: [10, 15], targetRir: 1 },
+          { exercise: "上斜哑铃弯举", muscleGroup: "biceps", sets: 3, repRange: [10, 12], targetRir: 1 },
+          { exercise: "绳索面拉", muscleGroup: "shoulders", sets: 2, repRange: [15, 20], targetRir: 1 },
+          { exercise: "悬垂举腿", muscleGroup: "abs", sets: 3, repRange: [10, 15], targetRir: 1 }
+        ]
+      },
+      {
+        dayLabel: "周五 腿·后链",
+        splitLabel: "腿 Legs（后链）",
+        muscleGroups: ["hamstrings", "quads", "glutes", "calves", "abs"],
+        carbDay: "mid",
+        exercises: [
+          { exercise: "罗马尼亚硬拉(分毫不圆腰)", muscleGroup: "hamstrings", sets: 4, repRange: [8, 10], targetRir: 2 },
+          { exercise: "哈克深蹲(高脚位)", muscleGroup: "quads", sets: 3, repRange: [10, 12], targetRir: 2 },
+          { exercise: "坐姿腿弯举(可LP)", muscleGroup: "hamstrings", sets: 3, repRange: [10, 15], targetRir: 1 },
+          { exercise: "髋冲(顶端骨盆后倾)", muscleGroup: "glutes", sets: 3, repRange: [8, 12], targetRir: 2 },
+          { exercise: "坐姿提踵", muscleGroup: "calves", sets: 3, repRange: [12, 15], targetRir: 1 },
+          { exercise: "侧桥(秒·每侧)", muscleGroup: "abs", sets: 3, repRange: [20, 30], targetRir: 1 },
+          { exercise: "鸟狗式(每侧)", muscleGroup: "abs", sets: 3, repRange: [8, 10], targetRir: 1 }
         ]
       }
     ]
@@ -358,7 +377,7 @@ export const programTemplates: Record<TrainingSplit, ProgramTemplate> = {
     id: "pplLumbarSafe",
     name: "推/拉/腿 5天（腰突·脊柱友好）",
     summary:
-      "腰椎间盘突出适配版：与 5练1高碳 同样的推/拉/腿结构，但全程改器械与支撑动作，去除硬拉/杠铃深蹲/俯身杠铃划船/站姿过顶推举等脊柱剪切与轴向压缩；腿日用腿举(腰背贴垫)+坐姿腿弯举替代硬拉深蹲，划船改胸部支撑，核心用麦吉尔三件套替代负重屈曲。全程保持中立脊柱、避免负重弯腰/旋转。注意：急性期请遵医嘱，疼痛/放射痛加重立即停止。",
+      "腰椎间盘突出适配版：推/拉/腿 5 天结构，全程改器械与支撑动作，去除硬拉/杠铃深蹲/俯身杠铃划船/站姿过顶推举等脊柱剪切与轴向压缩；腿日用腿举(腰背贴垫)+坐姿腿弯举替代硬拉深蹲，划船改胸部支撑，核心用麦吉尔三件套替代负重屈曲。全程保持中立脊柱、避免负重弯腰/旋转。注意：急性期请遵医嘱，疼痛/放射痛加重立即停止。",
     daysPerWeek: 5,
     days: [
       {

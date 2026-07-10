@@ -180,7 +180,7 @@ export function usePlanner({ foods, templates, user, onTemplatesChanged, applyRe
   function updateProfile<K extends keyof UserProfile>(key: K, value: UserProfile[K]) {
     setProfile((current) => {
       const next = { ...current, [key]: value };
-      // 仅训练时间影响餐结构（休息日=3餐、训练日=4餐含训练前加餐）；碳循环日只改宏量配比，不动餐数。
+      // 仅训练时间影响餐结构（休息日=3餐、训练日=4餐含训练前加餐）；v2 目标字段不动餐数。
       if (key === "trainingTime") {
         queueMicrotask(() => syncMealShape(next));
       }

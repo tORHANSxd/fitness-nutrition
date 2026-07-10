@@ -1,6 +1,6 @@
 # NutriTrain — 健身营养计划网页程序
 
-`Next.js + TypeScript + Supabase + Vercel` 饮食计划器。用户可维护在线食物库，展示 BMR/TDEE 参考，并按凯圣王碳循环每周总量分配公式编辑当天餐次，锁定已完成餐，实时预览推荐克重，并手动保存计划。
+`Next.js + TypeScript + Supabase + Vercel` 训练与营养计划器。默认方针为 **v2 计划（2026-07-10《训练与营养计划》）**：每日固定目标 2300 kcal / 蛋白 175–195g / 脂肪 60–65g / 碳水吃掉剩余热量（约 235–260g），无碳循环，训练为周一~周五 PPL+UL 五分化（周六日休息）。用户可维护在线食物库，展示 BMR/TDEE 与赤字参考，编辑当天餐次，锁定已完成餐，实时预览推荐克重，并手动保存计划。
 
 ## 本地运行
 
@@ -34,9 +34,7 @@ npm run build
 
 ## 资料来源
 
-- [凯圣王碳循环公开整理](https://design.liyao.sbs/posts/tanxunhuan)
-- [凯圣王碳循环上集 BV1Gh411479A](https://www.bilibili.com/video/BV1Gh411479A/)
-- [凯圣王碳循环下集 BV1Di4y1o7KF](https://www.bilibili.com/video/BV1Di4y1o7KF/)
+- 《训练与营养计划》v2（2026-07-10，用户自备最新证据版；训练/营养目标与校准规则均以该文档为准）
 - [Mifflin-St Jeor 公式来源](https://www.ncbi.nlm.nih.gov/books/NBK278991/table/diet-treatment-obes.table12est/)
 - [Supabase Pricing](https://supabase.com/pricing)
 - [Vercel Pricing](https://vercel.com/pricing)

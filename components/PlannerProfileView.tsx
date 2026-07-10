@@ -8,15 +8,14 @@ import {
   buildNutritionResult,
   calculateMacroRatio,
   carbDayLabels,
-  getCalorieDeficit,
+  getFatTargetG,
   getMacroRatioCheck,
-  getProteinPerKg,
-  resolveCarbDayType,
+  getProteinTargetG,
+  getTargetKcal,
   round,
   trainingTimeLabels
 } from "@/lib/nutrition";
-import { plannerCarbDayOptions } from "@/lib/types";
-import type { CarbDayType, MacroRatio, MacroTotals, UserProfile } from "@/lib/types";
+import type { MacroRatio, MacroTotals, UserProfile } from "@/lib/types";
 
 interface PlannerProfileViewProps {
   controller: PlannerController;
@@ -246,46 +245,43 @@ function MacroRatioRow({
 }
 
 function PlanRulePanel() {
-  // [日, 部位, 动作, 碳日]：部位与动作分行，避免窄列内长标签换行。
-  const weeklyPlan: Array<[string, string, string, "高碳" | "低碳"]> = [
-    ["周一", "胸", "卧推飞鸟", "低碳"],
-    ["周二", "背", "引体划船", "低碳"],
-    ["周三", "腿", "深蹲硬拉", "高碳"],
-    ["周四", "肩", "推举侧平举", "低碳"],
-    ["周五", "手臂", "弯举臂屈伸", "低碳"],
-    ["周六", "休息", "恢复", "低碳"],
-    ["周日", "休息", "恢复", "低碳"]
+  // v2 五分化（2026-07-10 计划）：[日, 训练, 重点]。周六日完全休息；无碳循环、每天同一目标。
+  const weeklyPlan: Array<[string, string, string, boolean]> = [
+    ["周一", "推", "胸主+肩+三头", true],
+    ["周二", "拉", "背主+二头+后束", true],
+    ["周三", "腿", "股四头+核心", true],
+    ["周四", "上肢", "推拉第二频次", true],
+    ["周五", "腿", "后链+核心", true],
+    ["周六", "休息", "步行/主动恢复", false],
+    ["周日", "休息", "步行/主动恢复", false]
   ];
 
   return (
     <div className="rounded-xl border border-line bg-panel/60 p-3">
       <div className="mb-2.5">
-        <h3 className="text-xs font-semibold tracking-tight text-ink">张老师五分化碳循环</h3>
-        <p className="mt-0.5 text-[11px] text-muted">仅腿日高碳、其余6天低碳；16/8进食窗口；高碳日严控油脂。</p>
+        <h3 className="text-xs font-semibold tracking-tight text-ink">v2 五分化训练周（2026-07-10）</h3>
+        <p className="mt-0.5 text-[11px] text-muted">每日固定 2300 kcal · 蛋白 175–195g · 脂肪 60–65g · 碳水 235–260g；训练日休息日同一目标。</p>
       </div>
       <div className="scrollbar-thin -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
-        {weeklyPlan.map(([day, part, move, carbDay]) => {
-          const high = carbDay === "高碳";
-          return (
-            <div
-              key={day}
-              className={`min-w-[72px] shrink-0 rounded-lg border px-2 py-2 text-center transition-colors ${
-                high ? "border-accent/40 bg-accent/[0.07]" : "border-line bg-surface/50 hover:border-accent/30"
-              }`}
-            >
-              <div className="text-[11px] font-semibold text-ink">{day}</div>
-              <div className="mt-1 whitespace-nowrap text-xs font-medium text-ink">{part}</div>
-              <div className="whitespace-nowrap text-[10px] text-muted">{move}</div>
-              <div className="mt-1.5">
-                {high ? (
-                  <span className="rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-[10px] font-medium text-accent">高碳</span>
-                ) : (
-                  <span className="text-[10px] text-muted">低碳</span>
-                )}
-              </div>
+        {weeklyPlan.map(([day, part, focus, isTraining]) => (
+          <div
+            key={day}
+            className={`min-w-[76px] shrink-0 rounded-lg border px-2 py-2 text-center transition-colors ${
+              isTraining ? "border-accent/40 bg-accent/[0.07]" : "border-line bg-surface/50 hover:border-accent/30"
+            }`}
+          >
+            <div className="text-[11px] font-semibold text-ink">{day}</div>
+            <div className="mt-1 whitespace-nowrap text-xs font-medium text-ink">{part}</div>
+            <div className="whitespace-nowrap text-[10px] text-muted">{focus}</div>
+            <div className="mt-1.5">
+              {isTraining ? (
+                <span className="rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-[10px] font-medium text-accent">训练</span>
+              ) : (
+                <span className="text-[10px] text-muted">休息</span>
+              )}
             </div>
-          );
-        })}
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -347,49 +343,52 @@ function ProfilePanel({ profile, updateProfile }: ProfilePanelProps) {
             <span className="metric-label mb-1 block">运动消耗 kcal</span>
             <input className="field w-full" inputMode="numeric" type="number" value={profile.exerciseKcal} onChange={(event) => numberInput("exerciseKcal", event.target.value)} />
           </label>
+        </div>
+        {/* v2 计划固定目标：热量/蛋白/脂肪直接给绝对值，碳水 = 剩余热量 ÷ 4 自动得出。 */}
+        <div className="grid grid-cols-2 gap-3">
           <label>
-            <span className="metric-label mb-1 block">蛋白 g/kg</span>
+            <span className="metric-label mb-1 block">每日目标 kcal</span>
             <input
               className="field w-full"
-              min="1.6"
-              max="2.2"
-              step="0.1"
-              type="number"
-              inputMode="decimal"
-              value={getProteinPerKg(profile)}
-              onChange={(event) => numberInput("proteinPerKg", event.target.value)}
-            />
-          </label>
-          <label>
-            <span className="metric-label mb-1 block">热量缺口 kcal</span>
-            <input
-              className="field w-full"
-              min="0"
-              max="1200"
+              min="1200"
+              max="6000"
               step="50"
               type="number"
               inputMode="numeric"
-              value={getCalorieDeficit(profile)}
-              onChange={(event) => numberInput("calorieDeficit", event.target.value)}
+              value={getTargetKcal(profile)}
+              onChange={(event) => numberInput("targetKcal", event.target.value)}
             />
+            <span className="mt-1 block text-[11px] text-muted">每 2 周按体重周均降幅 ±100~150 校准。</span>
+          </label>
+          <label>
+            <span className="metric-label mb-1 block">蛋白目标 g</span>
+            <input
+              className="field w-full"
+              min="80"
+              max="300"
+              step="5"
+              type="number"
+              inputMode="numeric"
+              value={getProteinTargetG(profile)}
+              onChange={(event) => numberInput("proteinTargetG", event.target.value)}
+            />
+            <span className="mt-1 block text-[11px] text-muted">推荐 175–195，体脂下降后上调。</span>
+          </label>
+          <label>
+            <span className="metric-label mb-1 block">脂肪目标 g</span>
+            <input
+              className="field w-full"
+              min="30"
+              max="150"
+              step="1"
+              type="number"
+              inputMode="numeric"
+              value={getFatTargetG(profile)}
+              onChange={(event) => numberInput("fatTargetG", event.target.value)}
+            />
+            <span className="mt-1 block text-[11px] text-muted">推荐 60–65；碳水自动吃掉剩余热量。</span>
           </label>
         </div>
-        <label>
-          <span className="metric-label mb-1 block">碳循环日</span>
-          <select
-            className="field w-full"
-            value={resolveCarbDayType(profile)}
-            onChange={(event) => updateProfile("carbDayType", event.target.value as CarbDayType)}
-            disabled={profile.trainingTime === "rest"}
-          >
-            {plannerCarbDayOptions.map((value) => (
-              <option key={value} value={value}>
-                {carbDayLabels[value]}
-              </option>
-            ))}
-          </select>
-          {profile.trainingTime === "rest" ? <span className="mt-1 block text-[11px] text-muted">休息日固定低碳。</span> : null}
-        </label>
         <label>
           <span className="metric-label mb-1 block">训练时间</span>
           <select

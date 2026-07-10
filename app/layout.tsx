@@ -10,8 +10,8 @@ import "./globals.css";
 const sourceSerif = Source_Serif_4({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-serif", display: "swap" });
 
 export const metadata: Metadata = {
-  title: "NutriTrain · 碳循环计划器",
-  description: "NutriTrain —— 基于 BMR、TDEE 和碳循环的在线健身饮食计划器"
+  title: "NutriTrain · 训练与营养计划器",
+  description: "NutriTrain —— 按 v2 训练营养计划（固定每日目标 + 五分化训练）管理饮食与训练"
 };
 
 // 手机端视口：锁定为设备宽度、禁止整屏缩放（消除 iOS 聚焦输入框时的自动放大与手势缩放导致

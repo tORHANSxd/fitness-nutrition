@@ -152,6 +152,19 @@ describe("PlannerProfileView v2 固定目标 / 训练时间", () => {
     render(<PlannerProfileView controller={makeController()} />);
     expect(within(timeSelect()).getAllByRole("option").map((option) => option.textContent)).toContain("休息日");
   });
+
+  it("renders the weekly-plan panel with live formula targets, not hardcoded numbers", () => {
+    render(<PlannerProfileView controller={makeController()} />);
+    // demo 档案 93.2kg/26% → 2295 kcal / P175 / F61 / C261.5，全部实时测算。
+    expect(screen.getByText(/每日目标 2295 kcal · 蛋白 175g · 脂肪 61g · 碳水 261\.5g/)).toBeInTheDocument();
+    expect(screen.queryByText(/固定 2300/)).not.toBeInTheDocument();
+  });
+
+  it("weekly-plan panel prompts for the profile instead of showing zero targets", () => {
+    render(<PlannerProfileView controller={makeController({ age: 0, heightCm: 0, weightKg: 0, bodyFatPct: null })} />);
+    expect(screen.getByText(/填好身体档案后自动测算/)).toBeInTheDocument();
+    expect(screen.queryByText(/每日目标 0 kcal/)).not.toBeInTheDocument();
+  });
 });
 
 describe("MealSplitView（分餐单独页含应用推荐/保存计划 + 弹出选食）", () => {

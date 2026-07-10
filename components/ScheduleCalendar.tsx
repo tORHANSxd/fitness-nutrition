@@ -5,12 +5,12 @@ import { CalendarCheck, ChevronLeft, ChevronRight, Dumbbell, Trash2, Utensils } 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { loadBodyLogs, mergeLatestBodyMetrics, type BodyLog } from "@/lib/bodyLogs";
 import { emptyProfile } from "@/lib/demoState";
-import { buildNutritionResult, isProfileComplete, round } from "@/lib/nutrition";
+import { buildNutritionResult, calculateDailyTarget, isProfileComplete, round } from "@/lib/nutrition";
 import { loadPlannerDraft, loadPlans, savePlan } from "@/lib/storage";
 import { applyDeloadToTemplate, isDeloadWeek, muscleGroupLabels, programTemplates, splitLabels, toDateKey, weekStartKey } from "@/lib/training";
 import { useDeloadWeeks } from "@/components/useDeloadWeeks";
 import { deleteWorkoutSession, loadWorkoutSessions, saveWorkoutSession, TrainingAuthError } from "@/lib/trainingStorage";
-import type { FoodItem, SavedPlan, TrainingSplit, WorkoutSession, WorkoutSet } from "@/lib/types";
+import type { FoodItem, MacroTotals, SavedPlan, TrainingSplit, WorkoutSession, WorkoutSet } from "@/lib/types";
 
 interface ScheduleCalendarProps {
   user: User | null;
@@ -49,6 +49,28 @@ export function ScheduleCalendar({ user, foods, onGoTraining, onGoPlanner }: Sch
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  // 档案当前测算的每日目标（草稿+最新体测 → v2 公式）；档案不完整时为 null，用于提示文案。
+  const [profileTarget, setProfileTarget] = useState<MacroTotals | null>(null);
+
+  useEffect(() => {
+    if (!user) {
+      setProfileTarget(null);
+      return;
+    }
+    let mounted = true;
+    Promise.all([loadPlannerDraft(user).catch(() => null), loadBodyLogs(user, 60).catch(() => [] as BodyLog[])]).then(
+      ([draft, bodyLogs]) => {
+        if (!mounted) {
+          return;
+        }
+        const merged = mergeLatestBodyMetrics(draft?.profile ?? emptyProfile, bodyLogs);
+        setProfileTarget(isProfileComplete(merged) ? calculateDailyTarget(merged) : null);
+      }
+    );
+    return () => {
+      mounted = false;
+    };
+  }, [user]);
 
   const monthRange = useMemo(() => {
     const from = new Date(monthCursor.getFullYear(), monthCursor.getMonth() - 1, 1);
@@ -318,7 +340,11 @@ export function ScheduleCalendar({ user, foods, onGoTraining, onGoPlanner }: Sch
               已排目标：{round(selectedPlan.result.dailyTarget.kcal, 0)} kcal · 碳 {round(selectedPlan.result.dailyTarget.carbs, 0)}g / 蛋 {round(selectedPlan.result.dailyTarget.protein, 0)}g / 脂 {round(selectedPlan.result.dailyTarget.fat, 0)}g
             </div>
           ) : (
-            <p className="mb-2 text-xs text-muted">未排饮食目标。可一键生成当日固定目标骨架（2300 kcal 档案值）。</p>
+            <p className="mb-2 text-xs text-muted">
+              {profileTarget
+                ? `未排饮食目标。可一键生成当日目标骨架（按档案实时测算 ${round(profileTarget.kcal, 0)} kcal · 碳 ${round(profileTarget.carbs, 0)}g / 蛋 ${round(profileTarget.protein, 0)}g / 脂 ${round(profileTarget.fat, 0)}g）。`
+                : "未排饮食目标。先在「当天计划」填好身体档案（或记一条体测），再一键生成目标骨架。"}
+            </p>
           )}
           <div className="flex gap-2">
             <button className="btn-primary h-8 flex-1 text-xs" type="button" onClick={generateDietTarget} disabled={busy}>

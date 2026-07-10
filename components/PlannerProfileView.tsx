@@ -79,7 +79,7 @@ export function PlannerProfileView({ controller }: PlannerProfileViewProps) {
                 recommendedRatio={calculateMacroRatio(result.recommendedTotals)}
                 targetRatio={result.targetRatio}
               />
-              <PlanRulePanel />
+              <PlanRulePanel ready={isProfileComplete(profile)} target={result.dailyTarget} />
             </div>
 
             {message ? <p className="mx-4 mb-3 rounded-lg border border-accent/20 bg-accent/10 px-4 py-2.5 text-sm font-medium text-accent">{message}</p> : null}
@@ -238,7 +238,7 @@ function MacroRatioRow({
   );
 }
 
-function PlanRulePanel() {
+function PlanRulePanel({ ready, target }: { ready: boolean; target: MacroTotals }) {
   // v2 五分化（2026-07-10 计划）：[日, 训练, 重点]。周六日完全休息；无碳循环、每天同一目标。
   const weeklyPlan: Array<[string, string, string, boolean]> = [
     ["周一", "推", "胸主+肩+三头", true],
@@ -254,7 +254,11 @@ function PlanRulePanel() {
     <div className="rounded-xl border border-line bg-panel/60 p-3">
       <div className="mb-2.5">
         <h3 className="text-xs font-semibold tracking-tight text-ink">v2 五分化训练周（2026-07-10）</h3>
-        <p className="mt-0.5 text-[11px] text-muted">每日固定 2300 kcal · 蛋白 175–195g · 脂肪 60–65g · 碳水 235–260g；训练日休息日同一目标。</p>
+        <p className="mt-0.5 text-[11px] text-muted">
+          {ready
+            ? `每日目标 ${round(target.kcal, 0)} kcal · 蛋白 ${round(target.protein, 0)}g · 脂肪 ${round(target.fat, 0)}g · 碳水 ${round(target.carbs, 1)}g（按体重/体脂实时测算）；训练日休息日同一目标。`
+            : "每日目标 = TDEE − 赤字，蛋白/脂肪按体重与体脂公式——填好身体档案后自动测算；训练日休息日同一目标。"}
+        </p>
       </div>
       <div className="scrollbar-thin -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
         {weeklyPlan.map(([day, part, focus, isTraining]) => (

@@ -1,9 +1,9 @@
 import { round } from "@/lib/nutrition";
 import type {
-  CarbDayType,
   ExperienceLevel,
   MuscleGroup,
   OneRmFormula,
+  ProgramDay,
   ProgramTemplate,
   TrainingSplit,
   VolumeLandmark,
@@ -40,13 +40,6 @@ export const muscleGroupOrder: MuscleGroup[] = [
   "calves",
   "abs"
 ];
-
-// v2 无碳循环：新训练记录一律"标准"；高碳/低碳仅用于展示历史记录。
-export const carbDayLabelsForTraining: Record<CarbDayType, string> = {
-  high: "高碳",
-  mid: "标准",
-  low: "低碳"
-};
 
 export const splitLabels: Record<TrainingSplit, string> = {
   fiveDayV2: "v2 五分化 5天（周一~五）",
@@ -257,6 +250,38 @@ export function autoregulate(
   return { loadPct: -5, note: "过重：下次减重约 5% 或减 1 组" };
 }
 
+// ---------------------------------------------------------------------------
+// 减载周（v2 文档"周期安排与减载"）：容量减半、强度保留、努力下调、频率与动作不变。
+// 重量执行平时 85–90%、停用全部拉长半程/递减组——这两条靠 UI 提示，由训练者执行。
+// ---------------------------------------------------------------------------
+
+/** 单个模板日的减载版：组数砍约一半(至少 1 组)、每组留 4 次余力，动作/次数区间原样。 */
+export function applyDeloadToDay(day: ProgramDay): ProgramDay {
+  return {
+    ...day,
+    splitLabel: `${day.splitLabel}·减载`,
+    exercises: day.exercises.map((exercise) => ({
+      ...exercise,
+      sets: Math.max(1, Math.round(exercise.sets / 2)),
+      targetRir: Math.max(exercise.targetRir, 4)
+    }))
+  };
+}
+
+/** 整个模板的减载版（5–7 天全部转换），名字标注避免与正常周混淆。 */
+export function applyDeloadToTemplate(template: ProgramTemplate): ProgramTemplate {
+  return {
+    ...template,
+    name: `${template.name} · 减载周`,
+    days: template.days.map(applyDeloadToDay)
+  };
+}
+
+/** 某日期是否落在被标记为减载周的一周内（deloadWeeks 存周一起始日 YYYY-MM-DD 列表）。 */
+export function isDeloadWeek(dateKey: string, deloadWeeks: string[]): boolean {
+  return deloadWeeks.includes(weekStartKey(dateKey));
+}
+
 /** 减载触发：任意 2 条满足即建议安排 1 周 deload。 */
 export function deloadSignals(input: {
   e1rmDeclined: boolean;
@@ -287,7 +312,7 @@ export function deloadSignals(input: {
 export const programTemplates: Record<TrainingSplit, ProgramTemplate> = {
   // v2 计划（2026-07-10《训练与营养计划》）：PPL+UL 五分化，周一~周五对应推/拉/腿(股四头)/上肢/腿(后链)，
   // 周六日完全休息。核心原则：拉长位动作优先、单次每肌群 ≤6–8 有效组、每肌群每周 2 次；
-  // 无碳循环——carbDay 一律 mid（标准日）。周四是刻意的"下肢主动恢复日"，不要改成第三个腿日。
+  // 周四是刻意的"下肢主动恢复日"，不要改成第三个腿日。
   fiveDayV2: {
     id: "fiveDayV2",
     name: "v2 五分化（周一~五 · 拉长位优先）",
@@ -299,7 +324,6 @@ export const programTemplates: Record<TrainingSplit, ProgramTemplate> = {
         dayLabel: "周一 推",
         splitLabel: "推 Push（胸主）",
         muscleGroups: ["chest", "shoulders", "triceps"],
-        carbDay: "mid",
         exercises: [
           { exercise: "杠铃平板卧推", muscleGroup: "chest", sets: 4, repRange: [5, 8], targetRir: 2 },
           { exercise: "上斜哑铃卧推(30°)", muscleGroup: "chest", sets: 3, repRange: [8, 12], targetRir: 2 },
@@ -314,7 +338,6 @@ export const programTemplates: Record<TrainingSplit, ProgramTemplate> = {
         dayLabel: "周二 拉",
         splitLabel: "拉 Pull（背主）",
         muscleGroups: ["back", "shoulders", "biceps"],
-        carbDay: "mid",
         exercises: [
           { exercise: "高位下拉(顶部伸展)", muscleGroup: "back", sets: 4, repRange: [6, 10], targetRir: 2 },
           { exercise: "胸支撑划船", muscleGroup: "back", sets: 4, repRange: [8, 12], targetRir: 2 },
@@ -329,7 +352,6 @@ export const programTemplates: Record<TrainingSplit, ProgramTemplate> = {
         dayLabel: "周三 腿·股四头",
         splitLabel: "腿 Legs（股四头）",
         muscleGroups: ["quads", "calves", "abs"],
-        carbDay: "mid",
         exercises: [
           { exercise: "杠铃深蹲(高杠·每次只加2.5kg)", muscleGroup: "quads", sets: 4, repRange: [5, 8], targetRir: 2 },
           { exercise: "腿举(低脚位深程)", muscleGroup: "quads", sets: 3, repRange: [10, 15], targetRir: 2 },
@@ -344,7 +366,6 @@ export const programTemplates: Record<TrainingSplit, ProgramTemplate> = {
         dayLabel: "周四 上肢",
         splitLabel: "上肢 Upper（第二频次）",
         muscleGroups: ["chest", "back", "shoulders", "triceps", "biceps", "abs"],
-        carbDay: "mid",
         exercises: [
           { exercise: "器械坐姿推胸", muscleGroup: "chest", sets: 3, repRange: [8, 12], targetRir: 2 },
           { exercise: "宽握高位下拉", muscleGroup: "back", sets: 3, repRange: [8, 12], targetRir: 2 },
@@ -360,7 +381,6 @@ export const programTemplates: Record<TrainingSplit, ProgramTemplate> = {
         dayLabel: "周五 腿·后链",
         splitLabel: "腿 Legs（后链）",
         muscleGroups: ["hamstrings", "quads", "glutes", "calves", "abs"],
-        carbDay: "mid",
         exercises: [
           { exercise: "罗马尼亚硬拉(分毫不圆腰)", muscleGroup: "hamstrings", sets: 4, repRange: [8, 10], targetRir: 2 },
           { exercise: "哈克深蹲(高脚位)", muscleGroup: "quads", sets: 3, repRange: [10, 12], targetRir: 2 },
@@ -384,7 +404,6 @@ export const programTemplates: Record<TrainingSplit, ProgramTemplate> = {
         dayLabel: "D1 推",
         splitLabel: "推 Push(支撑)",
         muscleGroups: ["chest", "shoulders", "triceps"],
-        carbDay: "mid",
         exercises: [
           { exercise: "器械胸推(坐姿靠背)", muscleGroup: "chest", sets: 4, repRange: [6, 10], targetRir: 2 },
           { exercise: "上斜哑铃卧推", muscleGroup: "chest", sets: 3, repRange: [8, 12], targetRir: 2 },
@@ -397,7 +416,6 @@ export const programTemplates: Record<TrainingSplit, ProgramTemplate> = {
         dayLabel: "D2 拉",
         splitLabel: "拉 Pull(去腰椎剪切)",
         muscleGroups: ["back", "biceps"],
-        carbDay: "mid",
         exercises: [
           { exercise: "高位下拉/辅助引体", muscleGroup: "back", sets: 4, repRange: [8, 12], targetRir: 2 },
           { exercise: "胸部支撑器械划船", muscleGroup: "back", sets: 4, repRange: [10, 12], targetRir: 2 },
@@ -409,7 +427,6 @@ export const programTemplates: Record<TrainingSplit, ProgramTemplate> = {
         dayLabel: "D3 腿",
         splitLabel: "腿 Legs(无轴向压缩)",
         muscleGroups: ["quads", "hamstrings", "glutes", "calves"],
-        carbDay: "high",
         exercises: [
           { exercise: "腿举(腰背贴垫·控制ROM)", muscleGroup: "quads", sets: 4, repRange: [8, 12], targetRir: 2 },
           { exercise: "哈克深蹲/器械深蹲", muscleGroup: "quads", sets: 3, repRange: [10, 15], targetRir: 2 },
@@ -422,7 +439,6 @@ export const programTemplates: Record<TrainingSplit, ProgramTemplate> = {
         dayLabel: "D4 推",
         splitLabel: "推 Push(肥大·支撑)",
         muscleGroups: ["chest", "shoulders", "triceps"],
-        carbDay: "mid",
         exercises: [
           { exercise: "上斜器械推胸", muscleGroup: "chest", sets: 4, repRange: [8, 12], targetRir: 2 },
           { exercise: "蝴蝶机夹胸", muscleGroup: "chest", sets: 3, repRange: [12, 15], targetRir: 1 },
@@ -434,7 +450,6 @@ export const programTemplates: Record<TrainingSplit, ProgramTemplate> = {
         dayLabel: "D5 拉",
         splitLabel: "拉 Pull(肥大)+核心",
         muscleGroups: ["back", "biceps", "abs"],
-        carbDay: "low",
         exercises: [
           { exercise: "坐姿绳索划船(中立脊柱·不晃腰)", muscleGroup: "back", sets: 4, repRange: [10, 12], targetRir: 2 },
           { exercise: "直臂下拉", muscleGroup: "back", sets: 3, repRange: [12, 15], targetRir: 1 },
@@ -454,7 +469,6 @@ export const programTemplates: Record<TrainingSplit, ProgramTemplate> = {
         dayLabel: "D1 下肢(力量)",
         splitLabel: "下肢 Lower",
         muscleGroups: ["quads", "hamstrings", "glutes"],
-        carbDay: "high",
         exercises: [
           { exercise: "深蹲", muscleGroup: "quads", sets: 5, repRange: [4, 6], targetRir: 2 },
           { exercise: "罗马尼亚硬拉", muscleGroup: "hamstrings", sets: 4, repRange: [6, 10], targetRir: 2 },
@@ -465,7 +479,6 @@ export const programTemplates: Record<TrainingSplit, ProgramTemplate> = {
         dayLabel: "D2 上肢(力量)",
         splitLabel: "上肢 Upper",
         muscleGroups: ["chest", "back", "shoulders"],
-        carbDay: "mid",
         exercises: [
           { exercise: "卧推", muscleGroup: "chest", sets: 5, repRange: [4, 6], targetRir: 2 },
           { exercise: "引体", muscleGroup: "back", sets: 4, repRange: [6, 10], targetRir: 2 },
@@ -476,7 +489,6 @@ export const programTemplates: Record<TrainingSplit, ProgramTemplate> = {
         dayLabel: "D4 下肢(肥大)",
         splitLabel: "下肢 Lower",
         muscleGroups: ["quads", "glutes", "hamstrings", "calves"],
-        carbDay: "high",
         exercises: [
           { exercise: "腿举", muscleGroup: "quads", sets: 4, repRange: [10, 15], targetRir: 1 },
           { exercise: "臀推", muscleGroup: "glutes", sets: 4, repRange: [8, 12], targetRir: 2 },
@@ -488,7 +500,6 @@ export const programTemplates: Record<TrainingSplit, ProgramTemplate> = {
         dayLabel: "D5 上肢(肥大)",
         splitLabel: "上肢 Upper",
         muscleGroups: ["chest", "back", "shoulders", "biceps", "triceps"],
-        carbDay: "mid",
         exercises: [
           { exercise: "上斜哑铃推", muscleGroup: "chest", sets: 4, repRange: [8, 12], targetRir: 2 },
           { exercise: "坐姿划船", muscleGroup: "back", sets: 4, repRange: [8, 12], targetRir: 2 },
@@ -508,7 +519,6 @@ export const programTemplates: Record<TrainingSplit, ProgramTemplate> = {
         dayLabel: "D1 全身",
         splitLabel: "全身 A",
         muscleGroups: ["quads", "chest", "back"],
-        carbDay: "high",
         exercises: [
           { exercise: "深蹲", muscleGroup: "quads", sets: 3, repRange: [6, 10], targetRir: 2 },
           { exercise: "卧推", muscleGroup: "chest", sets: 3, repRange: [6, 10], targetRir: 2 },
@@ -519,7 +529,6 @@ export const programTemplates: Record<TrainingSplit, ProgramTemplate> = {
         dayLabel: "D3 全身",
         splitLabel: "全身 B",
         muscleGroups: ["hamstrings", "shoulders", "back"],
-        carbDay: "mid",
         exercises: [
           { exercise: "硬拉", muscleGroup: "hamstrings", sets: 3, repRange: [4, 6], targetRir: 2 },
           { exercise: "坐姿推举", muscleGroup: "shoulders", sets: 3, repRange: [6, 10], targetRir: 2 },
@@ -530,7 +539,6 @@ export const programTemplates: Record<TrainingSplit, ProgramTemplate> = {
         dayLabel: "D5 全身",
         splitLabel: "全身 C",
         muscleGroups: ["quads", "chest", "glutes"],
-        carbDay: "mid",
         exercises: [
           { exercise: "前蹲", muscleGroup: "quads", sets: 3, repRange: [6, 10], targetRir: 2 },
           { exercise: "上斜卧推", muscleGroup: "chest", sets: 3, repRange: [8, 12], targetRir: 2 },

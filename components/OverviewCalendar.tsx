@@ -3,23 +3,17 @@
 import type { User } from "@supabase/supabase-js";
 import { Activity, CalendarDays, ChevronLeft, ChevronRight, Dumbbell, LayoutGrid, TrendingUp, Utensils } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { carbDayLabels, round } from "@/lib/nutrition";
+import { round } from "@/lib/nutrition";
 import { loadPlans } from "@/lib/storage";
-import { carbDayLabelsForTraining, muscleGroupLabels, muscleGroupOrder, toDateKey, weekStartKey, weeklyWorkingSets } from "@/lib/training";
+import { muscleGroupLabels, muscleGroupOrder, toDateKey, weekStartKey, weeklyWorkingSets } from "@/lib/training";
 import { loadWorkoutSessions, TrainingAuthError } from "@/lib/trainingStorage";
-import type { CarbDayType, FoodItem, SavedPlan, WorkoutSession } from "@/lib/types";
+import type { FoodItem, SavedPlan, WorkoutSession } from "@/lib/types";
 
 interface OverviewCalendarProps {
   user: User | null;
   onEditPlanner: (date: string, plan: SavedPlan | null) => void;
   onEditTraining: (date: string) => void;
 }
-
-const carbDayDotClass: Record<CarbDayType, string> = {
-  high: "bg-accent",
-  mid: "bg-accent/45",
-  low: "bg-[#CFCABD]"
-};
 
 function monthMatrix(cursor: Date): Array<{ date: Date; key: string; inMonth: boolean }> {
   const year = cursor.getFullYear();
@@ -224,7 +218,7 @@ export function OverviewCalendar({ user, onEditPlanner, onEditTraining }: Overvi
                   <span className={`text-xs ${isToday ? "font-bold text-accent" : "text-ink"}`}>{cell.date.getDate()}</span>
                   {session ? (
                     <span className="mt-1 flex items-center gap-1 truncate text-[10px] text-ink">
-                      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${carbDayDotClass[session.carbDayType]}`} />
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
                       <span className="truncate">{session.splitLabel}</span>
                     </span>
                   ) : null}
@@ -247,9 +241,7 @@ export function OverviewCalendar({ user, onEditPlanner, onEditTraining }: Overvi
             </div>
           ) : null}
           <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-muted">
-            <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-accent/45" />训练(标准日)</span>
-            <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-accent" />历史高碳</span>
-            <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-[#CFCABD]" />历史低碳</span>
+            <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-accent" />已排训练</span>
             <span>🍚 = 饮食目标 kcal</span>
           </div>
           {error ? <p className="mt-3 rounded-lg border border-rose/35 bg-rose/10 px-3 py-2 text-xs text-rose">{error}</p> : null}
@@ -299,7 +291,7 @@ export function OverviewCalendar({ user, onEditPlanner, onEditTraining }: Overvi
                   <Dumbbell size={11} className="text-muted" />
                   {item.session ? (
                     <span className="flex items-center gap-1 truncate">
-                      <span className={`h-1.5 w-1.5 rounded-full ${carbDayDotClass[item.session.carbDayType]}`} />
+                      <span className="h-1.5 w-1.5 rounded-full bg-accent" />
                       {item.session.splitLabel}
                     </span>
                   ) : (
@@ -308,7 +300,7 @@ export function OverviewCalendar({ user, onEditPlanner, onEditTraining }: Overvi
                 </div>
                 <div className="flex items-center gap-1 text-[11px] text-muted">
                   <Utensils size={11} />
-                  {item.plan ? `${carbDayLabels[item.plan.result.carbDayType]} · ${round(item.plan.result.dailyTarget.kcal, 0)}kcal` : "未排饮食"}
+                  {item.plan ? `${round(item.plan.result.dailyTarget.kcal, 0)} kcal` : "未排饮食"}
                 </div>
               </button>
             );

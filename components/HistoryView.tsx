@@ -3,7 +3,7 @@
 import type { User } from "@supabase/supabase-js";
 import { CalendarClock, RefreshCw, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { carbDayLabels, round, trainingTimeLabels } from "@/lib/nutrition";
+import { round, trainingTimeLabels } from "@/lib/nutrition";
 import { deletePlan, loadPlans } from "@/lib/storage";
 import type { SavedPlan } from "@/lib/types";
 
@@ -82,7 +82,6 @@ export function HistoryView({ user }: HistoryViewProps) {
             <tr>
               <th className="px-4 py-3">日期</th>
               <th className="px-4 py-3">训练时间</th>
-              <th className="px-4 py-3">碳日</th>
               <th className="px-4 py-3">当日目标热量</th>
               <th className="px-4 py-3">当前热量</th>
               <th className="px-4 py-3">碳水</th>
@@ -107,7 +106,6 @@ export function HistoryView({ user }: HistoryViewProps) {
                 >
                   <td className="px-4 py-3 font-medium text-ink">{plan.planDate}</td>
                   <td className="px-4 py-3">{trainingTimeLabels[plan.profile.trainingTime]}</td>
-                  <td className="px-4 py-3">{carbDayLabels[plan.result.carbDayType]}</td>
                   <td className="px-4 py-3">{round(plan.result.dailyTarget.kcal, 0)} kcal</td>
                   <td className="px-4 py-3">{round(plan.result.actualTotals.kcal, 0)} kcal</td>
                   <td className="px-4 py-3">{round(plan.result.actualTotals.carbs)} g</td>

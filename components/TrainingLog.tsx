@@ -3,11 +3,13 @@
 import type { User } from "@supabase/supabase-js";
 import { CalendarRange, ChevronLeft, ChevronRight, LogIn, Plus, Save, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useDeloadWeeks } from "@/components/useDeloadWeeks";
 import {
+  applyDeloadToTemplate,
   autoregulate,
   bestE1RMByExercise,
-  carbDayLabelsForTraining,
   intensityZones,
+  isDeloadWeek,
   muscleGroupLabels,
   muscleGroupOrder,
   programTemplates,
@@ -22,7 +24,7 @@ import {
   weekStartKey
 } from "@/lib/training";
 import { deleteWorkoutSession, loadWorkoutSessions, saveWorkoutSession, TrainingAuthError } from "@/lib/trainingStorage";
-import type { CarbDayType, ExperienceLevel, MuscleGroup, TrainingSplit, WorkoutSession, WorkoutSet } from "@/lib/types";
+import type { ExperienceLevel, MuscleGroup, TrainingSplit, WorkoutSession, WorkoutSet } from "@/lib/types";
 
 interface TrainingLogProps {
   user: User | null;
@@ -30,12 +32,6 @@ interface TrainingLogProps {
   /** 从安排日历跳转：nonce 变化时把日历定位到该日并选中。 */
   dateRequest?: { date: string; nonce: number } | null;
 }
-
-const carbDayDotClass: Record<CarbDayType, string> = {
-  high: "bg-accent",
-  mid: "bg-accent/45",
-  low: "bg-[#CFCABD]"
-};
 
 const experienceLabels: Record<ExperienceLevel, string> = {
   beginner: "新手",
@@ -48,7 +44,6 @@ function blankSession(dateKey: string): WorkoutSession {
     id: "",
     sessionDate: dateKey,
     splitLabel: "",
-    carbDayType: "mid",
     bodyweightKg: null,
     recovery: null,
     note: "",
@@ -158,7 +153,25 @@ export function TrainingLog({ user, onRequireLogin, dateRequest }: TrainingLogPr
   }, [selectedDate, sessionsByDate]);
 
   const weeks = useMemo(() => monthMatrix(monthCursor), [monthCursor]);
-  const template = programTemplates[split];
+
+  // 减载周：按选中日期所在周判断；开着时模板整体换成减载版（组数减半、RIR 4–5）。
+  const { deloadWeeks, toggleDeloadWeek } = useDeloadWeeks(user);
+  const deloadActive = isDeloadWeek(selectedDate, deloadWeeks);
+  const template = useMemo(
+    () => (deloadActive ? applyDeloadToTemplate(programTemplates[split]) : programTemplates[split]),
+    [split, deloadActive]
+  );
+
+  async function handleToggleDeload() {
+    if (!user) {
+      onRequireLogin();
+      return;
+    }
+    const saved = await toggleDeloadWeek(selectedDate);
+    if (!saved) {
+      setError("减载周标记保存失败，请重试。");
+    }
+  }
 
   const weeklyCounts = useMemo(
     () => weeklyWorkingSets(sessions, weekStartKey(selectedDate)),
@@ -195,7 +208,7 @@ export function TrainingLog({ user, onRequireLogin, dateRequest }: TrainingLogPr
     const expanded: WorkoutSet[] = day.exercises.flatMap((ex) =>
       Array.from({ length: ex.sets }, () => newSet({ exercise: ex.exercise, muscleGroup: ex.muscleGroup, reps: ex.repRange[0], rir: ex.targetRir }))
     );
-    updateDraft({ splitLabel: day.splitLabel, carbDayType: day.carbDay, sets: expanded });
+    updateDraft({ splitLabel: day.splitLabel, sets: expanded });
   }
 
   async function handleSave() {
@@ -268,7 +281,7 @@ export function TrainingLog({ user, onRequireLogin, dateRequest }: TrainingLogPr
             <h2 className="text-base font-semibold text-ink">训练方案模板</h2>
             <p className="mt-0.5 text-xs text-muted">{template.summary}</p>
           </div>
-          <div className="flex gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
             {(Object.keys(splitLabels) as TrainingSplit[]).map((key) => (
               <button
                 key={key}
@@ -281,8 +294,23 @@ export function TrainingLog({ user, onRequireLogin, dateRequest }: TrainingLogPr
                 {splitLabels[key]}
               </button>
             ))}
+            <label
+              className={`flex cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                deloadActive ? "border-accent/50 bg-accent/15 text-accent" : "border-line bg-panel text-muted hover:text-ink"
+              }`}
+              title={`标记 ${weekStartKey(selectedDate)} 起的一周为减载周`}
+            >
+              <input type="checkbox" className="h-3.5 w-3.5 accent-[#D97757]" checked={deloadActive} onChange={handleToggleDeload} />
+              本周减载
+            </label>
           </div>
         </div>
+        {deloadActive ? (
+          <p className="mb-3 rounded-lg border border-accent/30 bg-accent/[0.07] px-3 py-2 text-xs leading-relaxed text-ink">
+            减载周（{weekStartKey(selectedDate)} 起）：模板已切换为减载版——组数减半、每组留 4–5 次余力；重量用平时的
+            85–90%，停用全部拉长半程/递减组，间歇有氧换匀速或散步。练完应"意犹未尽"，不是"被掏空"。
+          </p>
+        ) : null}
         <div className="scrollbar-thin -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
           {template.days.map((day, index) => (
             <button
@@ -290,16 +318,9 @@ export function TrainingLog({ user, onRequireLogin, dateRequest }: TrainingLogPr
               type="button"
               onClick={() => applyTemplateDay(index)}
               title="点击套用到当前选中日期"
-              className={`min-w-[120px] shrink-0 rounded-xl border px-3 py-2.5 text-left transition-colors ${
-                day.carbDay === "high" ? "border-accent/40 bg-accent/[0.08]" : "border-line bg-surface/40 hover:border-accent/30"
-              }`}
+              className="min-w-[120px] shrink-0 rounded-xl border border-line bg-surface/40 px-3 py-2.5 text-left transition-colors hover:border-accent/30"
             >
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold text-ink">{day.dayLabel}</span>
-                <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${day.carbDay === "high" ? "bg-accent/15 text-accent" : "text-muted"}`}>
-                  {carbDayLabelsForTraining[day.carbDay]}
-                </span>
-              </div>
+              <div className="text-[11px] font-semibold text-ink">{day.dayLabel}</div>
               <div className="mt-1 text-xs font-medium text-ink">{day.splitLabel}</div>
               <div className="mt-0.5 truncate text-[10px] text-muted">
                 {day.muscleGroups.map((m) => muscleGroupLabels[m]).join(" · ")}
@@ -347,15 +368,13 @@ export function TrainingLog({ user, onRequireLogin, dateRequest }: TrainingLogPr
                   }`}
                 >
                   <span className={isToday ? "font-bold text-accent" : ""}>{cell.date.getDate()}</span>
-                  {session ? <span className={`mt-1 h-1.5 w-1.5 rounded-full ${carbDayDotClass[session.carbDayType]}`} /> : null}
+                  {session ? <span className="mt-1 h-1.5 w-1.5 rounded-full bg-accent" /> : null}
                 </button>
               );
             })}
           </div>
           <div className="mt-3 flex items-center gap-3 text-[11px] text-muted">
-            <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-accent" />高碳</span>
-            <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-accent/45" />中碳</span>
-            <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-[#CFCABD]" />低碳</span>
+            <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-accent" />已训练</span>
             {loading ? <span className="ml-auto">加载中…</span> : null}
           </div>
 
@@ -423,14 +442,6 @@ export function TrainingLog({ user, onRequireLogin, dateRequest }: TrainingLogPr
             <label className="flex flex-col gap-1">
               <span className="metric-label">部位/分化</span>
               <input className="field" value={draft.splitLabel} placeholder="如 腿 Legs" onChange={(e) => updateDraft({ splitLabel: e.target.value })} />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="metric-label">碳水日</span>
-              <select className="field" value={draft.carbDayType} onChange={(e) => updateDraft({ carbDayType: e.target.value as CarbDayType })}>
-                {(Object.keys(carbDayLabelsForTraining) as CarbDayType[]).map((c) => (
-                  <option key={c} value={c}>{carbDayLabelsForTraining[c]}</option>
-                ))}
-              </select>
             </label>
             <label className="flex flex-col gap-1">
               <span className="metric-label">体重 kg</span>

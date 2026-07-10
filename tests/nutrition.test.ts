@@ -33,7 +33,6 @@ const profile: UserProfile = {
   weightKg: 80,
   activityFactor: 1.45,
   exerciseKcal: 300,
-  workoutType: "legs",
   trainingTime: "afternoon",
   planDate: "2026-05-22"
 };
@@ -171,7 +170,7 @@ describe("nutrition formulas", () => {
   it("checks macro ratios against the v2 target ratio (±5 pct-points)", () => {
     const target = calculateDailyTarget(profile);
     const targetRatio = calculateMacroRatio(target);
-    const check = getMacroRatioCheck(targetRatio, targetRatio, "cut", "mid");
+    const check = getMacroRatioCheck(targetRatio, targetRatio, "cut");
 
     expect(check.cycleAligned).toBe(true);
     expect(check.goalAligned).toBe(true);
@@ -226,29 +225,14 @@ describe("nutrition formulas", () => {
 
   it("creates training and rest meals with expected counts", () => {
     expect(createDefaultMeals(profile)).toHaveLength(4);
-    expect(createDefaultMeals({ ...profile, workoutType: "rest" })).toHaveLength(3);
+    expect(createDefaultMeals({ ...profile, trainingTime: "rest" })).toHaveLength(3);
   });
 });
 
-describe("v2 plan: no carb cycling (every day is a standard day)", () => {
-  it("keeps the daily target identical across legacy carb day / workout type / rest day", () => {
+describe("v2 plan: no carb cycling (every day is the same target)", () => {
+  it("keeps the daily target identical between training days and rest days", () => {
     const base = calculateDailyTarget(profile);
-    const variants = [
-      calculateDailyTarget({ ...profile, carbDayType: "high" }),
-      calculateDailyTarget({ ...profile, carbDayType: "low" }),
-      calculateDailyTarget({ ...profile, workoutType: "legs" }),
-      calculateDailyTarget({ ...profile, workoutType: undefined, trainingTime: "rest" })
-    ];
-    for (const target of variants) {
-      expect(target).toEqual(base);
-    }
-  });
-
-  it("reports every plan as a standard (mid) day regardless of legacy fields", () => {
-    const result = buildNutritionResult({ ...profile, workoutType: undefined, carbDayType: "high" }, [], builtinFoods);
-    expect(result.carbDayType).toBe("mid");
-    const restResult = buildNutritionResult({ ...profile, carbDayType: "low", trainingTime: "rest" }, [], builtinFoods);
-    expect(restResult.carbDayType).toBe("mid");
+    expect(calculateDailyTarget({ ...profile, trainingTime: "rest" })).toEqual(base);
   });
 
   it("still creates 3 meals on a rest day and 4 on a training day (meal shape only)", () => {
@@ -839,7 +823,7 @@ describe("meal solving", () => {
       }
     ];
     const wheyResult = buildNutritionResult(
-      { ...defaultProfile, workoutType: "legs", goalType: "maintain", weeklyWeightChangePct: 0, planDate: "2026-05-22" },
+      { ...defaultProfile, goalType: "maintain", weeklyWeightChangePct: 0, planDate: "2026-05-22" },
       wheyMeal,
       builtinFoods
     );
@@ -861,7 +845,7 @@ describe("meal solving", () => {
       }
     ];
     const nutResult = buildNutritionResult(
-      { ...defaultProfile, workoutType: "chest", goalType: "maintain", weeklyWeightChangePct: 0, planDate: "2026-05-22" },
+      { ...defaultProfile, goalType: "maintain", weeklyWeightChangePct: 0, planDate: "2026-05-22" },
       nutMeal,
       builtinFoods
     );

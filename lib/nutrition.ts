@@ -1,5 +1,4 @@
 import type {
-  CarbDayType,
   FoodCategory,
   FoodItem,
   MacroRatio,
@@ -9,8 +8,7 @@ import type {
   NutritionResult,
   NutritionGoal,
   TrainingTime,
-  UserProfile,
-  WorkoutType
+  UserProfile
 } from "@/lib/types";
 
 export const zeroTotals: MacroTotals = {
@@ -160,13 +158,6 @@ export const v2PlanMacroSource =
 export const foodPortionSource =
   "分类份量参考中国居民平衡膳食餐盘和健康餐盘法：主餐保留可见蛋白份量，主食、蔬果、蛋白按餐盘结构评分；补剂和坚果按健身常用单次份量设上限。";
 
-// 碳日标签：v2 无碳循环，新计划一律记为 mid（标准日）；high/low 仅用于展示历史计划。
-export const carbDayLabels: Record<CarbDayType, string> = {
-  high: "高碳日",
-  mid: "标准日",
-  low: "低碳日"
-};
-
 export const trainingTimeLabels: Record<TrainingTime, string> = {
   morning: "上午训练",
   afternoon: "午后训练",
@@ -256,13 +247,14 @@ export function calculateMacroRatio(total: MacroTotals): MacroRatio {
 export function getMacroRatioCheck(
   ratio: MacroRatio,
   targetRatio: MacroRatio,
-  goal: NutritionGoal,
-  carbDayType?: CarbDayType
+  goal: NutritionGoal
 ) {
+  // 公式贴合：与当前目标比例差 ≤5 个百分点；参考区间：减脂/维持/增肌的宏观营养学范围。
   const cycleTolerance = 5;
-  const ranges = carbDayType ? targetRatioRanges(targetRatio) : goalMacroRatioRanges[goal];
+  const ranges = targetRatioRanges(targetRatio);
+  const goalRanges = goalMacroRatioRanges[goal];
   const cycleIssues = macroRatioKeys.filter((key) => Math.abs(ratio[key] - targetRatio[key]) > cycleTolerance);
-  const goalIssues = macroRatioKeys.filter((key) => ratio[key] < ranges[key].min || ratio[key] > ranges[key].max);
+  const goalIssues = macroRatioKeys.filter((key) => ratio[key] < goalRanges[key].min || ratio[key] > goalRanges[key].max);
 
   return {
     cycleAligned: cycleIssues.length === 0,
@@ -536,8 +528,8 @@ export function calculateMealsTotals(meals: MealPlan[], foods: FoodItem[]) {
 }
 
 export function createDefaultMeals(profile: UserProfile): MealPlan[] {
-  // 休息日（训练时间选休息日；或旧数据里训练部位=休息）无训练前加餐，回退三餐结构。
-  if (profile.trainingTime === "rest" || profile.workoutType === "rest") {
+  // 休息日（训练时间选休息日）无训练前加餐，回退三餐结构。
+  if (profile.trainingTime === "rest") {
     return [
       { id: "breakfast", name: "早餐", ratio: 0.3, locked: false, entries: [] },
       { id: "lunch", name: "午餐", ratio: 0.4, locked: false, entries: [] },
@@ -1292,8 +1284,6 @@ export function buildNutritionResult(profile: UserProfile, meals: MealPlan[], fo
     bmr: calculateBmr(profile),
     tdee,
     plannedCalorieDelta,
-    // v2 无碳循环：每份新计划一律记为标准日(mid)；high/low 只存在于历史计划里。
-    carbDayType: "mid",
     cycleAverageTarget,
     dailyTarget,
     actualTotals,

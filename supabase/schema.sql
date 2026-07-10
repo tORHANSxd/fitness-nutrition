@@ -223,7 +223,6 @@ create table if not exists public.workout_sessions (
   user_id uuid not null,
   session_date date not null,
   split_label text not null,
-  carb_day_type text not null,
   bodyweight_kg numeric(6,2),
   recovery smallint,
   note text,
@@ -235,7 +234,6 @@ alter table public.workout_sessions add constraint workout_sessions_pkey PRIMARY
 alter table public.workout_sessions add constraint workout_sessions_user_id_session_date_key UNIQUE (user_id, session_date);
 alter table public.workout_sessions add constraint workout_sessions_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 alter table public.workout_sessions add constraint workout_sessions_bodyweight_kg_check CHECK (((bodyweight_kg IS NULL) OR (bodyweight_kg > (0)::numeric)));
-alter table public.workout_sessions add constraint workout_sessions_carb_day_type_check CHECK ((carb_day_type = ANY (ARRAY['high'::text, 'mid'::text, 'low'::text])));
 alter table public.workout_sessions add constraint workout_sessions_recovery_check CHECK (((recovery IS NULL) OR ((recovery >= 1) AND (recovery <= 5))));
 
 alter table public.body_logs enable row level security;
@@ -376,3 +374,6 @@ with check ((auth.uid() = user_id));
 
 -- 2026-07-10 v2 目标公式需要体脂率（去脂体重推蛋白目标）；线上已通过管理 API 执行。
 alter table public.body_logs add column if not exists body_fat_pct numeric(5,2);
+
+-- 2026-07-10 碳循环概念整体移除；线上已通过管理 API 执行。
+alter table public.workout_sessions drop column if exists carb_day_type;

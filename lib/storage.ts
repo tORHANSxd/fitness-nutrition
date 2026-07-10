@@ -101,6 +101,44 @@ export async function savePlannerDraft(profile: UserProfile, meals: MealPlan[], 
 }
 
 // ---------------------------------------------------------------------------
+// 减载周标记（存 profiles.preferences.deloadWeeks：周一起始日 YYYY-MM-DD 数组）
+// v2 文档减载为"计划性(每6-7周) + 按需性(过度红线)"双触发，由用户在训练/安排页手动勾选。
+// ---------------------------------------------------------------------------
+
+export async function loadDeloadWeeks(user: User | null): Promise<string[]> {
+  const { supabase, user: authedUser } = requireClient(user);
+  const { data, error } = await supabase.from("profiles").select("preferences").eq("id", authedUser.id).maybeSingle();
+  if (error) {
+    throw error;
+  }
+  const preferences = (data?.preferences ?? {}) as Record<string, unknown>;
+  const weeks = preferences.deloadWeeks;
+  return Array.isArray(weeks) ? weeks.filter((week): week is string => typeof week === "string") : [];
+}
+
+export async function saveDeloadWeeks(weeks: string[], user: User | null): Promise<string[]> {
+  const { supabase, user: authedUser } = requireClient(user);
+  // 与 plannerDraft 同一策略：先读回现有 preferences 合并该键，避免覆盖其他偏好。
+  const { data: existing, error: readError } = await supabase
+    .from("profiles")
+    .select("preferences")
+    .eq("id", authedUser.id)
+    .maybeSingle();
+  if (readError) {
+    throw readError;
+  }
+  const preferences = {
+    ...((existing?.preferences as Record<string, unknown>) ?? {}),
+    deloadWeeks: weeks
+  };
+  const { error } = await supabase.from("profiles").upsert({ id: authedUser.id, preferences }, { onConflict: "id" });
+  if (error) {
+    throw error;
+  }
+  return weeks;
+}
+
+// ---------------------------------------------------------------------------
 // 计划模板（planner_templates：每模板一行，template_type = meal|day，整体存 payload）
 // v2 只存食物引用（payload.foods / payload.meals[].foods），不存克重；
 // 旧克重制行在读入时丢弃，下次保存整组替换时自动从库里清掉。

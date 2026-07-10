@@ -10,7 +10,6 @@ import {
   autoTargetKcal,
   buildNutritionResult,
   calculateMacroRatio,
-  carbDayLabels,
   getCalorieDeficit,
   getMacroRatioCheck,
   isProfileComplete,
@@ -31,13 +30,10 @@ export function PlannerProfileView({ controller }: PlannerProfileViewProps) {
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
         <div className="order-1 space-y-4 xl:order-2">
           <section className="panel overflow-hidden">
-            {/* 指挥台顶栏：标题 + 碳日标签 + 训练时间/日期摘要（操作按钮已移到「分餐计划」页） */}
+            {/* 指挥台顶栏：标题 + 训练时间/日期摘要（操作按钮已移到「分餐计划」页） */}
             <div className="border-b border-line bg-surface/80 px-5 py-3.5">
               <div className="flex flex-wrap items-center gap-2.5">
                 <h2 className="text-base font-semibold tracking-tight text-ink">今日指挥台</h2>
-                <span className="rounded-full border border-accent/40 bg-accent/10 px-2.5 py-0.5 text-xs font-medium text-accent">
-                  {carbDayLabels[result.carbDayType]}
-                </span>
                 <span className="hidden text-xs text-muted sm:inline">
                   {trainingTimeLabels[profile.trainingTime]} · {profile.planDate}
                 </span>
@@ -80,8 +76,6 @@ export function PlannerProfileView({ controller }: PlannerProfileViewProps) {
               <DailyBalancePanel actual={result.actualTotals} recommended={result.recommendedTotals} target={result.dailyTarget} />
               <MacroRatioPanel
                 actualRatio={result.actualRatio}
-                carbDayType={result.carbDayType}
-                carbDayLabel={carbDayLabels[result.carbDayType]}
                 recommendedRatio={calculateMacroRatio(result.recommendedTotals)}
                 targetRatio={result.targetRatio}
               />
@@ -184,16 +178,14 @@ function DailyBalanceBar({
 }
 
 interface MacroRatioPanelProps {
-  carbDayType: ReturnType<typeof buildNutritionResult>["carbDayType"];
-  carbDayLabel: string;
   targetRatio: MacroRatio;
   actualRatio: MacroRatio;
   recommendedRatio: MacroRatio;
 }
 
-function MacroRatioPanel({ actualRatio, carbDayType, recommendedRatio, targetRatio }: MacroRatioPanelProps) {
-  const actualCheck = getMacroRatioCheck(actualRatio, targetRatio, "cut", carbDayType);
-  const recommendedCheck = getMacroRatioCheck(recommendedRatio, targetRatio, "cut", carbDayType);
+function MacroRatioPanel({ actualRatio, recommendedRatio, targetRatio }: MacroRatioPanelProps) {
+  const actualCheck = getMacroRatioCheck(actualRatio, targetRatio, "cut");
+  const recommendedCheck = getMacroRatioCheck(recommendedRatio, targetRatio, "cut");
   const actualStatus = `${actualCheck.cycleAligned ? "公式贴合" : "公式偏离"} / ${actualCheck.goalAligned ? "参考内" : "参考外"}`;
   const recommendedStatus = `${recommendedCheck.cycleAligned ? "公式贴合" : "公式偏离"} / ${recommendedCheck.goalAligned ? "参考内" : "参考外"}`;
 

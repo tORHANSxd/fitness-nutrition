@@ -3,9 +3,6 @@ export const foodCategories = ["主食", "蔬菜", "水果", "肉类", "补剂",
 export type FoodCategory = (typeof foodCategories)[number];
 export type WeightBasis = "raw" | "cooked";
 export type Sex = "male" | "female";
-export type WorkoutType = "chest" | "back" | "legs" | "shoulders" | "arms" | "rest";
-/** v2 无碳循环：新数据一律 mid（标准日）；high/low 仅存在于历史计划/记录里，供展示。 */
-export type CarbDayType = "high" | "mid" | "low";
 export type TrainingTime = "morning" | "afternoon" | "evening" | "rest";
 export type NutritionGoal = "cut" | "maintain" | "bulk";
 export type ViewName = "overview" | "planner" | "meals" | "schedule" | "training" | "body" | "templates" | "foods" | "history" | "login";
@@ -59,10 +56,6 @@ export interface UserProfile {
   calorieDeficit?: number;
   goalType?: NutritionGoal;
   weeklyWeightChangePct?: number;
-  /** 旧方针遗留：碳循环日。v2 无碳循环（每天都是标准日 mid），仅为历史数据展示保留。 */
-  carbDayType?: CarbDayType;
-  /** 旧数据遗留字段：早期按训练部位派生碳日。 */
-  workoutType?: WorkoutType;
   trainingTime: TrainingTime;
   planDate: string;
 }
@@ -126,7 +119,6 @@ export interface NutritionResult {
   bmr: number;
   tdee: number;
   plannedCalorieDelta: number;
-  carbDayType: CarbDayType;
   cycleAverageTarget: MacroTotals;
   dailyTarget: MacroTotals;
   actualTotals: MacroTotals;
@@ -207,7 +199,6 @@ export interface WorkoutSession {
   id: string;
   sessionDate: string;
   splitLabel: string;
-  carbDayType: CarbDayType;
   bodyweightKg?: number | null;
   /** 主观恢复 1–5（睡眠/精力/酸痛综合）。 */
   recovery?: number | null;
@@ -236,7 +227,6 @@ export interface ProgramDay {
   dayLabel: string;
   splitLabel: string;
   muscleGroups: MuscleGroup[];
-  carbDay: CarbDayType;
   exercises: ProgramExercise[];
 }
 

@@ -141,11 +141,11 @@ describe("PlannerProfileView v2 固定目标 / 训练时间", () => {
     expect(fieldInput("体重 kg")).toHaveValue(null);
   });
 
-  it("treats a rest day as the same standard day (no forced low carb)", () => {
-    render(<PlannerProfileView controller={makeController({ trainingTime: "rest", carbDayType: "high" })} />);
+  it("treats a rest day like any other day (no carb-day badge or forced low carb)", () => {
+    render(<PlannerProfileView controller={makeController({ trainingTime: "rest" })} />);
     expect(screen.queryByText("休息日固定低碳。")).not.toBeInTheDocument();
-    // 顶栏碳日徽章一律显示"标准日"（v2 无碳循环，历史 carbDayType 不再影响新计算）。
-    expect(screen.getByText("标准日")).toBeInTheDocument();
+    // 碳循环概念已整体移除：不再有任何碳日徽章/文案。
+    expect(screen.queryByText(/碳日|高碳|低碳|标准日/)).not.toBeInTheDocument();
   });
 
   it("adds a rest-day option to training time", () => {

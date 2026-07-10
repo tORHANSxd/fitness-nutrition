@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyDeloadToDay,
+  applyDeloadToTemplate,
   autoEstimate1RM,
   autoregulate,
   bestE1RMByExercise,
   deloadSignals,
   estimate1RM,
+  isDeloadWeek,
   loadFromPercent,
   programTemplates,
   rpeFromRir,
@@ -33,7 +36,6 @@ function makeSession(date: string, sets: WorkoutSet[]): WorkoutSession {
     id: `s-${date}`,
     sessionDate: date,
     splitLabel: "腿 Legs",
-    carbDayType: "high",
     sets,
     createdAt: `${date}T00:00:00.000Z`
   };
@@ -152,14 +154,13 @@ describe("deloadSignals", () => {
 describe("v2 五分化模板（2026-07-10 计划）", () => {
   const template = programTemplates.fiveDayV2;
 
-  it("周一~周五共 5 天，且全部为标准日（无碳循环）", () => {
+  it("周一~周五共 5 天", () => {
     expect(template).toBeDefined();
     expect(template.daysPerWeek).toBe(5);
     expect(template.days).toHaveLength(5);
     const weekdays = ["周一", "周二", "周三", "周四", "周五"];
     template.days.forEach((day, index) => {
       expect(day.dayLabel).toContain(weekdays[index]);
-      expect(day.carbDay).toBe("mid");
     });
   });
 
@@ -190,9 +191,47 @@ describe("v2 五分化模板（2026-07-10 计划）", () => {
     expect(allExercises).toContain("罗马尼亚硬拉");
   });
 
-  it("旧「5练1高碳」模板已退役，v2 模板成为列表首位", () => {
+  it("旧张老师模板已退役，v2 模板成为列表首位", () => {
     expect(Object.keys(programTemplates)[0]).toBe("fiveDayV2");
     expect(Object.keys(programTemplates)).not.toContain("ppl");
     expect(splitLabels.fiveDayV2).toContain("五分化");
+  });
+});
+
+describe("减载周（v2 文档：容量减半、留 4–5 RIR、频率动作不变）", () => {
+  it("applyDeloadToDay：组数砍约一半(至少1组)、RIR 抬到 4、动作与次数区间不变", () => {
+    const day = programTemplates.fiveDayV2.days[0]; // 周一推：卧推 4 组 RIR2 起
+    const deload = applyDeloadToDay(day);
+    // 组数：4→2、3→2、2→1。
+    const sets = day.exercises.map((exercise) => exercise.sets);
+    const deloadSets = deload.exercises.map((exercise) => exercise.sets);
+    expect(deloadSets).toEqual(sets.map((count) => Math.max(1, Math.round(count / 2))));
+    // 努力度：全部留 4 次余力（原 RIR 1/2 → 4）。
+    expect(deload.exercises.every((exercise) => exercise.targetRir === 4)).toBe(true);
+    // 动作、肌群、次数区间原样保留；splitLabel 标注减载。
+    expect(deload.exercises.map((exercise) => exercise.exercise)).toEqual(day.exercises.map((exercise) => exercise.exercise));
+    expect(deload.exercises.map((exercise) => exercise.repRange)).toEqual(day.exercises.map((exercise) => exercise.repRange));
+    expect(deload.splitLabel).toContain("减载");
+    // 原模板不被就地修改。
+    expect(day.exercises[0].sets).toBe(4);
+  });
+
+  it("applyDeloadToTemplate：五天全部转换、名字标注减载周", () => {
+    const deload = applyDeloadToTemplate(programTemplates.fiveDayV2);
+    expect(deload.days).toHaveLength(5);
+    expect(deload.name).toContain("减载");
+    expect(deload.days.every((day) => day.exercises.every((exercise) => exercise.targetRir === 4))).toBe(true);
+    // 周总组数砍到约一半：3 组动作四舍五入到 2（"砍约一半"），总量约 60–65%，明显低于正常周。
+    const total = (t: typeof deload) => t.days.reduce((sum, day) => sum + day.exercises.reduce((s, e) => s + e.sets, 0), 0);
+    expect(total(deload)).toBeLessThanOrEqual(Math.ceil(total(programTemplates.fiveDayV2) * 0.65));
+  });
+
+  it("isDeloadWeek：按周起始日判断某日期是否落在减载周", () => {
+    const deloadWeeks = ["2026-07-06", "2026-07-20"];
+    expect(isDeloadWeek("2026-07-08", deloadWeeks)).toBe(true); // 周三属 07-06 周
+    expect(isDeloadWeek("2026-07-12", deloadWeeks)).toBe(true); // 周日仍属 07-06 周
+    expect(isDeloadWeek("2026-07-13", deloadWeeks)).toBe(false); // 下周一不属
+    expect(isDeloadWeek("2026-07-22", deloadWeeks)).toBe(true);
+    expect(isDeloadWeek("2026-07-08", [])).toBe(false);
   });
 });

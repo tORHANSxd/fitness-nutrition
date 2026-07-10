@@ -1,9 +1,9 @@
 "use client";
 
 import type { User } from "@supabase/supabase-js";
-import { Activity, CalendarDays, ChevronLeft, ChevronRight, Dumbbell, Flame, LayoutGrid, TrendingUp, Utensils } from "lucide-react";
+import { Activity, CalendarDays, ChevronLeft, ChevronRight, Dumbbell, LayoutGrid, TrendingUp, Utensils } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { carbDayLabels, round, weeklyCarbDayCounts } from "@/lib/nutrition";
+import { carbDayLabels, round } from "@/lib/nutrition";
 import { loadPlans } from "@/lib/storage";
 import { carbDayLabelsForTraining, muscleGroupLabels, muscleGroupOrder, toDateKey, weekStartKey, weeklyWorkingSets } from "@/lib/training";
 import { loadWorkoutSessions, TrainingAuthError } from "@/lib/trainingStorage";
@@ -128,8 +128,6 @@ export function OverviewCalendar({ user, onEditPlanner, onEditTraining }: Overvi
   const totalWeeklySets = useMemo(() => muscleGroupOrder.reduce((sum, m) => sum + weeklySets[m], 0), [weeklySets]);
 
   const stats = useMemo(() => {
-    // 碳水日按「本周已保存的饮食计划」统计（碳日是饮食属性）；训练记录只驱动组数/连续天数。
-    const carbCounts = weeklyCarbDayCounts(plans, weekStart);
     const kcals = plans.map((p) => p.result.dailyTarget.kcal).filter((k) => k > 0);
     const avgKcal = kcals.length ? Math.round(kcals.reduce((a, b) => a + b, 0) / kcals.length) : 0;
 
@@ -140,8 +138,8 @@ export function OverviewCalendar({ user, onEditPlanner, onEditTraining }: Overvi
       streak += 1;
       cursor.setDate(cursor.getDate() - 1);
     }
-    return { carbCounts, avgKcal, streak };
-  }, [plans, sessionsByDate, weekStart, todayKey]);
+    return { avgKcal, streak };
+  }, [plans, sessionsByDate, todayKey]);
 
   const bodyweightSeries = useMemo(() => {
     return sessions
@@ -181,9 +179,8 @@ export function OverviewCalendar({ user, onEditPlanner, onEditTraining }: Overvi
   return (
     <div className="flex flex-col gap-5">
       {/* 顶部统计概览卡 */}
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <section className="grid grid-cols-2 gap-3 lg:grid-cols-3">
         <StatCard icon={<Dumbbell size={14} />} label="本周训练组数" value={`${totalWeeklySets}`} hint={`${sessions.filter((s) => s.sessionDate >= weekStart && s.sessionDate <= todayKey).length} 次训练`} />
-        <StatCard icon={<Flame size={14} />} label="本周碳水日" value={`高${stats.carbCounts.high}·标${stats.carbCounts.mid}·低${stats.carbCounts.low}`} hint="按本周已保存饮食计划统计" />
         <StatCard icon={<Utensils size={14} />} label="计划均热量" value={stats.avgKcal ? `${stats.avgKcal}` : "—"} hint="近期 daily_plans 目标均值 kcal" />
         <StatCard icon={<Activity size={14} />} label="连续训练" value={`${stats.streak} 天`} hint="截至今天" />
       </section>

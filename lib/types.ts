@@ -45,15 +45,17 @@ export interface UserProfile {
   weightKg: number;
   activityFactor: number;
   exerciseKcal: number;
-  /** v2 计划（2026-07-10）：每日摄入目标热量 kcal，固定值（缺省 2300）；每 2 周按体重降幅手动校准。 */
+  /** 体脂率 %（来自体测记录或手填）。用于按去脂体重推蛋白目标；缺省按 25% 估算。 */
+  bodyFatPct?: number | null;
+  /** 手动覆盖：每日目标热量 kcal。缺省(undefined) = 公式 TDEE − calorieDeficit。 */
   targetKcal?: number;
-  /** v2 计划：每日蛋白目标（绝对克数，推荐 175–195；缺省 175）。体脂下降后往上调，不随体重公式走。 */
+  /** 手动覆盖：每日蛋白目标 g。缺省 = 公式 去脂体重×2.5（体脂<20% ×2.8）向上取整到 5g。 */
   proteinTargetG?: number;
-  /** v2 计划：每日脂肪目标（绝对克数，推荐 60–65、不低于 0.6g/kg；缺省 62）。碳水 = 剩余热量 ÷ 4。 */
+  /** 手动覆盖：每日脂肪目标 g。缺省 = 公式 体重×0.65 取整（文档 60–65、不低于 0.6g/kg）。 */
   fatTargetG?: number;
   /** 旧方针遗留（张老师碳循环）：蛋白 g/kg。仅为历史草稿/计划反序列化兼容保留，不再参与计算。 */
   proteinPerKg?: number;
-  /** 旧方针遗留：减脂热量缺口。v2 直接固定 targetKcal，此字段不再参与计算。 */
+  /** 减脂热量缺口 kcal/天（缺省 600，对应文档"赤字 550–650"）；每 2 周按体重降幅校准 ±100–150。 */
   calorieDeficit?: number;
   goalType?: NutritionGoal;
   weeklyWeightChangePct?: number;

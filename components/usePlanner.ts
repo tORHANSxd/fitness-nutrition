@@ -1,8 +1,9 @@
 "use client";
 
 import type { User } from "@supabase/supabase-js";
-import { useEffect, useMemo, useState } from "react";
-import { createStarterMeals, defaultProfile } from "@/lib/demoState";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { loadBodyLogs, mergeLatestBodyMetrics, type BodyLog } from "@/lib/bodyLogs";
+import { createStarterMeals, defaultProfile, emptyProfile } from "@/lib/demoState";
 import { createCustomFood, customFoodsFromMeals } from "@/lib/foods";
 import { buildNutritionResult, createDefaultMeals, getDefaultMealEntrySettings, normalizeMealRatios, round } from "@/lib/nutrition";
 import { loadPlannerDraft, savePlan, savePlannerDraft } from "@/lib/storage";
@@ -80,6 +81,11 @@ export function usePlanner({ foods, templates, user, onTemplatesChanged, applyRe
   const allFoods = useMemo(() => [...foods, ...customFoodsFromMeals(meals)], [foods, meals]);
   const foodsById = useMemo(() => new Map(allFoods.map((food) => [food.id, food])), [allFoods]);
   const result = useMemo(() => buildNutritionResult(profile, meals, allFoods), [allFoods, meals, profile]);
+  // 供 openDateRequest 等一次性事件读取"当下档案"而不把 profile 拉进依赖（避免重复触发）。
+  const profileRef = useRef(profile);
+  useEffect(() => {
+    profileRef.current = profile;
+  }, [profile]);
   const recommendationsByMeal = useMemo(
     () => new Map(result.mealRecommendations.map((recommendation) => [recommendation.mealId, recommendation])),
     [result.mealRecommendations]
@@ -87,32 +93,37 @@ export function usePlanner({ foods, templates, user, onTemplatesChanged, applyRe
 
   useEffect(() => {
     let mounted = true;
-    const hydrate = (draft: PlannerDraft | null) => {
+    const hydrate = (nextProfile: UserProfile, nextMeals: MealPlan[]) => {
       if (!mounted) {
         return;
       }
-      const nextProfile = draft?.profile ?? { ...defaultProfile, planDate: new Date().toISOString().slice(0, 10) };
       setProfile(nextProfile);
-      const nextMeals = draft?.meals ?? createStarterMeals(nextProfile);
       setMeals(nextMeals);
       // 重新水合时尽量保留用户当前停留的餐次：仅当原餐次已不存在才回到第一餐，
       // 避免（例如登录态刷新触发的）重水合把分餐切回早餐。
       setActiveMealId((current) => (nextMeals.some((meal) => meal.id === current) ? current : nextMeals[0]?.id ?? ""));
       setHydrated(true);
     };
+    const today = new Date().toISOString().slice(0, 10);
 
-    // 草稿仅存 Supabase（按账户）。未登录时用默认起始计划，不读写云端。
+    // 未登录（仅"未配置 Supabase"的演示模式会走到这）：demo 档案 + 示例餐。
     if (!user) {
-      hydrate(null);
+      hydrate({ ...defaultProfile, planDate: today }, createStarterMeals(defaultProfile));
       return () => {
         mounted = false;
       };
     }
 
     setHydrated(false);
-    loadPlannerDraft(user)
-      .then(hydrate)
-      .catch(() => hydrate(null));
+    // 草稿与体测并行拉取：草稿为基底（新账号无草稿 → 空白档案，由用户自己填）；
+    // 最新体测的体重/体脂覆盖档案对应字段——体测记录是这两项的真源。
+    Promise.all([loadPlannerDraft(user).catch(() => null), loadBodyLogs(user, 60).catch(() => [] as BodyLog[])]).then(
+      ([draft, bodyLogs]) => {
+        const base = draft?.profile ?? { ...emptyProfile, planDate: today };
+        const nextProfile = mergeLatestBodyMetrics(base, bodyLogs);
+        hydrate(nextProfile, draft?.meals ?? createDefaultMeals(nextProfile));
+      }
+    );
     return () => {
       mounted = false;
     };
@@ -139,13 +150,14 @@ export function usePlanner({ foods, templates, user, onTemplatesChanged, applyRe
     setMessage("已从模板应用全天餐食，可继续微调或保存。");
   }, [applyRequest]);
 
-  // 安排日历「去分餐」：nonce 变化时按指定日期载入——有已存计划则载入，否则新建该日空计划。
+  // 安排日历「去分餐」：nonce 变化时按指定日期载入——有已存计划则载入；
+  // 否则沿用**当前档案**只换日期新建（不再重置成 demo 默认档案）。
   useEffect(() => {
     if (!openDateRequest) {
       return;
     }
     const { date, plan } = openDateRequest;
-    const nextProfile = plan?.profile ?? { ...defaultProfile, planDate: date };
+    const nextProfile = plan?.profile ?? profileRef.current;
     const nextMeals = plan?.meals ?? createDefaultMeals(nextProfile);
     setProfile({ ...nextProfile, planDate: date });
     setMeals(nextMeals);

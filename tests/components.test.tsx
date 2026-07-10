@@ -121,12 +121,24 @@ describe("PlannerProfileView v2 固定目标 / 训练时间", () => {
     return screen.getByText("训练时间").closest("label")!.querySelector("select") as HTMLSelectElement;
   }
 
-  it("shows the v2 fixed targets (2300 kcal / P175 / F62) and no carb-day picker", () => {
+  it("shows formula-derived targets as placeholders (demo profile → 2295/175/61) and no carb-day picker", () => {
     render(<PlannerProfileView controller={makeController({ trainingTime: "afternoon" })} />);
     expect(screen.queryByText("碳循环日")).not.toBeInTheDocument();
-    expect(fieldInput("每日目标 kcal")).toHaveValue(2300);
-    expect(fieldInput("蛋白目标 g")).toHaveValue(175);
-    expect(fieldInput("脂肪目标 g")).toHaveValue(62);
+    // 覆盖字段默认留空 = 用公式；placeholder 展示公式值（demo 档案 93.2kg/26%）。
+    expect(fieldInput("每日目标 kcal")).toHaveValue(null);
+    expect(fieldInput("每日目标 kcal").placeholder).toBe("自动 2295");
+    expect(fieldInput("蛋白目标 g").placeholder).toBe("自动 175");
+    expect(fieldInput("脂肪目标 g").placeholder).toBe("自动 61");
+    // 体脂率与赤字字段就位。
+    expect(fieldInput("体脂率 %")).toHaveValue(26);
+    expect(fieldInput("减脂赤字 kcal/天")).toHaveValue(600);
+  });
+
+  it("shows the guidance banner and generic placeholders on an empty new-account profile", () => {
+    render(<PlannerProfileView controller={makeController({ age: 0, heightCm: 0, weightKg: 0, bodyFatPct: null })} />);
+    expect(screen.getByText(/先填写年龄、身高、体重/)).toBeInTheDocument();
+    expect(fieldInput("每日目标 kcal").placeholder).toBe("自动");
+    expect(fieldInput("体重 kg")).toHaveValue(null);
   });
 
   it("treats a rest day as the same standard day (no forced low carb)", () => {

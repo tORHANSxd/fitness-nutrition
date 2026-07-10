@@ -18,9 +18,9 @@ Next.js 16 (App Router) + React 19 + TypeScript + Tailwind 3 + Supabase + rechar
 
 默认方针来自用户文档《训练与营养计划》v2（`D:\Personal\健身\训练与营养计划.md`），**旧的张老师/凯圣王碳循环方针已全部推倒**：
 
-- 营养：每日固定目标 2300 kcal（`targetKcal`，可调）、蛋白 175g 起（`proteinTargetG`，推荐 175–195）、脂肪 62g（`fatTargetG`，推荐 60–65），碳水 = 剩余热量 ÷ 4（约 235–260g）。无碳循环——训练日/休息日同一目标；TDEE 只作赤字监控（默认档案 ≈2895，赤字 ≈595）。热量校准：每 2 周按体重周均降幅手动调 targetKcal ±100–150。
+- 营养（2026-07-10 晚间起为公式派生）：目标热量 = TDEE − 赤字（`calorieDeficit` 默认 600，校准入口 ±100–150）；蛋白 = 去脂体重×2.5（体脂<20% ×2.8）向上取整 5g；脂肪 = 体重×0.65；碳水 = 剩余热量 ÷ 4。体重/体脂由**最新体测记录**（body_logs，含 body_fat_pct 列）水合覆盖（`mergeLatestBodyMetrics`）；`targetKcal/proteinTargetG/fatTargetG` 为可选手动覆盖（留空=公式）。新账号档案空白（`emptyProfile`），`isProfileComplete` 不满足时目标为 0 并出引导横幅；demo 档案（93.2kg/26%）公式复现文档 2300/175 数字。无碳循环——训练日/休息日同一目标。
 - 训练：周一~周五 PPL+UL 五分化（推 / 拉 / 腿·股四头 / 上肢 / 腿·后链），周六日完全休息；模板 `fiveDayV2`（`lib/training.ts`）为默认。拉长位动作优先、单次每肌群 ≤8 有效组、每肌群每周 2 次。
-- CarbDayType 仅为历史数据展示保留：新计划/训练记录一律 `mid`（标签"标准日"）。首页"本周碳水日"按**当周已保存饮食计划**统计（`weeklyCarbDayCounts`），不按训练记录。
+- CarbDayType 仅为历史数据展示保留：新计划/训练记录一律 `mid`（标签"标准日"）。首页"本周碳水日"统计卡已删除（2026-07-10）。
 
 ## 功能模块（重构必须全部保留）
 

@@ -5,13 +5,15 @@ import { MacroBars } from "@/components/MacroBars";
 import { MetricCard } from "@/components/MetricCard";
 import type { PlannerController } from "@/components/usePlanner";
 import {
+  autoFatTargetG,
+  autoProteinTargetG,
+  autoTargetKcal,
   buildNutritionResult,
   calculateMacroRatio,
   carbDayLabels,
-  getFatTargetG,
+  getCalorieDeficit,
   getMacroRatioCheck,
-  getProteinTargetG,
-  getTargetKcal,
+  isProfileComplete,
   round,
   trainingTimeLabels
 } from "@/lib/nutrition";
@@ -42,13 +44,13 @@ export function PlannerProfileView({ controller }: PlannerProfileViewProps) {
               </div>
             </div>
 
-            {/* stat 网格：6 指标。当日目标 = 维持热量(TDEE) − 减脂热量缺口；「计划缺口」显示该缺口值。 */}
+            {/* stat 网格：6 指标。当日目标 = 维持热量(TDEE) − 减脂赤字；档案不完整时全部归 0 并由表单横幅引导。 */}
             <div className="grid grid-cols-2 border-l border-t border-line sm:grid-cols-3 xl:grid-cols-4">
               <div className="border-b border-r border-line px-4 py-3">
-                <MetricCard label="BMR" value={result.bmr} unit="kcal" />
+                <MetricCard label="BMR" value={isProfileComplete(profile) ? result.bmr : 0} unit="kcal" />
               </div>
               <div className="border-b border-r border-line px-4 py-3">
-                <MetricCard label="维持热量" value={result.tdee} unit="kcal" tone="accent" />
+                <MetricCard label="维持热量" value={isProfileComplete(profile) ? result.tdee : 0} unit="kcal" tone="accent" />
               </div>
               <div className="border-b border-r border-line px-4 py-3">
                 <MetricCard label="当日目标" value={result.dailyTarget.kcal} unit="kcal" tone="accent" />
@@ -297,6 +299,13 @@ function ProfilePanel({ profile, updateProfile }: ProfilePanelProps) {
     updateProfile(key, Number(value) as UserProfile[K]);
   }
 
+  // 目标覆盖字段：留空 = 用公式（placeholder 显示公式值），填数字 = 手动覆盖。
+  function overrideInput(key: "targetKcal" | "proteinTargetG" | "fatTargetG", value: string) {
+    updateProfile(key, value === "" ? undefined : Number(value));
+  }
+
+  const ready = isProfileComplete(profile);
+
   return (
     <section className="panel p-4">
       <div className="mb-4 flex items-center gap-3">
@@ -305,10 +314,15 @@ function ProfilePanel({ profile, updateProfile }: ProfilePanelProps) {
         </div>
         <div>
           <h2 className="text-lg font-semibold text-ink">身体与训练</h2>
-          <p className="text-sm text-muted">每个输入字符都会刷新目标、推荐值和图表。</p>
+          <p className="text-sm text-muted">目标由体重与体脂按 v2 公式自动生成，可手动覆盖。</p>
         </div>
       </div>
       <div className="grid gap-3">
+        {!ready ? (
+          <div className="rounded-lg border border-accent/30 bg-accent/[0.06] px-3 py-2 text-xs leading-relaxed text-ink">
+            先填写年龄、身高、体重（或到「体测记录」记一条体重/体脂），每日目标会按 v2 公式自动生成。
+          </div>
+        ) : null}
         <label>
           <span className="metric-label mb-1 block">计划日期</span>
           <input className="field w-full" type="date" value={profile.planDate} onChange={(event) => updateProfile("planDate", event.target.value)} />
@@ -323,15 +337,29 @@ function ProfilePanel({ profile, updateProfile }: ProfilePanelProps) {
           </label>
           <label>
             <span className="metric-label mb-1 block">年龄</span>
-            <input className="field w-full" inputMode="numeric" type="number" value={profile.age} onChange={(event) => numberInput("age", event.target.value)} />
+            <input className="field w-full" inputMode="numeric" type="number" value={profile.age || ""} placeholder="必填" onChange={(event) => numberInput("age", event.target.value)} />
           </label>
           <label>
             <span className="metric-label mb-1 block">身高 cm</span>
-            <input className="field w-full" inputMode="decimal" type="number" value={profile.heightCm} onChange={(event) => numberInput("heightCm", event.target.value)} />
+            <input className="field w-full" inputMode="decimal" type="number" value={profile.heightCm || ""} placeholder="必填" onChange={(event) => numberInput("heightCm", event.target.value)} />
           </label>
           <label>
             <span className="metric-label mb-1 block">体重 kg</span>
-            <input className="field w-full" inputMode="decimal" type="number" value={profile.weightKg} onChange={(event) => numberInput("weightKg", event.target.value)} />
+            <input className="field w-full" inputMode="decimal" type="number" value={profile.weightKg || ""} placeholder="随体测更新" onChange={(event) => numberInput("weightKg", event.target.value)} />
+            <span className="mt-1 block text-[11px] text-muted">随最新体测记录自动更新。</span>
+          </label>
+          <label>
+            <span className="metric-label mb-1 block">体脂率 %</span>
+            <input
+              className="field w-full"
+              inputMode="decimal"
+              step="0.5"
+              type="number"
+              value={profile.bodyFatPct ?? ""}
+              placeholder="未填按 25 估算"
+              onChange={(event) => updateProfile("bodyFatPct", event.target.value === "" ? null : Number(event.target.value))}
+            />
+            <span className="mt-1 block text-[11px] text-muted">随体测更新；决定去脂体重与蛋白目标。</span>
           </label>
         </div>
         <div className="grid grid-cols-2 gap-3">
@@ -341,10 +369,24 @@ function ProfilePanel({ profile, updateProfile }: ProfilePanelProps) {
           </label>
           <label>
             <span className="metric-label mb-1 block">运动消耗 kcal</span>
-            <input className="field w-full" inputMode="numeric" type="number" value={profile.exerciseKcal} onChange={(event) => numberInput("exerciseKcal", event.target.value)} />
+            <input className="field w-full" inputMode="numeric" type="number" value={profile.exerciseKcal || ""} placeholder="0" onChange={(event) => numberInput("exerciseKcal", event.target.value)} />
+          </label>
+          <label className="col-span-2">
+            <span className="metric-label mb-1 block">减脂赤字 kcal/天</span>
+            <input
+              className="field w-full"
+              min="200"
+              max="1000"
+              step="50"
+              type="number"
+              inputMode="numeric"
+              value={getCalorieDeficit(profile)}
+              onChange={(event) => numberInput("calorieDeficit", event.target.value)}
+            />
+            <span className="mt-1 block text-[11px] text-muted">目标热量 = TDEE − 赤字；每 2 周按体重周均降幅校准 ±100~150。</span>
           </label>
         </div>
-        {/* v2 计划固定目标：热量/蛋白/脂肪直接给绝对值，碳水 = 剩余热量 ÷ 4 自动得出。 */}
+        {/* v2 目标：默认公式自动（placeholder 显示当前公式值），填数字即手动覆盖，清空回到自动。 */}
         <div className="grid grid-cols-2 gap-3">
           <label>
             <span className="metric-label mb-1 block">每日目标 kcal</span>
@@ -355,10 +397,11 @@ function ProfilePanel({ profile, updateProfile }: ProfilePanelProps) {
               step="50"
               type="number"
               inputMode="numeric"
-              value={getTargetKcal(profile)}
-              onChange={(event) => numberInput("targetKcal", event.target.value)}
+              value={profile.targetKcal ?? ""}
+              placeholder={ready ? `自动 ${autoTargetKcal(profile)}` : "自动"}
+              onChange={(event) => overrideInput("targetKcal", event.target.value)}
             />
-            <span className="mt-1 block text-[11px] text-muted">每 2 周按体重周均降幅 ±100~150 校准。</span>
+            <span className="mt-1 block text-[11px] text-muted">留空 = TDEE − 赤字自动。</span>
           </label>
           <label>
             <span className="metric-label mb-1 block">蛋白目标 g</span>
@@ -369,10 +412,11 @@ function ProfilePanel({ profile, updateProfile }: ProfilePanelProps) {
               step="5"
               type="number"
               inputMode="numeric"
-              value={getProteinTargetG(profile)}
-              onChange={(event) => numberInput("proteinTargetG", event.target.value)}
+              value={profile.proteinTargetG ?? ""}
+              placeholder={ready ? `自动 ${autoProteinTargetG(profile)}` : "自动"}
+              onChange={(event) => overrideInput("proteinTargetG", event.target.value)}
             />
-            <span className="mt-1 block text-[11px] text-muted">推荐 175–195，体脂下降后上调。</span>
+            <span className="mt-1 block text-[11px] text-muted">留空 = 去脂体重×2.5（体脂&lt;20% ×2.8）。</span>
           </label>
           <label>
             <span className="metric-label mb-1 block">脂肪目标 g</span>
@@ -383,10 +427,11 @@ function ProfilePanel({ profile, updateProfile }: ProfilePanelProps) {
               step="1"
               type="number"
               inputMode="numeric"
-              value={getFatTargetG(profile)}
-              onChange={(event) => numberInput("fatTargetG", event.target.value)}
+              value={profile.fatTargetG ?? ""}
+              placeholder={ready ? `自动 ${autoFatTargetG(profile)}` : "自动"}
+              onChange={(event) => overrideInput("fatTargetG", event.target.value)}
             />
-            <span className="mt-1 block text-[11px] text-muted">推荐 60–65；碳水自动吃掉剩余热量。</span>
+            <span className="mt-1 block text-[11px] text-muted">留空 = 体重×0.65；碳水吃掉剩余热量。</span>
           </label>
         </div>
         <label>

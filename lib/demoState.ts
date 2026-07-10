@@ -2,16 +2,31 @@ import { builtinFoods } from "@/lib/foods";
 import { createDefaultMeals } from "@/lib/nutrition";
 import type { MealPlan, UserProfile } from "@/lib/types";
 
-// v2 计划（2026-07-10）默认档案：2002 年男性，174cm / 93.2kg（2026-07-04 体测）。
-// activityFactor 1.1 + 运动 800 → TDEE≈2895，落在文档估算区间 2850–2950；
-// 目标固定 2300 kcal（缺省 targetKcal），对应赤字约 595——文档"每周 −0.5~0.7kg"。
+// demo 档案（未配置 Supabase 的演示模式与测试用）：v2 文档对象本人，174cm / 93.2kg / 26%（2026-07-04 体测）。
+// TDEE≈2895 − 赤字600 → 目标≈2295，公式复现文档"2300 kcal / 蛋白 175 起"。
 export const defaultProfile: UserProfile = {
   sex: "male",
   age: 24,
   heightCm: 174,
   weightKg: 93.2,
+  bodyFatPct: 26,
   activityFactor: 1.1,
   exerciseKcal: 800,
+  goalType: "cut",
+  trainingTime: "afternoon",
+  planDate: new Date().toISOString().slice(0, 10)
+};
+
+// 新账号（登录后无草稿）的起点：身体数据一律留空，由用户自己填或从体测记录同步；
+// 档案不完整时目标为 0，计划页给引导提示。activityFactor 给 1.1 作合理缺省。
+export const emptyProfile: UserProfile = {
+  sex: "male",
+  age: 0,
+  heightCm: 0,
+  weightKg: 0,
+  bodyFatPct: null,
+  activityFactor: 1.1,
+  exerciseKcal: 0,
   goalType: "cut",
   trainingTime: "afternoon",
   planDate: new Date().toISOString().slice(0, 10)

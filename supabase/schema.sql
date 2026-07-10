@@ -6,6 +6,7 @@ create table if not exists public.body_logs (
   user_id uuid not null,
   plan_date date not null,
   weight_kg numeric(6,2),
+  body_fat_pct numeric(5,2),
   waist_cm numeric(6,2),
   chest_cm numeric(6,2),
   hip_cm numeric(6,2),
@@ -372,3 +373,6 @@ create policy "update own workout sessions"
 on public.workout_sessions for update
 using ((auth.uid() = user_id))
 with check ((auth.uid() = user_id));
+
+-- 2026-07-10 v2 目标公式需要体脂率（去脂体重推蛋白目标）；线上已通过管理 API 执行。
+alter table public.body_logs add column if not exists body_fat_pct numeric(5,2);

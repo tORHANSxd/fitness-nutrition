@@ -4,12 +4,13 @@ import type { User } from "@supabase/supabase-js";
 import { getSupabaseClient } from "@/lib/supabase";
 import { StorageAuthError } from "@/lib/storage";
 
-// 体测记录：复用线上已有的 body_logs 表（user_id + plan_date 唯一），体重 + 7 项围度。
-// 所有字段可空——只记当天量过的项。
+// 体测记录：复用线上已有的 body_logs 表（user_id + plan_date 唯一），体重 + 体脂率 + 7 项围度。
+// 所有字段可空——只记当天量过的项。体重/体脂是计划页目标公式的输入（见 mergeLatestBodyMetrics）。
 
 export interface BodyLog {
   logDate: string; // YYYY-MM-DD（对应 body_logs.plan_date）
   weightKg?: number | null;
+  bodyFatPct?: number | null;
   waistCm?: number | null;
   chestCm?: number | null;
   hipCm?: number | null;
@@ -31,6 +32,7 @@ export interface BodyMetricField {
 
 export const bodyMetricFields: BodyMetricField[] = [
   { key: "weightKg", label: "体重", unit: "kg", color: "#D97757" },
+  { key: "bodyFatPct", label: "体脂率", unit: "%", color: "#8C6E54" },
   { key: "waistCm", label: "腰围", unit: "cm", color: "#8A7BBE" },
   { key: "chestCm", label: "胸围", unit: "cm", color: "#5E8B7E" },
   { key: "hipCm", label: "臀围", unit: "cm", color: "#B08968" },
@@ -42,6 +44,7 @@ export const bodyMetricFields: BodyMetricField[] = [
 
 const rowFieldByKey: Record<BodyMetricKey, string> = {
   weightKg: "weight_kg",
+  bodyFatPct: "body_fat_pct",
   waistCm: "waist_cm",
   chestCm: "chest_cm",
   hipCm: "hip_cm",
@@ -77,6 +80,24 @@ export function bodyLogToRow(userId: string, log: BodyLog) {
     row[rowFieldByKey[field.key]] = log[field.key] ?? null;
   }
   return row;
+}
+
+/**
+ * 体测 → 计划档案联动：用最新一条非空体重/体脂覆盖档案对应字段（体测是这两项的真源）。
+ * 两个字段各自独立取"最新非空"——最近一次只称了体重时，体脂沿用更早的记录。
+ */
+export function mergeLatestBodyMetrics<T extends { weightKg: number; bodyFatPct?: number | null }>(profile: T, logs: BodyLog[]): T {
+  const newestFirst = [...logs].sort((a, b) => b.logDate.localeCompare(a.logDate));
+  const latestWeight = newestFirst.find((log) => log.weightKg != null && log.weightKg > 0)?.weightKg;
+  const latestBodyFat = newestFirst.find((log) => log.bodyFatPct != null && log.bodyFatPct > 0)?.bodyFatPct;
+  if (latestWeight == null && latestBodyFat == null) {
+    return profile;
+  }
+  return {
+    ...profile,
+    ...(latestWeight != null ? { weightKg: latestWeight } : {}),
+    ...(latestBodyFat != null ? { bodyFatPct: latestBodyFat } : {})
+  };
 }
 
 /** 日期范围过滤（纯函数）：rangeDays 为向前含当日的天数窗口，"all" 返回全部；结果按日期升序。 */

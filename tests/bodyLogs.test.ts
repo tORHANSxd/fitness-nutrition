@@ -1,5 +1,31 @@
 import { describe, expect, it } from "vitest";
-import { bodyLogToRow, bodyMetricFields, filterLogsByRange, mapBodyLogRow, type BodyLog } from "@/lib/bodyLogs";
+import { bodyLogToRow, bodyMetricFields, filterLogsByRange, mapBodyLogRow, mergeLatestBodyMetrics, type BodyLog } from "@/lib/bodyLogs";
+import { defaultProfile } from "@/lib/demoState";
+
+describe("mergeLatestBodyMetrics（体测 → 计划档案联动）", () => {
+  const log = (logDate: string, weightKg: number | null, bodyFatPct: number | null): BodyLog => ({ logDate, weightKg, bodyFatPct });
+
+  it("用最新一条非空体重/体脂覆盖档案（体测是体重的真源）", () => {
+    const logs = [log("2026-07-09", 91.8, null), log("2026-07-04", 93.2, 26), log("2026-06-20", 94.5, 27.5)];
+    const merged = mergeLatestBodyMetrics(defaultProfile, logs);
+    expect(merged.weightKg).toBe(91.8); // 最新体重（07-09）
+    expect(merged.bodyFatPct).toBe(26); // 最新非空体脂（07-04，07-09 没量体脂）
+  });
+
+  it("没有体测记录时档案原样返回", () => {
+    expect(mergeLatestBodyMetrics(defaultProfile, [])).toEqual(defaultProfile);
+  });
+
+  it("记录里既无体重也无体脂时不覆盖对应字段", () => {
+    const merged = mergeLatestBodyMetrics(defaultProfile, [log("2026-07-09", null, null)]);
+    expect(merged.weightKg).toBe(defaultProfile.weightKg);
+    expect(merged.bodyFatPct).toBe(defaultProfile.bodyFatPct);
+  });
+
+  it("体脂率字段已注册进体测字段表（表单/折线自动生成）", () => {
+    expect(bodyMetricFields.some((field) => field.key === "bodyFatPct" && field.unit === "%")).toBe(true);
+  });
+});
 
 describe("body log row mapping (Supabase body_logs)", () => {
   it("maps a row to camelCase and back without losing measurements", () => {

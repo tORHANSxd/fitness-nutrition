@@ -3,8 +3,9 @@
 import type { User } from "@supabase/supabase-js";
 import { CalendarCheck, ChevronLeft, ChevronRight, Dumbbell, Trash2, Utensils } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { defaultProfile } from "@/lib/demoState";
-import { buildNutritionResult, carbDayLabels, round } from "@/lib/nutrition";
+import { loadBodyLogs, mergeLatestBodyMetrics, type BodyLog } from "@/lib/bodyLogs";
+import { emptyProfile } from "@/lib/demoState";
+import { buildNutritionResult, carbDayLabels, isProfileComplete, round } from "@/lib/nutrition";
 import { loadPlannerDraft, loadPlans, savePlan } from "@/lib/storage";
 import { carbDayLabelsForTraining, muscleGroupLabels, programTemplates, splitLabels, toDateKey } from "@/lib/training";
 import { deleteWorkoutSession, loadWorkoutSessions, saveWorkoutSession, TrainingAuthError } from "@/lib/trainingStorage";
@@ -150,8 +151,16 @@ export function ScheduleCalendar({ user, foods, onGoTraining, onGoPlanner }: Sch
     if (!user) {
       return;
     }
-    const draft = await loadPlannerDraft(user).catch(() => null);
-    const baseProfile = draft?.profile ?? defaultProfile;
+    const [draft, bodyLogs] = await Promise.all([
+      loadPlannerDraft(user).catch(() => null),
+      loadBodyLogs(user, 60).catch(() => [] as BodyLog[])
+    ]);
+    // 与计划页同一套档案数据流：草稿为基底（无草稿=空白档案），最新体测覆盖体重/体脂。
+    const baseProfile = mergeLatestBodyMetrics(draft?.profile ?? emptyProfile, bodyLogs);
+    if (!isProfileComplete(baseProfile)) {
+      setError("身体档案还没填：先到「当天计划」填年龄/身高/体重（或记一条体测），再生成目标。");
+      return;
+    }
     // v2 无碳循环：饮食目标与碳日解耦，新计划一律标准日(mid)；标注沿用训练课记录仅为展示。
     const carbDayType: CarbDayType = selectedSession ? selectedSession.carbDayType : "mid";
     const profile = { ...baseProfile, carbDayType, planDate: selectedDate };

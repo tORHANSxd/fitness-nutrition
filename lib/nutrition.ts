@@ -47,15 +47,21 @@ const dailyMacroBandWeights: Record<keyof MacroRatio, number> = {
 // 也要求总热量不超目标 +50 kcal——这是用户新增的“宁可少、不要明显超”的硬约束。仅约束上盈，亏由克数容忍带兜底。
 const dailyKcalSurplusCap = 50;
 
-// v2 计划（2026-07-10《训练与营养计划》）：每日目标固定、无碳循环——
-// 2300 kcal、蛋白 175g 起（推荐区间 175–195，随体脂下降上调）、脂肪 60–65g（不低于 0.6g/kg），
-// 剩余热量全部给碳水（约 235–260g）。周六日休息也是同一目标。
-// 热量校准走文档第五节规则：每 2 周按体重周均降幅手动调 targetKcal ±100–150，公式不自动漂移。
-const defaultTargetKcal = 2300;
+// v2 计划（2026-07-10《训练与营养计划》/ Personalized fitness plan）：目标由体重与体脂派生、无碳循环——
+// 目标热量 = TDEE − 赤字（缺省 600，文档"赤字 550–650"；每 2 周按体重周均降幅校准 ±100–150）；
+// 蛋白 = 去脂体重 × 2.5（体脂 <20% 时 ×2.8，"往 185–195 走"）向上取整到 5g，"每天必达标"；
+// 脂肪 = 体重 × 0.65（文档 60–65g、不低于 0.6g/kg）；剩余热量全部给碳水。周六日休息同一目标。
+// 三个目标字段均可手动覆盖（targetKcal/proteinTargetG/fatTargetG），留空即用公式。
+const defaultCalorieDeficit = 600;
+const calorieDeficitRange = { min: 200, max: 1000 };
+const estimatedBodyFatPct = 25; // 未填体脂时的估算值（UI 提示补测体脂更准）
+const bodyFatPctRange = { min: 3, max: 60 };
+const leanBodyFatThreshold = 20;
+const proteinPerKgFfmStandard = 2.5;
+const proteinPerKgFfmLean = 2.8;
+const fatPerKgBodyweight = 0.65;
 const targetKcalRange = { min: 1200, max: 6000 };
-const defaultProteinTargetG = 175;
 const proteinTargetRange = { min: 80, max: 300 };
-const defaultFatTargetG = 62;
 const fatTargetRange = { min: 30, max: 150 };
 
 interface FoodPortionRule {
@@ -419,22 +425,63 @@ function caloriesFromMacros(target: Pick<MacroTotals, "carbs" | "protein" | "fat
   return calories.carbs + calories.protein + calories.fat;
 }
 
-export function getTargetKcal(profile: Pick<UserProfile, "targetKcal">) {
-  return clamp(profile.targetKcal ?? defaultTargetKcal, targetKcalRange.min, targetKcalRange.max);
+function ceilTo5(value: number) {
+  return Math.ceil(value / 5) * 5;
 }
 
-export function getProteinTargetG(profile: Pick<UserProfile, "proteinTargetG">) {
-  return clamp(profile.proteinTargetG ?? defaultProteinTargetG, proteinTargetRange.min, proteinTargetRange.max);
+export function getCalorieDeficit(profile: Pick<UserProfile, "calorieDeficit">) {
+  return clamp(profile.calorieDeficit ?? defaultCalorieDeficit, calorieDeficitRange.min, calorieDeficitRange.max);
 }
 
-export function getFatTargetG(profile: Pick<UserProfile, "fatTargetG">) {
-  return clamp(profile.fatTargetG ?? defaultFatTargetG, fatTargetRange.min, fatTargetRange.max);
+export function getBodyFatPct(profile: Pick<UserProfile, "bodyFatPct">) {
+  return clamp(profile.bodyFatPct ?? estimatedBodyFatPct, bodyFatPctRange.min, bodyFatPctRange.max);
 }
 
-// v2 每日目标：总热量固定 targetKcal，蛋白/脂肪为绝对克数目标，碳水吃掉剩余热量
-// (kcal − P×4 − F×9)/4。与体重公式、碳循环日、训练/休息全部解耦；旧 carbDayType/
-// proteinPerKg/calorieDeficit 字段不再参与计算，TDEE 只作赤字监控参考。
+/** 身体档案是否够算目标：新账号留空（0）时目标为 0，由 UI 引导填写或记体测。 */
+export function isProfileComplete(profile: Pick<UserProfile, "age" | "heightCm" | "weightKg">) {
+  return profile.age > 0 && profile.heightCm > 0 && profile.weightKg > 0;
+}
+
+export function calculateLeanBodyMassKg(profile: Pick<UserProfile, "weightKg" | "bodyFatPct">) {
+  return profile.weightKg * (1 - getBodyFatPct(profile) / 100);
+}
+
+// —— 公式派生的三个目标（v2 文档 4.1）——
+export function autoTargetKcal(profile: UserProfile) {
+  return round(Math.max(calculateTdee(profile) - getCalorieDeficit(profile), 0), 0);
+}
+
+export function autoProteinTargetG(profile: Pick<UserProfile, "weightKg" | "bodyFatPct">) {
+  const perKgFfm = getBodyFatPct(profile) < leanBodyFatThreshold ? proteinPerKgFfmLean : proteinPerKgFfmStandard;
+  return ceilTo5(calculateLeanBodyMassKg(profile) * perKgFfm);
+}
+
+export function autoFatTargetG(profile: Pick<UserProfile, "weightKg">) {
+  return round(profile.weightKg * fatPerKgBodyweight, 0);
+}
+
+// —— getter：手动覆盖优先（>0 才算有效覆盖），否则用公式 ——
+export function getTargetKcal(profile: UserProfile) {
+  const value = profile.targetKcal && profile.targetKcal > 0 ? profile.targetKcal : autoTargetKcal(profile);
+  return clamp(value, targetKcalRange.min, targetKcalRange.max);
+}
+
+export function getProteinTargetG(profile: UserProfile) {
+  const value = profile.proteinTargetG && profile.proteinTargetG > 0 ? profile.proteinTargetG : autoProteinTargetG(profile);
+  return clamp(value, proteinTargetRange.min, proteinTargetRange.max);
+}
+
+export function getFatTargetG(profile: UserProfile) {
+  const value = profile.fatTargetG && profile.fatTargetG > 0 ? profile.fatTargetG : autoFatTargetG(profile);
+  return clamp(value, fatTargetRange.min, fatTargetRange.max);
+}
+
+// v2 每日目标：由体重/体脂/赤字公式派生（可手动覆盖），碳水吃掉剩余热量 (kcal − P×4 − F×9)/4。
+// 与碳循环日、训练/休息无关；身体档案不完整（新账号留空）时返回全 0，由 UI 引导。
 export function calculateDailyTarget(profile: UserProfile): MacroTotals {
+  if (!isProfileComplete(profile)) {
+    return { ...zeroTotals };
+  }
   const protein = getProteinTargetG(profile);
   const fat = getFatTargetG(profile);
   const carbs = Math.max((getTargetKcal(profile) - protein * 4 - fat * 9) / 4, 0);
@@ -455,9 +502,11 @@ export function calculateCalorieTarget(profile: UserProfile) {
   return calculateDailyTarget(profile).kcal;
 }
 
-// 当日目标相对维持(TDEE)的盈亏：v2 默认档案约 −595 kcal，对应文档"赤字 550–650"；
-// 体重变化后此值随 TDEE 漂移，是"每 2 周校准 targetKcal"的观察指标。
+// 当日目标相对维持(TDEE)的盈亏（≈ −赤字）；档案不完整时返回 0，避免空档案的噪声值。
 export function calculatePlannedCalorieDelta(profile: UserProfile) {
+  if (!isProfileComplete(profile)) {
+    return 0;
+  }
   return calculateDailyTarget(profile).kcal - calculateTdee(profile);
 }
 
@@ -1275,24 +1324,4 @@ export function normalizeMealRatios(meals: MealPlan[]) {
     return meals;
   }
   return meals.map((meal) => ({ ...meal, ratio: meal.ratio / sum }));
-}
-
-// 首页「本周碳水日」统计：碳日是饮食计划的属性，按当周（周一起 7 天）已保存计划的
-// result.carbDayType 计数——不按训练记录数（训练与饮食可以只记其一）。
-export function weeklyCarbDayCounts(
-  plans: Array<{ planDate: string; result: Pick<NutritionResult, "carbDayType"> }>,
-  weekStart: string
-): Record<CarbDayType, number> {
-  const start = new Date(`${weekStart}T00:00:00`);
-  const end = new Date(start);
-  end.setDate(end.getDate() + 7);
-  const counts: Record<CarbDayType, number> = { high: 0, mid: 0, low: 0 };
-  for (const plan of plans) {
-    const date = new Date(`${plan.planDate}T00:00:00`);
-    const carbDayType = plan.result?.carbDayType;
-    if (date >= start && date < end && carbDayType && carbDayType in counts) {
-      counts[carbDayType] += 1;
-    }
-  }
-  return counts;
 }

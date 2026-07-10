@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createStarterMeals, defaultProfile } from "@/lib/demoState";
+import { createStarterMeals, defaultProfile, emptyProfile } from "@/lib/demoState";
 import { builtinFoods } from "@/lib/foods";
 import {
   buildNutritionResult,
@@ -17,13 +17,14 @@ import {
   getDefaultMealEntrySettings,
   getFoodEnergyMismatch,
   getMacroRatioCheck,
+  getCalorieDeficit,
   getFatTargetG,
   getProteinTargetG,
   getTargetKcal,
-  round,
-  weeklyCarbDayCounts
+  isProfileComplete,
+  round
 } from "@/lib/nutrition";
-import type { CarbDayType, FoodItem, MealPlan, UserProfile } from "@/lib/types";
+import type { FoodItem, MealPlan, UserProfile } from "@/lib/types";
 
 const profile: UserProfile = {
   sex: "male",
@@ -86,57 +87,78 @@ describe("nutrition formulas", () => {
     expect(calculateBmr({ ...profile, sex: "female" })).toBe(1614);
   });
 
-  it("fixes the daily target to the v2 plan macros (2300 kcal / P175 / F62 / C260.5)", () => {
-    // v2 计划（2026-07-10）：每日摄入目标固定，蛋白与脂肪为绝对克数，碳水吃掉剩余热量。
+  it("derives the daily target from weight & body fat (v2 formulas)", () => {
+    // v2 公式：目标kcal = TDEE − 赤字(默认600)；蛋白 = FFM×2.5(体脂<20%→×2.8) 向上取整到5g；
+    // 脂肪 = 体重×0.65 取整；碳水 = 剩余热量÷4。测试档案 80kg 未填体脂 → 按 25% 估算 FFM=60。
+    const tdee = calculateTdee(profile); // ≈2881
     const target = calculateDailyTarget(profile);
-    expect(round(target.kcal, 0)).toBe(2300);
-    expect(round(target.protein, 1)).toBe(175);
-    expect(round(target.fat, 1)).toBe(62);
-    expect(round(target.carbs, 1)).toBe(260.5);
+    expect(round(target.kcal, 0)).toBe(round(tdee - 600, 0)); // 2281
+    expect(round(target.protein, 1)).toBe(150); // ceil5(60×2.5)
+    expect(round(target.fat, 1)).toBe(52); // round(80×0.65)
+    expect(round(target.carbs, 1)).toBe(round((round(tdee - 600, 0) - 150 * 4 - 52 * 9) / 4, 1));
     // 4/4/9 自洽。
     expect(round(target.carbs * 4 + target.protein * 4 + target.fat * 9, 0)).toBe(round(target.kcal, 0));
-    // 目标与体重解耦：换一个体重，目标不变（校准走手动调 targetKcal，而不是公式反推）。
-    expect(round(calculateDailyTarget({ ...profile, weightKg: 70 }).kcal, 0)).toBe(2300);
-    // 周均 = 每日（无碳循环）；calculateCalorieTarget 同步。
+    // 公式跟着体重走：体重降 → 三项目标同步变化。
+    const lighter = calculateDailyTarget({ ...profile, weightKg: 70 });
+    expect(lighter.protein).toBeLessThan(target.protein);
+    expect(lighter.fat).toBeLessThan(target.fat);
+    expect(lighter.kcal).toBeLessThan(target.kcal);
+    // 周均 = 每日（无碳循环）。
     expect(calculateCycleAverageTarget(profile)).toEqual(target);
-    expect(round(calculateCalorieTarget(profile), 0)).toBe(2300);
   });
 
-  it("lets custom v2 targets override the defaults, carbs absorbing the remainder", () => {
+  it("switches protein to 2.8 g/kg FFM below 20% body fat", () => {
+    // 80kg / 18% → FFM 65.6 → 65.6×2.8 = 183.68 → ceil5 = 185（文档"体脂<20% 往 185–195 走"）。
+    const lean = calculateDailyTarget({ ...profile, bodyFatPct: 18 });
+    expect(round(lean.protein, 1)).toBe(185);
+    // 80kg / 26% → FFM 59.2 → ×2.5 = 148 → ceil5 = 150。
+    const standard = calculateDailyTarget({ ...profile, bodyFatPct: 26 });
+    expect(round(standard.protein, 1)).toBe(150);
+  });
+
+  it("lets manual overrides win over the formulas, carbs absorbing the remainder", () => {
     const target = calculateDailyTarget({ ...profile, targetKcal: 2200, proteinTargetG: 185, fatTargetG: 60 });
     expect(round(target.kcal, 0)).toBe(2200);
     expect(round(target.protein, 1)).toBe(185);
     expect(round(target.fat, 1)).toBe(60);
     // 碳水 = (2200 − 185×4 − 60×9) / 4 = 230。
     expect(round(target.carbs, 1)).toBe(230);
+    // 赤字是热量校准入口：deficit 500 → 目标 = TDEE − 500。
+    const tdee = calculateTdee(profile);
+    expect(round(calculateDailyTarget({ ...profile, calorieDeficit: 500 }).kcal, 0)).toBe(round(tdee - 500, 0));
   });
 
-  it("clamps v2 target fields into sane ranges", () => {
-    expect(getTargetKcal({ targetKcal: 500 })).toBe(1200);
-    expect(getTargetKcal({ targetKcal: 9000 })).toBe(6000);
-    expect(getTargetKcal({})).toBe(2300);
-    expect(getProteinTargetG({ proteinTargetG: 20 })).toBe(80);
-    expect(getProteinTargetG({ proteinTargetG: 500 })).toBe(300);
-    expect(getProteinTargetG({})).toBe(175);
-    expect(getFatTargetG({ fatTargetG: 5 })).toBe(30);
-    expect(getFatTargetG({ fatTargetG: 400 })).toBe(150);
-    expect(getFatTargetG({})).toBe(62);
+  it("clamps override fields and the deficit into sane ranges", () => {
+    expect(getTargetKcal({ ...profile, targetKcal: 500 })).toBe(1200);
+    expect(getTargetKcal({ ...profile, targetKcal: 9000 })).toBe(6000);
+    expect(getProteinTargetG({ ...profile, proteinTargetG: 20 })).toBe(80);
+    expect(getProteinTargetG({ ...profile, proteinTargetG: 500 })).toBe(300);
+    expect(getFatTargetG({ ...profile, fatTargetG: 5 })).toBe(30);
+    expect(getFatTargetG({ ...profile, fatTargetG: 400 })).toBe(150);
+    expect(getCalorieDeficit({ calorieDeficit: 50 })).toBe(200);
+    expect(getCalorieDeficit({ calorieDeficit: 2000 })).toBe(1000);
+    expect(getCalorieDeficit({})).toBe(600);
   });
 
-  it("uses the v2 default body profile (93.2kg, TDEE ≈ 2895, deficit ≈ 595)", () => {
-    expect(defaultProfile.sex).toBe("male");
-    expect(defaultProfile.age).toBe(24);
-    expect(defaultProfile.heightCm).toBe(174);
+  it("uses the v2 demo profile (93.2kg / 26% → 2295 kcal / P175 / F61)", () => {
+    // demo 档案 = 文档对象本人：公式应复现文档数字（2300/175 的来源）。
     expect(defaultProfile.weightKg).toBe(93.2);
-    expect(defaultProfile.activityFactor).toBe(1.1);
-    expect(defaultProfile.exerciseKcal).toBe(800);
-
+    expect(defaultProfile.bodyFatPct).toBe(26);
     expect(round(calculateBmr(defaultProfile), 1)).toBe(1904.5);
-    // TDEE ≈ 2895，落在 v2 文档估算区间 2850–2950。
     expect(round(calculateTdee(defaultProfile), 0)).toBe(2895);
-    expect(round(calculateDailyTarget(defaultProfile).kcal, 0)).toBe(2300);
-    // 相对维持的盈亏 ≈ −595，对应文档"赤字约 550–650"。
-    expect(round(calculatePlannedCalorieDelta(defaultProfile), 0)).toBe(-595);
+    const target = calculateDailyTarget(defaultProfile);
+    expect(round(target.kcal, 0)).toBe(2295); // TDEE 2894.95 − 600，≈文档 2300
+    expect(round(target.protein, 1)).toBe(175); // ceil5(68.968×2.5=172.4)，=文档"175g 起"
+    expect(round(target.fat, 1)).toBe(61); // round(93.2×0.65=60.6)，文档 60–65
+    expect(round(calculatePlannedCalorieDelta(defaultProfile), 0)).toBe(-600);
+  });
+
+  it("returns a zero target until the body profile is complete (new empty account)", () => {
+    expect(isProfileComplete(emptyProfile)).toBe(false);
+    expect(isProfileComplete(defaultProfile)).toBe(true);
+    expect(isProfileComplete({ ...defaultProfile, weightKg: 0 })).toBe(false);
+    const target = calculateDailyTarget(emptyProfile);
+    expect(target).toEqual({ kcal: 0, carbs: 0, protein: 0, fat: 0 });
   });
 
   it("calculates macro calorie ratios from grams", () => {
@@ -846,33 +868,5 @@ describe("meal solving", () => {
     const almond = nutResult.mealRecommendations[0].recommendedEntries.almond;
     expect(almond).toBeGreaterThan(30);
     expect(almond).toBeLessThanOrEqual(70);
-  });
-});
-
-describe("weekly carb day stats (overview)", () => {
-  it("counts carb days from saved plans inside the Monday-start week window", () => {
-    const mk = (planDate: string, carb: CarbDayType) => ({ planDate, result: { carbDayType: carb } });
-    const plans = [
-      // 用户真实场景（2026-07-06 周一起始的一周）：本周保存了 4 天饮食计划。
-      mk("2026-07-06", "low"),
-      mk("2026-07-07", "low"),
-      mk("2026-07-08", "high"),
-      mk("2026-07-09", "low"),
-      mk("2026-07-05", "high"), // 上周日：不计入
-      mk("2026-07-13", "mid") // 下周一：不计入
-    ];
-    expect(weeklyCarbDayCounts(plans, "2026-07-06")).toEqual({ high: 1, mid: 0, low: 3 });
-  });
-
-  it("returns all zeros when the week has no saved plans", () => {
-    expect(weeklyCarbDayCounts([], "2026-07-06")).toEqual({ high: 0, mid: 0, low: 0 });
-  });
-
-  it("ignores plans whose result lacks a valid carb day type", () => {
-    const plans = [
-      { planDate: "2026-07-07", result: { carbDayType: undefined as unknown as CarbDayType } },
-      { planDate: "2026-07-08", result: { carbDayType: "mid" as CarbDayType } }
-    ];
-    expect(weeklyCarbDayCounts(plans, "2026-07-06")).toEqual({ high: 0, mid: 1, low: 0 });
   });
 });

@@ -3,9 +3,11 @@ import { createStarterMeals, defaultProfile, emptyProfile } from "@/lib/demoStat
 import { builtinFoods } from "@/lib/foods";
 import {
   buildNutritionResult,
+  calculateBaselineDailyTarget,
   calculateFoodKcalPer100g,
   calculateFoodTotals,
   calculateBmr,
+  carbsPerKgBodyweight,
   calculateCalorieTarget,
   calculateCycleAverageTarget,
   calculateDailyTarget,
@@ -296,6 +298,26 @@ describe("carb taper (v2 文档第五节渐进热量校准：每步 ±100~150 kc
     expect(tapered.carbs).toBe(0);
     expect(round(tapered.kcal, 0)).toBe(round(tapered.protein * 4 + tapered.fat * 9, 0));
     expect(getTargetKcal({ ...defaultProfile, carbTaperSteps: [{ date: "2026-07-13", deltaKcal: -2000 }] })).toBe(1200);
+  });
+
+  it("derives the week-1 baseline carbs from body data via the residual formula (demo: 261.5g ≈ 2.8 g/kg)", () => {
+    // 首周目标 = 渐降第 0 步基线：蛋白/脂肪先按身体数据锚定，碳水 = 剩余热量 ÷4；
+    // 交叉校验口径 g/kg 体重落在减脂期抗阻文献带 2–4（文档 235–260g/93.2kg ≈ 2.5–2.8）。
+    const baseline = calculateBaselineDailyTarget(defaultProfile);
+    expect(round(baseline.carbs, 1)).toBe(261.5);
+    expect(round(carbsPerKgBodyweight(defaultProfile, baseline.carbs), 2)).toBe(2.81);
+    expect(carbsPerKgBodyweight(defaultProfile, baseline.carbs)).toBeGreaterThanOrEqual(2);
+    expect(carbsPerKgBodyweight(defaultProfile, baseline.carbs)).toBeLessThanOrEqual(4);
+    // 空体重防御：不除零。
+    expect(carbsPerKgBodyweight({ weightKg: 0 }, 200)).toBe(0);
+  });
+
+  it("keeps the week-1 baseline fixed while taper steps only subtract from it", () => {
+    const withTaper = { ...defaultProfile, carbTaperSteps: [{ date: "2026-07-13", deltaKcal: -100 }] };
+    // 基线与步进历史无关（步进只做减法），且始终等于第 0 步的每日目标。
+    expect(calculateBaselineDailyTarget(withTaper)).toEqual(calculateBaselineDailyTarget(defaultProfile));
+    expect(calculateBaselineDailyTarget(defaultProfile)).toEqual(calculateDailyTarget(defaultProfile));
+    expect(round(calculateBaselineDailyTarget(withTaper).carbs - calculateDailyTarget(withTaper).carbs, 1)).toBe(25);
   });
 
   it("keeps the demo profile's documented numbers when one taper step lands (2295 → 2195)", () => {

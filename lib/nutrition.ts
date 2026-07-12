@@ -492,6 +492,22 @@ export function calculateDailyTarget(profile: UserProfile): MacroTotals {
   };
 }
 
+// —— 碳水渐降基线（首周目标）——
+// 初始碳水由身体数据经"残差法"得出：蛋白/脂肪先按体重与体脂锚定（有生理下限），
+// 目标热量 = TDEE − 赤字，碳水 = 剩余热量 ÷4。基线 = 渐降第 0 步的每日目标，
+// 与步进历史无关（步进只在基线上加减），且始终随最新体重/体测实时重算。
+export function calculateBaselineDailyTarget(profile: UserProfile): MacroTotals {
+  return calculateDailyTarget(profile.carbTaperSteps?.length ? { ...profile, carbTaperSteps: [] } : profile);
+}
+
+/** 碳水密度 g/kg 体重：初始碳水合理性的交叉校验口径（文档 235–260g / 93.2kg ≈ 2.5–2.8，文献带约 2–4）。 */
+export function carbsPerKgBodyweight(profile: Pick<UserProfile, "weightKg">, carbsG: number) {
+  return profile.weightKg > 0 ? carbsG / profile.weightKg : 0;
+}
+
+/** 低于此碳水密度（g/kg 体重）时提示抗阻训练表现风险——多半是活动系数/运动消耗填低或赤字过大。 */
+export const carbsPerKgPerformanceFloor = 2;
+
 // v2 无碳循环：周均即每日目标。保留导出以兼容 NutritionResult.cycleAverageTarget 展示。
 export function calculateCycleAverageTarget(profile: UserProfile): MacroTotals {
   return calculateDailyTarget(profile);

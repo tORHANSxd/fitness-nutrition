@@ -223,6 +223,23 @@ describe("PlannerProfileView 碳水渐降面板（全手动步进，系统不自
     // 周计划面板与当日目标全部实时联动渐降后的值；蛋白/脂肪不动。
     expect(screen.getByText(/每日目标 2195 kcal · 蛋白 175g · 脂肪 61g · 碳水 236\.5g/)).toBeInTheDocument();
   });
+
+  it("presents the week-1 baseline carbs with g/kg as the taper starting point (残差法显式化)", () => {
+    render(<PlannerProfileView controller={makeController()} />);
+    // 第 0 步：首周目标 = 基线碳水 261.5g（2.8 g/kg 体重），由蛋白/脂肪锚定后的剩余热量 ÷4 实时得出。
+    expect(screen.getByText(/首周碳水目标 261\.5g · 2\.8 g\/kg 体重/)).toBeInTheDocument();
+  });
+
+  it("shows the current-week target alongside the fixed baseline after taper steps", () => {
+    render(<PlannerProfileView controller={makeController({ carbTaperSteps: [{ date: "2026-06-29", deltaKcal: -100 }] })} />);
+    expect(screen.getByText(/本周碳水目标 236\.5g · 2\.5 g\/kg · 基线 261\.5g/)).toBeInTheDocument();
+  });
+
+  it("warns when carb density is below the 2 g/kg performance floor (档案参数交叉校验)", () => {
+    // 小 TDEE 档案：活动系数 1.1 + 运动消耗 200 → 基线碳水 ≈111.5g ≈ 1.2 g/kg（<2 触发表现风险提示）。
+    render(<PlannerProfileView controller={makeController({ exerciseKcal: 200 })} />);
+    expect(screen.getByText(/低于 2 g\/kg/)).toBeInTheDocument();
+  });
 });
 
 describe("MealSplitView（分餐单独页含应用推荐/保存计划 + 弹出选食）", () => {

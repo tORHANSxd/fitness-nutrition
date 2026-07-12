@@ -10,8 +10,11 @@ import {
   autoProteinTargetG,
   autoTargetKcal,
   buildNutritionResult,
+  calculateBaselineDailyTarget,
   calculateDailyTarget,
   calculateMacroRatio,
+  carbsPerKgBodyweight,
+  carbsPerKgPerformanceFloor,
   getCalorieDeficit,
   getCarbTaperKcal,
   getMacroRatioCheck,
@@ -477,7 +480,12 @@ function CarbTaperPanel({ profile, updateProfile }: ProfilePanelProps) {
     : null;
   const stepKcal = Number(stepInput);
   const stepValid = Number.isFinite(stepKcal) && stepKcal >= 50 && stepKcal <= 300;
+  const ready = isProfileComplete(profile);
+  // 首周目标 = 渐降基线（残差法：蛋白/脂肪按身体数据锚定后，剩余热量 ÷4），随体测实时重算；
+  // 本周目标 = 基线 + Σ 步进。g/kg 体重是初始碳水合理性的交叉校验口径（文献带约 2–4）。
+  const baselineCarbs = calculateBaselineDailyTarget(profile).carbs;
   const taperedCarbs = calculateDailyTarget(profile).carbs;
+  const taperedCarbsPerKg = carbsPerKgBodyweight(profile, taperedCarbs);
   const signed = (value: number) => `${value > 0 ? "+" : ""}${round(value, 1)}`;
 
   function pushStep(direction: 1 | -1) {
@@ -504,6 +512,13 @@ function CarbTaperPanel({ profile, updateProfile }: ProfilePanelProps) {
             : `第 ${stage} 步 · 累计 ${signed(taperKcal)} kcal ≈ 碳水 ${signed(taperKcal / 4)}g`}
         </span>
       </div>
+      <p className="mt-1 text-[11px] font-medium tabular-nums text-ink">
+        {!ready
+          ? "身体档案完整后自动得出首周碳水目标（基线 = 蛋白/脂肪锚定后剩余热量 ÷4）。"
+          : stage === 0
+            ? `首周碳水目标 ${round(baselineCarbs, 1)}g · ${round(taperedCarbsPerKg, 1)} g/kg 体重（剩余热量 ÷4，随体测实时重算）`
+            : `本周碳水目标 ${round(taperedCarbs, 1)}g · ${round(taperedCarbsPerKg, 1)} g/kg · 基线 ${round(baselineCarbs, 1)}g`}
+      </p>
       <p className="mt-1 text-[11px] leading-relaxed text-muted">
         文档第五节（每 2 周评估）：周均降幅 &lt;0.3kg 连续 2 周 → 降一步 −100~150；0.5–0.7kg → 不动；&gt;0.9kg 且训练重量下滑 → 回升一步。蛋白/脂肪守底，增减全部落在碳水。<span className="font-medium">只随你手动操作，系统不会自动降。</span>
       </p>
@@ -540,12 +555,17 @@ function CarbTaperPanel({ profile, updateProfile }: ProfilePanelProps) {
           撤销上一步
         </button>
       </div>
-      {stage > 0 && taperedCarbs > 0 && taperedCarbs < 100 ? (
+      {ready && taperedCarbs > 0 && taperedCarbs < 100 ? (
         <p className="mt-2 text-[11px] font-medium text-rose">
-          渐降后碳水仅 {round(taperedCarbs, 1)}g/天，已属极低碳水——会损害训练表现与瘦体重保持（文档以 235–260g 为基线区间），建议撤销或回升。
+          当前碳水目标仅 {round(taperedCarbs, 1)}g/天，已属极低碳水——会损害训练表现与瘦体重保持（文档以 235–260g 为基线区间）。请核对活动系数/运动消耗/赤字{stage > 0 ? "，或撤销渐降步进" : ""}。
         </p>
       ) : null}
-      {stage > 0 && taperedCarbs <= 0 ? (
+      {ready && taperedCarbs >= 100 && taperedCarbsPerKg < carbsPerKgPerformanceFloor ? (
+        <p className="mt-2 text-[11px] font-medium text-rose">
+          当前碳水密度 {round(taperedCarbsPerKg, 1)} g/kg 已低于 2 g/kg——减脂期抗阻训练的表现风险线（文献带约 2–4）。多半是活动系数/运动消耗填低或赤字过大，请核对档案{stage > 0 ? "，或回升一步" : ""}。
+        </p>
+      ) : null}
+      {ready && stage > 0 && taperedCarbs <= 0 ? (
         <p className="mt-2 text-[11px] font-medium text-rose">渐降已把碳水压到 0：目标热量正卡在蛋白+脂肪底座上，请撤销或回升。</p>
       ) : null}
     </div>

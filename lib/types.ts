@@ -35,6 +35,12 @@ export interface MacroRatio {
   fat: number;
 }
 
+/** 碳水渐降的一步校准（v2 文档第五节）：deltaKcal 负 = 降热量（全部落在碳水），正 = 加回。date 为操作日 YYYY-MM-DD。 */
+export interface CarbTaperStep {
+  date: string;
+  deltaKcal: number;
+}
+
 export interface UserProfile {
   sex: Sex;
   age: number;
@@ -54,6 +60,12 @@ export interface UserProfile {
   proteinPerKg?: number;
   /** 减脂热量缺口 kcal/天（缺省 600，对应文档"赤字 550–650"）；每 2 周按体重降幅校准 ±100–150。 */
   calorieDeficit?: number;
+  /**
+   * 碳水渐降步进历史（v2 文档第五节"每 2 周校准热量"）：当前生效校准 = Σ deltaKcal，
+   * 叠加在最终目标热量上、蛋白/脂肪不动——扣减全部落在碳水。缺省/空数组 = 最初始阶段（第 0 步，不减降）。
+   * 只由用户手动追加/撤销，系统绝不自动写入。
+   */
+  carbTaperSteps?: CarbTaperStep[];
   goalType?: NutritionGoal;
   weeklyWeightChangePct?: number;
   trainingTime: TrainingTime;

@@ -425,6 +425,11 @@ export function getCalorieDeficit(profile: Pick<UserProfile, "calorieDeficit">) 
   return clamp(profile.calorieDeficit ?? defaultCalorieDeficit, calorieDeficitRange.min, calorieDeficitRange.max);
 }
 
+/** 碳水渐降当前生效校准量 kcal（Σ 步进；负 = 减热量全落碳水）。无步进 = 初始阶段 0。 */
+export function getCarbTaperKcal(profile: Pick<UserProfile, "carbTaperSteps">) {
+  return (profile.carbTaperSteps ?? []).reduce((sum, step) => sum + step.deltaKcal, 0);
+}
+
 export function getBodyFatPct(profile: Pick<UserProfile, "bodyFatPct">) {
   return clamp(profile.bodyFatPct ?? estimatedBodyFatPct, bodyFatPctRange.min, bodyFatPctRange.max);
 }
@@ -453,9 +458,11 @@ export function autoFatTargetG(profile: Pick<UserProfile, "weightKg">) {
 }
 
 // —— getter：手动覆盖优先（>0 才算有效覆盖），否则用公式 ——
+// 碳水渐降（文档第五节校准）作用在最终目标热量上：无论目标来自公式还是手动覆盖，
+// Σ 步进都叠加生效——蛋白/脂肪 getter 不经过它，扣减自然全部落在碳水。
 export function getTargetKcal(profile: UserProfile) {
   const value = profile.targetKcal && profile.targetKcal > 0 ? profile.targetKcal : autoTargetKcal(profile);
-  return clamp(value, targetKcalRange.min, targetKcalRange.max);
+  return clamp(value + getCarbTaperKcal(profile), targetKcalRange.min, targetKcalRange.max);
 }
 
 export function getProteinTargetG(profile: UserProfile) {

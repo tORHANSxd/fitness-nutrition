@@ -18,6 +18,7 @@ import {
   getFoodEnergyMismatch,
   getMacroRatioCheck,
   getCalorieDeficit,
+  getCarbTaperKcal,
   getFatTargetG,
   getProteinTargetG,
   getTargetKcal,
@@ -238,6 +239,72 @@ describe("v2 plan: no carb cycling (every day is the same target)", () => {
   it("still creates 3 meals on a rest day and 4 on a training day (meal shape only)", () => {
     expect(createDefaultMeals({ ...profile, trainingTime: "rest" })).toHaveLength(3);
     expect(createDefaultMeals({ ...profile, trainingTime: "afternoon" })).toHaveLength(4);
+  });
+});
+
+describe("carb taper (v2 文档第五节渐进热量校准：每步 ±100~150 kcal 全部落在碳水)", () => {
+  it("starts at stage 0: no steps (or empty) means zero taper and byte-identical targets", () => {
+    // 初始阶段 = 未减降：缺省字段与空数组都返回 0，目标与引入渐降前完全一致（向后兼容锁定）。
+    expect(getCarbTaperKcal(profile)).toBe(0);
+    expect(getCarbTaperKcal({ ...profile, carbTaperSteps: [] })).toBe(0);
+    expect(calculateDailyTarget({ ...profile, carbTaperSteps: [] })).toEqual(calculateDailyTarget(profile));
+  });
+
+  it("applies one manual step: −100 kcal comes entirely out of carbs (−25g), protein & fat untouched", () => {
+    const base = calculateDailyTarget(profile);
+    const tapered = calculateDailyTarget({ ...profile, carbTaperSteps: [{ date: "2026-07-13", deltaKcal: -100 }] });
+    expect(round(tapered.protein, 1)).toBe(round(base.protein, 1));
+    expect(round(tapered.fat, 1)).toBe(round(base.fat, 1));
+    expect(round(base.carbs - tapered.carbs, 1)).toBe(25);
+    expect(round(base.kcal - tapered.kcal, 0)).toBe(100);
+    // 4/4/9 自洽保持。
+    expect(round(tapered.carbs * 4 + tapered.protein * 4 + tapered.fat * 9, 0)).toBe(round(tapered.kcal, 0));
+  });
+
+  it("accumulates steps in both directions (文档三情形：降 / 不动 / 加回)", () => {
+    // 两步渐降后力量下滑 → 第三步 +150 加回：净校准 −100。
+    const steps = [
+      { date: "2026-07-13", deltaKcal: -100 },
+      { date: "2026-07-27", deltaKcal: -150 },
+      { date: "2026-08-10", deltaKcal: 150 }
+    ];
+    expect(getCarbTaperKcal({ carbTaperSteps: steps })).toBe(-100);
+    const base = calculateDailyTarget(profile);
+    const tapered = calculateDailyTarget({ ...profile, carbTaperSteps: steps });
+    expect(round(base.carbs - tapered.carbs, 1)).toBe(25);
+    expect(round(tapered.protein, 1)).toBe(round(base.protein, 1));
+    expect(round(tapered.fat, 1)).toBe(round(base.fat, 1));
+  });
+
+  it("stacks on top of a manual targetKcal override (校准作用于最终摄入目标)", () => {
+    const tapered = calculateDailyTarget({
+      ...profile,
+      targetKcal: 2200,
+      proteinTargetG: 185,
+      fatTargetG: 60,
+      carbTaperSteps: [{ date: "2026-07-13", deltaKcal: -100 }]
+    });
+    expect(round(tapered.kcal, 0)).toBe(2100);
+    // 碳水 = (2100 − 185×4 − 60×9) / 4 = 205（未渐降时为 230）。
+    expect(round(tapered.carbs, 1)).toBe(205);
+  });
+
+  it("cannot taper past the floors: carbs clamp at 0 and kcal floor at 1200", () => {
+    // 极深渐降：目标热量被 1200 下限兜住，碳水最多压到 0（不为负），
+    // 此时 kcal 回落到蛋白×4+脂肪×9 的底座——渐降无法击穿蛋白/脂肪守底。
+    const tapered = calculateDailyTarget({ ...defaultProfile, carbTaperSteps: [{ date: "2026-07-13", deltaKcal: -2000 }] });
+    expect(tapered.carbs).toBe(0);
+    expect(round(tapered.kcal, 0)).toBe(round(tapered.protein * 4 + tapered.fat * 9, 0));
+    expect(getTargetKcal({ ...defaultProfile, carbTaperSteps: [{ date: "2026-07-13", deltaKcal: -2000 }] })).toBe(1200);
+  });
+
+  it("keeps the demo profile's documented numbers when one taper step lands (2295 → 2195)", () => {
+    // demo 档案（93.2kg/26%）第一步渐降 −100：目标 2295→2195，碳水 261.5→236.5，蛋白 175 / 脂肪 61 不动。
+    const tapered = calculateDailyTarget({ ...defaultProfile, carbTaperSteps: [{ date: "2026-07-13", deltaKcal: -100 }] });
+    expect(round(tapered.kcal, 0)).toBe(2195);
+    expect(round(tapered.carbs, 1)).toBe(236.5);
+    expect(round(tapered.protein, 1)).toBe(175);
+    expect(round(tapered.fat, 1)).toBe(61);
   });
 });
 

@@ -8,6 +8,7 @@ import type { PlannerController } from "@/components/usePlanner";
 import { createStarterMeals, defaultProfile } from "@/lib/demoState";
 import { builtinFoods } from "@/lib/foods";
 import { buildNutritionResult } from "@/lib/nutrition";
+import { toDateKey } from "@/lib/training";
 import type { FoodItem, UserProfile } from "@/lib/types";
 
 // MacroBars 依赖 recharts + window.matchMedia，在 jsdom 里与本用例无关，打桩掉避免噪音。
@@ -164,6 +165,63 @@ describe("PlannerProfileView v2 固定目标 / 训练时间", () => {
     render(<PlannerProfileView controller={makeController({ age: 0, heightCm: 0, weightKg: 0, bodyFatPct: null })} />);
     expect(screen.getByText(/填好身体档案后自动测算/)).toBeInTheDocument();
     expect(screen.queryByText(/每日目标 0 kcal/)).not.toBeInTheDocument();
+  });
+});
+
+describe("PlannerProfileView 碳水渐降面板（全手动步进，系统不自动降）", () => {
+  it("starts at stage 0 with undo disabled and an explicit manual-only note", () => {
+    render(<PlannerProfileView controller={makeController()} />);
+    expect(screen.getByText("第 0 步 · 未开始（完整碳水基线）")).toBeInTheDocument();
+    expect(screen.getByText(/只随你手动操作，系统不会自动降/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "撤销上一步" })).toBeDisabled();
+  });
+
+  it("pushes a −100 kcal step dated today when 降一步 is clicked", () => {
+    const controller = makeController();
+    render(<PlannerProfileView controller={controller} />);
+    fireEvent.click(screen.getByRole("button", { name: /降一步 −100 kcal/ }));
+    expect(controller.updateProfile).toHaveBeenCalledWith("carbTaperSteps", [
+      { date: toDateKey(new Date()), deltaKcal: -100 }
+    ]);
+  });
+
+  it("respects a custom step amount for both directions (降/回升)", () => {
+    const controller = makeController();
+    render(<PlannerProfileView controller={controller} />);
+    const amount = screen.getByText("本步幅度").closest("label")!.querySelector("input") as HTMLInputElement;
+    fireEvent.change(amount, { target: { value: "150" } });
+    fireEvent.click(screen.getByRole("button", { name: /回升一步 \+150 kcal/ }));
+    expect(controller.updateProfile).toHaveBeenCalledWith("carbTaperSteps", [
+      { date: toDateKey(new Date()), deltaKcal: 150 }
+    ]);
+  });
+
+  it("shows the cumulative stage line, appends after existing steps and undoes the last one", () => {
+    const steps = [
+      { date: "2026-06-15", deltaKcal: -100 },
+      { date: "2026-06-29", deltaKcal: -150 }
+    ];
+    const controller = makeController({ carbTaperSteps: steps });
+    render(<PlannerProfileView controller={controller} />);
+    // 状态行：Σ=−250 kcal ≈ 碳水 −62.5g；上次调整已满 2 周 → 提示可评估。
+    expect(screen.getByText("第 2 步 · 累计 -250 kcal ≈ 碳水 -62.5g")).toBeInTheDocument();
+    expect(screen.getByText(/上次调整 2026-06-29/)).toBeInTheDocument();
+    expect(screen.getByText(/已满 2 周，可按周均降幅评估下一步/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /降一步 −100 kcal/ }));
+    expect(controller.updateProfile).toHaveBeenCalledWith("carbTaperSteps", [
+      ...steps,
+      { date: toDateKey(new Date()), deltaKcal: -100 }
+    ]);
+
+    fireEvent.click(screen.getByRole("button", { name: "撤销上一步" }));
+    expect(controller.updateProfile).toHaveBeenCalledWith("carbTaperSteps", [steps[0]]);
+  });
+
+  it("feeds the tapered target through the whole view (demo profile 2295 → 2195, carbs 236.5)", () => {
+    render(<PlannerProfileView controller={makeController({ carbTaperSteps: [{ date: "2026-06-29", deltaKcal: -100 }] })} />);
+    // 周计划面板与当日目标全部实时联动渐降后的值；蛋白/脂肪不动。
+    expect(screen.getByText(/每日目标 2195 kcal · 蛋白 175g · 脂肪 61g · 碳水 236\.5g/)).toBeInTheDocument();
   });
 });
 

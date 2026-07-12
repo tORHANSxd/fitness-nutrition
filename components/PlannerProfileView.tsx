@@ -1,6 +1,7 @@
 "use client";
 
 import { Utensils } from "lucide-react";
+import { useState } from "react";
 import { MacroBars } from "@/components/MacroBars";
 import { MetricCard } from "@/components/MetricCard";
 import type { PlannerController } from "@/components/usePlanner";
@@ -9,13 +10,16 @@ import {
   autoProteinTargetG,
   autoTargetKcal,
   buildNutritionResult,
+  calculateDailyTarget,
   calculateMacroRatio,
   getCalorieDeficit,
+  getCarbTaperKcal,
   getMacroRatioCheck,
   isProfileComplete,
   round,
   trainingTimeLabels
 } from "@/lib/nutrition";
+import { toDateKey } from "@/lib/training";
 import type { MacroRatio, MacroTotals, UserProfile } from "@/lib/types";
 
 interface PlannerProfileViewProps {
@@ -382,6 +386,7 @@ function ProfilePanel({ profile, updateProfile }: ProfilePanelProps) {
             <span className="mt-1 block text-[11px] text-muted">目标热量 = TDEE − 赤字；每 2 周按体重周均降幅校准 ±100~150。</span>
           </label>
         </div>
+        <CarbTaperPanel profile={profile} updateProfile={updateProfile} />
         {/* v2 目标：默认公式自动（placeholder 显示当前公式值），填数字即手动覆盖，清空回到自动。 */}
         <div className="grid grid-cols-2 gap-3">
           <label>
@@ -446,5 +451,103 @@ function ProfilePanel({ profile, updateProfile }: ProfilePanelProps) {
         </label>
       </div>
     </section>
+  );
+}
+
+/**
+ * 碳水渐降面板（v2 文档第五节"每 2 周校准热量"）：全手动步进。
+ * 降一步 = 每日目标 −N kcal（全部落在碳水，蛋白/脂肪守底不动）；回升一步 = 加回；可撤销。
+ * 系统只显示文档触发条件作参考，绝不自动执行任何一步。
+ */
+function CarbTaperPanel({ profile, updateProfile }: ProfilePanelProps) {
+  const [stepInput, setStepInput] = useState("100");
+  // 惰性初始化固定"今天"，保持渲染纯净（react-hooks/purity）；跨午夜由下次进入页面刷新。
+  const [todayKey] = useState(() => toDateKey(new Date()));
+  const steps = profile.carbTaperSteps ?? [];
+  const stage = steps.length;
+  const taperKcal = getCarbTaperKcal(profile);
+  const lastStep = stage > 0 ? steps[stage - 1] : null;
+  const daysSinceLast = lastStep
+    ? Math.max(
+        Math.floor(
+          (new Date(`${todayKey}T00:00:00`).getTime() - new Date(`${lastStep.date}T00:00:00`).getTime()) / 86_400_000
+        ),
+        0
+      )
+    : null;
+  const stepKcal = Number(stepInput);
+  const stepValid = Number.isFinite(stepKcal) && stepKcal >= 50 && stepKcal <= 300;
+  const taperedCarbs = calculateDailyTarget(profile).carbs;
+  const signed = (value: number) => `${value > 0 ? "+" : ""}${round(value, 1)}`;
+
+  function pushStep(direction: 1 | -1) {
+    if (!stepValid) {
+      return;
+    }
+    updateProfile("carbTaperSteps", [...steps, { date: toDateKey(new Date()), deltaKcal: direction * stepKcal }]);
+  }
+
+  function undoStep() {
+    if (stage === 0) {
+      return;
+    }
+    updateProfile("carbTaperSteps", steps.slice(0, -1));
+  }
+
+  return (
+    <div className="rounded-lg border border-line bg-panel/60 p-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h3 className="text-xs font-semibold tracking-tight text-ink">碳水渐降</h3>
+        <span className="text-[11px] font-medium tabular-nums text-ink">
+          {stage === 0
+            ? "第 0 步 · 未开始（完整碳水基线）"
+            : `第 ${stage} 步 · 累计 ${signed(taperKcal)} kcal ≈ 碳水 ${signed(taperKcal / 4)}g`}
+        </span>
+      </div>
+      <p className="mt-1 text-[11px] leading-relaxed text-muted">
+        文档第五节（每 2 周评估）：周均降幅 &lt;0.3kg 连续 2 周 → 降一步 −100~150；0.5–0.7kg → 不动；&gt;0.9kg 且训练重量下滑 → 回升一步。蛋白/脂肪守底，增减全部落在碳水。<span className="font-medium">只随你手动操作，系统不会自动降。</span>
+      </p>
+      {lastStep ? (
+        <p className="mt-1 text-[11px] text-muted">
+          上次调整 {lastStep.date}（{daysSinceLast} 天前，{signed(lastStep.deltaKcal)} kcal）
+          {daysSinceLast != null && daysSinceLast < 14 ? " · 未满 2 周，文档建议先观察满 2 周再动。" : " · 已满 2 周，可按周均降幅评估下一步。"}
+        </p>
+      ) : null}
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <label className="flex items-center gap-1.5">
+          <span className="metric-label">本步幅度</span>
+          <input
+            className="field h-8 w-20 text-xs"
+            inputMode="numeric"
+            type="number"
+            min="50"
+            max="300"
+            step="25"
+            value={stepInput}
+            onChange={(event) => setStepInput(event.target.value)}
+          />
+          <span className="text-[11px] text-muted">kcal ≈ 碳水 {stepValid ? round(stepKcal / 4, 1) : "--"}g（文档每步 100–150）</span>
+        </label>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-2">
+        <button className="btn-primary h-8 px-3 text-xs" type="button" disabled={!stepValid} onClick={() => pushStep(-1)}>
+          降一步 −{stepValid ? stepKcal : "?"} kcal
+        </button>
+        <button className="btn-secondary h-8 px-3 text-xs" type="button" disabled={!stepValid} onClick={() => pushStep(1)}>
+          回升一步 +{stepValid ? stepKcal : "?"} kcal
+        </button>
+        <button className="btn-secondary h-8 px-3 text-xs" type="button" disabled={stage === 0} onClick={undoStep}>
+          撤销上一步
+        </button>
+      </div>
+      {stage > 0 && taperedCarbs > 0 && taperedCarbs < 100 ? (
+        <p className="mt-2 text-[11px] font-medium text-rose">
+          渐降后碳水仅 {round(taperedCarbs, 1)}g/天，已属极低碳水——会损害训练表现与瘦体重保持（文档以 235–260g 为基线区间），建议撤销或回升。
+        </p>
+      ) : null}
+      {stage > 0 && taperedCarbs <= 0 ? (
+        <p className="mt-2 text-[11px] font-medium text-rose">渐降已把碳水压到 0：目标热量正卡在蛋白+脂肪底座上，请撤销或回升。</p>
+      ) : null}
+    </div>
   );
 }

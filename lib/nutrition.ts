@@ -34,7 +34,7 @@ const dailyFitWeights: Record<keyof MacroTotals, number> = {
 
 const macroKeys: Array<keyof MacroTotals> = ["kcal", "carbs", "protein", "fat"];
 const macroRatioKeys: Array<keyof MacroRatio> = ["carbs", "protein", "fat"];
-const nutritionKeys: Array<keyof MacroRatio> = ["carbs", "protein", "fat"];
+const nutritionKeys: Array<keyof MacroRatio> = ["protein", "carbs", "fat"];
 const dailyMacroBand = { deficit: 10, surplus: 5 };
 const dailyMacroBandWeights: Record<keyof MacroRatio, number> = {
   carbs: 18,
@@ -84,12 +84,12 @@ interface SolverEntryModel {
   portionWeight: number;
 }
 
-const cookedMainMax = 360;
-const rawMainMax = 120;
+const cookedMainMax = 500;
+const rawMainMax = 500;
 
 const defaultPortionRules: Record<FoodCategory, FoodPortionRule> = {
   主食: { defaultGrams: 180, maxGrams: cookedMainMax, softTargetWeight: 0.28 },
-  蔬菜: { defaultGrams: 200, maxGrams: 420, softTargetWeight: 0.34 },
+  蔬菜: { defaultGrams: 200, maxGrams: 200, softTargetWeight: 0.34 },
   水果: { defaultGrams: 120, maxGrams: 250, softTargetWeight: 0.34 },
   肉类: { defaultGrams: 150, maxGrams: 260, softTargetWeight: 0.26 },
   补剂: { defaultGrams: 30, maxGrams: 40, softTargetWeight: 1.3 },
@@ -129,7 +129,7 @@ const multiFoodHardMaxMultipliers: Record<FoodCategory, number> = {
   食物配料: 1
 };
 
-const cookedMainMultiFoodHardMax = 420;
+const cookedMainMultiFoodHardMax = 500;
 const mealSoftKcalTolerance = 80;
 const mealSoftKcalToleranceRatio = 0.15;
 const usefulMealGramLimit = 850;
@@ -655,6 +655,13 @@ function dailyMacroBandScore(total: MacroTotals, target: MacroTotals) {
   }, 0);
 }
 
+/**
+ * 全天宏量冲突时生成字典序评分：蛋白误差优先于碳水误差，碳水误差再优先于脂肪误差。
+ */
+function prioritizedDailyMacroScore(total: MacroTotals, target: MacroTotals) {
+  return nutritionKeys.map((key) => Math.abs(total[key] - target[key]));
+}
+
 function isDailyMacroBandAligned(total: MacroTotals, target: MacroTotals) {
   return nutritionKeys.every((key) => {
     const difference = total[key] - target[key];
@@ -866,11 +873,33 @@ function candidateGrams(model: SolverEntryModel, current: number, step: number) 
   );
 }
 
+type SolverScore = number | readonly number[];
+
+function isBetterSolverScore(candidate: SolverScore, best: SolverScore) {
+  const candidateParts = typeof candidate === "number" ? [candidate] : candidate;
+  const bestParts = typeof best === "number" ? [best] : best;
+  const partCount = Math.max(candidateParts.length, bestParts.length);
+
+  for (let index = 0; index < partCount; index += 1) {
+    const candidatePart = candidateParts[index] ?? 0;
+    const bestPart = bestParts[index] ?? 0;
+    const tolerance = Math.max(1, Math.abs(candidatePart), Math.abs(bestPart)) * 1e-9;
+    if (candidatePart < bestPart - tolerance) {
+      return true;
+    }
+    if (candidatePart > bestPart + tolerance) {
+      return false;
+    }
+  }
+
+  return false;
+}
+
 function optimizeSolverModels(
   models: SolverEntryModel[],
   readGrams: (model: SolverEntryModel) => number,
   writeGrams: (model: SolverEntryModel, grams: number) => void,
-  scoreState: () => number
+  scoreState: () => SolverScore
 ) {
   const steps = [160, 80, 40, 20, 10, 5, 1];
   let bestScore = scoreState();
@@ -892,7 +921,7 @@ function optimizeSolverModels(
 
           writeGrams(model, candidate);
           const score = scoreState();
-          if (score + 1e-9 < bestScore) {
+          if (isBetterSolverScore(score, bestScore)) {
             bestScore = score;
             current = candidate;
             improved = true;
@@ -1106,16 +1135,17 @@ function refineDailyRecommendations(
 
       const macroScoreState = () => {
         const dailyTotals = calculateRecommendedTotals();
-        let score =
-          dailyMacroBandScore(dailyTotals, dailyTarget) * 1000 +
-          dailyKcalSurplusScore(dailyTotals, dailyTarget) * 800 +
-          macroFitScore(dailyTotals, dailyTarget, dailyFitWeights, { kcal: 120, carbs: 12, protein: 10, fat: 8 }) * 80;
-        // 轻量结构项仅用于打破并列，优先保留更像“餐盘”的克重，不与宏量目标抗衡。
+        let structureScore = 0;
+        // 结构项只用于在蛋白、碳水、脂肪结果完全等价时打破并列，不参与宏量之间的取舍。
         for (const meal of meals) {
           const mealEntries = solvedEntriesByMealId.get(meal.id) ?? Object.fromEntries(meal.entries.map((e) => [e.id, e.grams]));
-          score += mealStructureScore(macroModelsByMealId.get(meal.id) ?? [], mealEntries) * 0.05;
+          structureScore += mealStructureScore(macroModelsByMealId.get(meal.id) ?? [], mealEntries);
         }
-        return score;
+        return [
+          ...prioritizedDailyMacroScore(dailyTotals, dailyTarget),
+          dailyKcalSurplusScore(dailyTotals, dailyTarget),
+          structureScore
+        ];
       };
 
       optimizeSolverModels(

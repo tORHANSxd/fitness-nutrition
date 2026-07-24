@@ -162,7 +162,7 @@ export const builtinFoods: FoodItem[] = [
   },
   {
     id: "public-lettuce-raw",
-    name: "生菜",
+    name: "绿叶生菜",
     category: "蔬菜",
     kcalPer100g: 13.1,
     fatPer100g: 0.15,
@@ -186,7 +186,7 @@ export const builtinFoods: FoodItem[] = [
   },
   {
     id: "public-cucumber-raw",
-    name: "黄瓜",
+    name: "黄瓜（带皮）",
     category: "蔬菜",
     kcalPer100g: 16.1,
     fatPer100g: 0.11,

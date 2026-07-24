@@ -1,0 +1,4 @@
+need_git = false
+archive_root = "D:\\Workspace\\git"
+agent_name = "Codex"
+repo_name = ""

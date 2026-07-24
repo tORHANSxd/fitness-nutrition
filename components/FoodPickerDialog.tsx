@@ -2,6 +2,7 @@
 
 import { PenLine, Plus, Search, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { sortFoods } from "@/lib/foods";
 import { calculateFoodKcalPer100g, round } from "@/lib/nutrition";
 import { foodCategories, type CustomFoodDraft, type FoodItem } from "@/lib/types";
@@ -74,20 +75,20 @@ export function FoodPickerDialog({ open, foods, currentFoodId, title = "选择�
     return sortFoods(filtered);
   }, [foods, activeCategory, search]);
 
-  if (!open) {
+  if (!open || typeof document === "undefined") {
     return null;
   }
 
-  return (
+  return createPortal(
     <div
-      className="dialog-overlay fixed inset-0 z-50 flex items-end justify-center bg-[#1F1E1D]/30 backdrop-blur-[2px] sm:items-center sm:p-4"
+      className="dialog-overlay fixed inset-0 z-50 flex items-center justify-center bg-[#1F1E1D]/30 p-4 backdrop-blur-[2px]"
       role="dialog"
       aria-modal="true"
       aria-label={title}
       onClick={onClose}
     >
       <div
-        className="dialog-panel flex max-h-[82vh] w-full max-w-lg flex-col overflow-hidden rounded-t-2xl border border-line bg-surface shadow-2xl sm:rounded-2xl"
+        className="dialog-panel flex max-h-[calc(100dvh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-2xl"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
@@ -178,7 +179,8 @@ export function FoodPickerDialog({ open, foods, currentFoodId, title = "选择�
           </>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

@@ -516,7 +516,7 @@ describe("meal solving", () => {
 
     expect(recommended.broccoli).toBeGreaterThanOrEqual(100);
     expect(recommended.chicken).toBeGreaterThanOrEqual(85);
-    expect(recommended.rice).toBeLessThanOrEqual(420);
+    expect(recommended.rice).toBeLessThanOrEqual(500);
     expect(recommended.rice / totalGrams).toBeLessThanOrEqual(0.62);
   });
 
@@ -791,10 +791,20 @@ describe("meal solving", () => {
     ];
     const rice = builtinFoods.find((food) => food.id === "public-rice-cooked");
     expect(rice).toBeDefined();
-    expect(getDefaultMealEntrySettings(rice!).maxGrams).toBe(360);
+    expect(getDefaultMealEntrySettings(rice!).maxGrams).toBe(500);
 
     const result = buildNutritionResult(profile, meals, builtinFoods);
     expect(result.mealRecommendations[0].recommendedEntries.rice).toBeLessThanOrEqual(200);
+  });
+
+  it("uses 500g for every staple default max and 200g for every vegetable default max", () => {
+    const staples = builtinFoods.filter((food) => food.category === "主食");
+    const vegetables = builtinFoods.filter((food) => food.category === "蔬菜");
+
+    expect(staples.length).toBeGreaterThan(0);
+    expect(vegetables.length).toBeGreaterThan(0);
+    expect(staples.every((food) => getDefaultMealEntrySettings(food).maxGrams === 500)).toBe(true);
+    expect(vegetables.every((food) => getDefaultMealEntrySettings(food).maxGrams === 200)).toBe(true);
   });
 
   it("keeps supplements and nuts inside useful single-serving ranges", () => {
@@ -837,6 +847,56 @@ describe("meal solving", () => {
     expect(result.mealRecommendations[0].recommendedEntries.oil).toBeLessThanOrEqual(20);
   });
 
+  it("prioritizes protein, then carbohydrates, then fat when the targets conflict", () => {
+    const foods: FoodItem[] = [
+      {
+        id: "protein-fat",
+        name: "高脂蛋白粉",
+        category: "补剂",
+        kcalPer100g: 650,
+        fatPer100g: 50,
+        carbsPer100g: 0,
+        proteinPer100g: 50,
+        weightBasis: "raw",
+        cookedRawRatio: null,
+        source: "user"
+      },
+      {
+        id: "pure-carb",
+        name: "纯碳水",
+        category: "主食",
+        kcalPer100g: 200,
+        fatPer100g: 0,
+        carbsPer100g: 50,
+        proteinPer100g: 0,
+        weightBasis: "cooked",
+        cookedRawRatio: null,
+        source: "user"
+      }
+    ];
+    const meals: MealPlan[] = [
+      {
+        id: "single",
+        name: "单餐",
+        ratio: 1,
+        locked: false,
+        entries: [
+          { id: "protein", foodId: "protein-fat", grams: 100, locked: false, minGrams: 0, maxGrams: 350 },
+          { id: "carbs", foodId: "pure-carb", grams: 100, locked: false, minGrams: 0, maxGrams: 500 }
+        ]
+      }
+    ];
+    const result = buildNutritionResult(
+      { ...defaultProfile, targetKcal: 2300, proteinTargetG: 175, fatTargetG: 60, planDate: "2026-07-24" },
+      meals,
+      foods
+    );
+
+    expect(Math.abs(result.recommendedRemaining.protein)).toBeLessThanOrEqual(0.5);
+    expect(Math.abs(result.recommendedRemaining.carbs)).toBeLessThan(Math.abs(result.recommendedRemaining.fat));
+    expect(result.mealRecommendations[0].recommendedEntries.protein).toBe(350);
+  });
+
   it("trims fatty filler to approach macros when foods are too fat-dense to hit the band", () => {
     // 严控脂肪目标（fatTargetG 45）+ 脂肪密度偏高的食材（偏肥的鸡肉、含脂燕麦、混合坚果）：
     // 物理上无法同时达到 高碳水/高蛋白/低脂。宏量优先收尾应在保留主餐动物蛋白的前提下，
@@ -860,16 +920,15 @@ describe("meal solving", () => {
       fatTargetG: 45, trainingTime: "afternoon", planDate: "2026-06-22"
     };
     const result = buildNutritionResult(userProfile, meals, foods);
-
-    // 收尾后三项都应尽量贴近目标（可达最近点）：碳水/蛋白亏 ≤14g、脂肪盈 ≤13g。
-    expect(result.recommendedRemaining.carbs).toBeLessThanOrEqual(14);
-    expect(result.recommendedRemaining.protein).toBeLessThanOrEqual(14);
-    expect(result.recommendedRemaining.fat).toBeGreaterThanOrEqual(-13); // 脂肪盈余 ≤13g
+    // 冲突时按蛋白 → 碳水 → 脂肪收尾：蛋白几乎精确，碳水误差小于最后处理的脂肪误差。
+    expect(Math.abs(result.recommendedRemaining.protein)).toBeLessThanOrEqual(0.5);
+    expect(Math.abs(result.recommendedRemaining.carbs)).toBeLessThan(Math.abs(result.recommendedRemaining.fat));
+    expect(Math.abs(result.recommendedRemaining.fat)).toBeLessThanOrEqual(25);
     // 主餐动物蛋白下限仍然保留（不会为了降脂把鸡肉压成迷你份量）。
     const lunch = result.mealRecommendations.find((item) => item.mealId === "lunch")!.recommendedEntries;
     expect(lunch["u-chicken-138"]).toBeGreaterThanOrEqual(85);
     // 死结仍然存在时给出可执行提示，而不是泛泛排查。
-    expect(result.conflicts.some((item) => item.includes("更瘦的蛋白"))).toBe(true);
+    expect(result.conflicts.some((item) => item.includes("克数容忍带") && item.includes("脂肪"))).toBe(true);
   });
 
   it("keeps recommended daily calories within the +50 kcal surplus cap (or flags it)", () => {

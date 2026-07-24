@@ -65,6 +65,19 @@ describe("FoodPickerDialog（先选分类，再选食物）", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
+  it("portals the open picker to the viewport and centers it at every breakpoint", () => {
+    render(
+      <div style={{ transform: "translateY(120px)" }}>
+        <FoodPickerDialog open foods={foods} onSelect={vi.fn()} onClose={vi.fn()} />
+      </div>
+    );
+
+    const dialog = screen.getByRole("dialog");
+    expect(dialog.parentElement).toBe(document.body);
+    expect(dialog).toHaveClass("items-center");
+    expect(dialog).not.toHaveClass("items-end");
+  });
+
   it("lists foods sorted by category then pinyin and reports the picked food", () => {
     const onSelect = vi.fn();
     const onClose = vi.fn();

@@ -17,6 +17,11 @@ function pickById(id: string): FoodItem {
 }
 
 describe("food sorting", () => {
+  it("keeps source-specific vegetable variants explicit", () => {
+    expect(pickById("public-lettuce-raw").name).toBe("绿叶生菜");
+    expect(pickById("public-cucumber-raw").name).toBe("黄瓜（带皮）");
+  });
+
   it("orders first by category (foodCategories order), then by pinyin name", () => {
     const input = [
       stub("主食", "燕麦片"), // yan

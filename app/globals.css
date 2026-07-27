@@ -2,21 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ============================================================
-   Claude 官网风设计系统 v2
-   —— 象牙纸底、白卡片、深墨/白 pill 按钮、珊瑚点缀、衬线大标题、
-      expo-out 克制动效。对齐 claude.ai / anthropic.com 的观感。
-   ============================================================ */
 :root {
   color-scheme: light;
-  --ground: #faf9f5;
-  --hairline: rgba(31, 30, 29, 0.1);
-  /* anthropic 官网动效曲线：柔和的 expo-out */
-  --ease-out-soft: cubic-bezier(0.16, 1, 0.3, 1);
+  --ground: #eff1ea;
+  --ink: #11130f;
+  --line: #c6cbc0;
+  --acid: #c7f36b;
+  --ease-out-soft: cubic-bezier(0.2, 0.9, 0.2, 1);
 }
 
 * {
   box-sizing: border-box;
+  letter-spacing: 0 !important;
 }
 
 html,
@@ -24,8 +21,6 @@ body {
   min-height: 100%;
 }
 
-/* 始终保留竖向滚动条槽：短页面(无滚动条)与长页面(有滚动条)之间切换时，视口宽度保持恒定，
-   避免 position:fixed 的顶栏/底栏（inset-x-0）宽度忽大忽小。iOS 覆盖式滚动条上为无副作用空操作。 */
 html {
   overflow-y: scroll;
   scrollbar-gutter: stable;
@@ -33,29 +28,25 @@ html {
 
 body {
   margin: 0;
-  color: #1f1e1d;
-  /* 英文 Anthropic Serif（专有，仅声明，安装即用）→ Source Serif 4 回退；中文霞鹜文楷。
-     西文字体在前，拉丁字形由其命中，中文字符落到文楷。 */
-  font-family:
-    "Anthropic Serif", var(--font-serif), "Source Serif 4", "LXGW WenKai",
-    Georgia, "Songti SC", "SimSun", serif;
-  background: #faf9f5;
+  color: var(--ink);
+  font-family: Arial, "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif;
+  background-color: var(--ground);
+  background-image:
+    linear-gradient(rgba(17, 19, 15, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(17, 19, 15, 0.035) 1px, transparent 1px);
+  background-size: 32px 32px;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
-/* 大标题：同一字体栈，字重适中、字距微收、行高紧。 */
 h1,
 h2,
-.font-display {
-  font-weight: 500;
-  letter-spacing: -0.02em;
-  line-height: 1.2;
-}
-
 h3,
-h4 {
-  letter-spacing: -0.01em;
+h4,
+.font-display {
+  font-family: "Arial Black", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-weight: 800;
+  line-height: 1.08;
 }
 
 button,
@@ -69,10 +60,14 @@ button {
     background-color 150ms ease,
     border-color 150ms ease,
     color 150ms ease,
-    box-shadow 200ms var(--ease-out-soft),
+    box-shadow 220ms var(--ease-out-soft),
     opacity 150ms ease,
-    transform 200ms var(--ease-out-soft);
+    transform 220ms var(--ease-out-soft);
   touch-action: manipulation;
+}
+
+button:not(:disabled):active {
+  transform: translateY(1px);
 }
 
 input,
@@ -80,160 +75,305 @@ select {
   min-width: 0;
 }
 
-/* iOS Safari：date 输入与 select 有 UA 内在最小宽度，长内容（本地化日期、超长模板名 option）
-   会顶开 width:100%、把框撑出卡片。统一驯服：去 UA 外观 + 锁最大宽度。 */
 input[type="date"],
 select {
   max-width: 100%;
 }
 
 input[type="date"] {
-  -webkit-appearance: none;
   appearance: none;
   display: block;
 }
 
-/* iOS date 输入 shadow 部件：去掉默认外边距并左对齐，appearance:none 后文字不再飘。 */
 input[type="date"]::-webkit-date-and-time-value {
   margin: 0;
   text-align: left;
 }
 
-/* ------------------------------------------------------------
-   组件类必须包进 @layer components：这样 JSX 里的工具类（pl-9、h-9、px-2 等）
-   才能按 Tailwind 层级正确覆盖组件默认值（此前裸规则排在 utilities 之后，
-   曾导致搜索框 pl-9 被 .field 的 px-3 压掉、图标与占位文字重叠）。
-   ------------------------------------------------------------ */
 @layer components {
-  /* Claude 式聚焦：边框转深墨 + 极淡外圈（不是霓虹 ring）。 */
   .focus-ring {
-    @apply focus:outline-none focus:border-[#B9B5A7] focus:shadow-[0_0_0_3px_rgba(31,30,29,0.06)];
+    @apply focus:outline-none focus:border-accent2 focus:shadow-[0_0_0_3px_rgba(21,93,74,0.13)];
   }
 
-  /* 输入框：白底、暖灰细边、hover 微深；移动端字号 16px（sm 及以上回落 14px），
-     避免 iOS 聚焦 <16px 输入框时强制放大页面。 */
   .field {
-    @apply h-11 rounded-lg border border-line bg-surface px-3 text-base text-ink transition-colors placeholder:text-muted-soft hover:border-[#D5D0C2] focus-ring sm:text-sm;
+    @apply h-11 rounded border border-line bg-surface px-3 text-base text-ink transition-colors placeholder:text-muted-soft hover:border-muted-soft focus-ring sm:text-sm;
   }
 
-  /* 按钮体系：anthropic 官网语言 = pill（rounded-full）。
-     主操作深墨底白字；品牌强调（btn-cta）珊瑚底白字；次操作白底细边。
-     默认 h-11，JSX 里的 h-8/h-9/h-10 可正常覆盖出小尺寸。 */
   .btn {
-    @apply inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-full border px-4 text-sm font-medium transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded border px-4 text-sm font-semibold active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50;
   }
 
-  /* 主操作：深墨 pill（anthropic 主 CTA） */
   .btn-primary {
-    @apply btn border-transparent bg-ink text-white hover:bg-[#3D3A34];
+    @apply btn border-ink bg-ink text-white hover:border-accent2 hover:bg-accent2;
   }
 
-  /* 品牌强调操作：珊瑚 pill */
   .btn-cta {
-    @apply btn border-transparent bg-accent text-accent-ink hover:bg-accent2;
+    @apply btn border-accent bg-accent text-accent-ink hover:border-ink hover:bg-ink hover:text-white;
   }
 
-  /* 次操作：白底细边 pill */
   .btn-secondary {
-    @apply btn border-line bg-surface text-ink hover:border-[#CFC9BA] hover:bg-panel;
+    @apply btn border-line bg-surface text-ink hover:border-ink hover:bg-panel;
   }
 
   .btn-danger {
-    @apply btn border-rose/25 bg-transparent text-rose hover:bg-rose/[0.08];
+    @apply btn border-rose/30 bg-transparent text-rose hover:border-rose hover:bg-rose/[0.08];
   }
 
-  /* 卡片：白面 + 暖细描边 + 极轻投影。 */
   .panel {
-    @apply rounded-2xl border border-line bg-surface shadow-soft;
+    @apply rounded-lg border border-line bg-surface shadow-soft;
   }
 
   .metric-label {
-    @apply text-[11px] font-medium uppercase tracking-[0.08em] text-muted;
+    @apply font-mono text-[10px] font-semibold uppercase text-muted;
   }
 
-  /* 小型珊瑚 eyebrow 标签（官网 section 眉题） */
   .eyebrow {
-    @apply text-[11px] font-semibold uppercase tracking-[0.14em] text-accent2;
+    @apply font-mono text-[10px] font-bold uppercase text-accent2;
   }
 
-  /* 旧渐变标题类：重定义为衬线深墨标题（保留类名，组件无需改 JSX） */
   .text-gradient {
     @apply font-display text-ink;
   }
 }
 
-/* 悬浮可点卡片（日历格、模板卡等）：hover 轻提升 + 阴影加深。 */
+.brand-mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  color: #11130f;
+  background: var(--acid);
+  box-shadow: inset 0 0 0 1px rgba(17, 19, 15, 0.16);
+}
+
+.auth-stage {
+  position: relative;
+  display: grid;
+  min-height: 100dvh;
+  overflow: hidden;
+  background: #11130f;
+}
+
+.auth-stage::before {
+  position: absolute;
+  inset: 0;
+  content: "";
+  pointer-events: none;
+  opacity: 0.46;
+  background-image:
+    linear-gradient(rgba(199, 243, 107, 0.14) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(199, 243, 107, 0.14) 1px, transparent 1px);
+  background-size: 72px 72px;
+  transform: perspective(700px) rotateX(58deg) scale(1.8) translateY(18%);
+  transform-origin: center bottom;
+}
+
+.auth-brand,
+.auth-frame {
+  position: relative;
+  z-index: 1;
+}
+
+.auth-brand {
+  display: none;
+  min-height: 100dvh;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 48px;
+  color: #fbfcf7;
+}
+
+.auth-brand-title {
+  max-width: 760px;
+  margin: 0;
+  font-size: 72px;
+  line-height: 0.92;
+}
+
+.auth-brand-index {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  color: #c7f36b;
+}
+
+.auth-frame {
+  display: flex;
+  min-height: 100dvh;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  background: var(--ground);
+}
+
+.auth-panel {
+  border: 1px solid var(--ink);
+  border-radius: 8px;
+  background: #fbfcf7;
+  box-shadow: 10px 10px 0 #c7f36b;
+}
+
+.app-sidebar {
+  background: #11130f;
+  color: #fbfcf7;
+  border-right: 1px solid #11130f;
+}
+
+.app-nav-item::before {
+  position: absolute;
+  left: 0;
+  width: 3px;
+  height: 0;
+  content: "";
+  background: var(--acid);
+  transition: height 220ms var(--ease-out-soft);
+}
+
+.app-nav-item[aria-current="page"]::before {
+  height: 22px;
+}
+
+.page-masthead {
+  border-bottom: 1px solid var(--ink);
+}
+
+.page-index {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: #155d4a;
+}
+
+.mobile-dock {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(66px, 1fr);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+
+.mobile-dock::-webkit-scrollbar {
+  display: none;
+}
+
 .hover-lift {
   transition:
     transform 250ms var(--ease-out-soft),
     box-shadow 250ms var(--ease-out-soft),
     border-color 150ms ease;
 }
+
 .hover-lift:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px -12px rgba(31, 30, 29, 0.22);
+  border-color: #11130f;
+  box-shadow: 5px 5px 0 rgba(17, 19, 15, 0.12);
 }
 
-/* 大数字（指标卡）：同一字体栈，等宽数字。 */
 .metric-number {
-  font-weight: 500;
-  letter-spacing: -0.01em;
+  font-family: "Arial Black", Arial, sans-serif;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
 
 .skip-link {
-  @apply fixed left-3 top-3 z-50 -translate-y-16 rounded-full bg-ink px-4 py-2 text-sm font-medium text-white transition-transform focus:translate-y-0;
+  @apply fixed left-3 top-3 z-50 -translate-y-16 rounded bg-ink px-4 py-2 text-sm font-semibold text-white transition-transform focus:translate-y-0;
 }
 
 .scrollbar-thin {
   scrollbar-width: thin;
-  scrollbar-color: rgba(31, 30, 29, 0.18) transparent;
+  scrollbar-color: rgba(17, 19, 15, 0.28) transparent;
 }
 
-/* ------------------------------------------------------------
-   动效：expo-out、克制。
-   ------------------------------------------------------------ */
-.animate-view {
-  animation: view-in 400ms var(--ease-out-soft);
+.animate-view,
+.animate-fade-up {
+  animation: view-in 460ms var(--ease-out-soft) both;
 }
 
 @keyframes view-in {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translate3d(0, 14px, 0);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translate3d(0, 0, 0);
   }
 }
 
-/* 对话框：遮罩淡入 + 面板轻缩放浮现 */
 .dialog-overlay {
-  animation: overlay-in 200ms ease-out;
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 100 !important;
+  display: grid !important;
+  width: 100vw;
+  height: 100dvh;
+  max-height: 100dvh;
+  place-items: center;
+  overflow: hidden;
+  overscroll-behavior: none;
+  padding:
+    max(16px, env(safe-area-inset-top))
+    max(16px, env(safe-area-inset-right))
+    max(16px, env(safe-area-inset-bottom))
+    max(16px, env(safe-area-inset-left));
+  background: rgba(10, 12, 9, 0.62) !important;
+  backdrop-filter: blur(5px);
+  animation: overlay-in 180ms ease-out;
 }
 
 .dialog-panel {
-  animation: dialog-in 260ms var(--ease-out-soft);
+  width: min(100%, 560px);
+  max-height: calc(100dvh - 32px) !important;
+  margin: auto;
+  border: 1px solid #11130f !important;
+  border-radius: 8px !important;
+  box-shadow: 8px 8px 0 #c7f36b !important;
+  animation: dialog-in 280ms var(--ease-out-soft);
 }
 
 @keyframes overlay-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 @keyframes dialog-in {
   from {
     opacity: 0;
-    transform: translateY(12px) scale(0.98);
+    transform: translate3d(0, 20px, 0) scale(0.98);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@media (min-width: 1024px) {
+  .auth-stage {
+    grid-template-columns: minmax(0, 1.35fr) minmax(420px, 0.65fr);
+  }
+
+  .auth-brand {
+    display: flex;
+  }
+
+  .auth-frame {
+    border-left: 1px solid #c7f36b;
+    padding: 48px;
+  }
+}
+
+@media (max-width: 640px) {
+  .auth-panel {
+    box-shadow: 6px 6px 0 #c7f36b;
+  }
+
+  .dialog-overlay {
+    padding: max(10px, env(safe-area-inset-top)) 10px max(10px, env(safe-area-inset-bottom));
+  }
+
+  .dialog-panel {
+    max-height: calc(100dvh - 20px) !important;
   }
 }
 

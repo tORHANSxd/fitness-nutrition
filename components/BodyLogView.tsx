@@ -37,7 +37,7 @@ const chartTooltip = {
   borderColor: "rgba(0,0,0,0.10)",
   borderRadius: 10,
   boxShadow: "0 8px 24px -12px rgba(0,0,0,0.25)",
-  color: "#1F1E1D"
+  color: "#11130F"
 };
 
 function todayKey() {
@@ -274,7 +274,7 @@ export function BodyLogView({ user }: BodyLogViewProps) {
                     connectNulls
                   />
                 ))}
-                <Brush dataKey="date" height={26} travellerWidth={8} stroke="#D97757" fill="rgba(217,119,87,0.06)" />
+                <Brush dataKey="date" height={26} travellerWidth={8} stroke="#155D4A" fill="rgba(199,243,107,0.12)" />
               </LineChart>
             </ResponsiveContainer>
           )}

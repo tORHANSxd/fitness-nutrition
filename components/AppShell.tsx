@@ -183,29 +183,39 @@ export function AppShell({ initialView }: AppShellProps) {
   }
 
   const userStatus = user ? `已登录：${user.email}` : configured ? "未登录" : "未配置云端存储";
-  const activeLabel = navItems.find((item) => item.id === view)?.label ?? "当天计划";
+  const activeIndex = Math.max(navItems.findIndex((item) => item.id === view), 0);
+  const activeLabel = navItems[activeIndex]?.label ?? "当天计划";
   const today = new Date().toLocaleDateString("zh-CN", { year: "numeric", month: "long", day: "numeric", weekday: "long" });
 
   // 全局登录门禁：所有业务数据仅存 Supabase 云端，未登录时整屏只显示登录/注册页。
   // 未配置 Supabase 时无法登录也无法存数据，给出配置提示（不再回退本地存储）。
   if (authReady && !user) {
     return (
-      <div className="relative z-10 flex min-h-dvh items-center justify-center px-4 py-10">
-        <div className="w-full max-w-md">
-          {/* anthropic 式登录头：星芒 + 大衬线标题，居中极简 */}
-          <div className="mb-8 flex flex-col items-center gap-4 text-center">
-            <span className="text-accent">
-              <BrandMark size={44} />
-            </span>
-            <div>
-              <h1 className="text-4xl text-ink">NutriTrain</h1>
-              <p className="mt-2 text-sm text-muted">训练与营养计划器 · 登录后开始使用</p>
-            </div>
+      <div className="auth-stage">
+        <section className="auth-brand" aria-label="NutriTrain">
+          <div className="flex items-center gap-3">
+            <BrandMark size={34} />
+            <span className="text-lg font-bold">NUTRITRAIN</span>
           </div>
-          {configured ? (
+          <div>
+            <p className="auth-brand-index mb-5">TRAINING / NUTRITION / PROGRESS</p>
+            <h1 className="auth-brand-title">让每一次训练，都有数据回应。</h1>
+          </div>
+          <p className="max-w-md text-sm leading-6 text-white/60">训练与营养计划器</p>
+        </section>
+        <div className="auth-frame">
+          <div className="w-full max-w-md">
+            <div className="mb-8 flex items-center gap-3 lg:hidden">
+              <BrandMark size={38} />
+              <div>
+                <h1 className="text-2xl text-ink">NutriTrain</h1>
+                <p className="mt-1 text-xs font-medium text-muted">训练与营养计划器</p>
+              </div>
+            </div>
+            {configured ? (
             <AuthPanel user={user} onSignedIn={setUser} />
           ) : (
-            <div className="panel px-6 py-8 text-center">
+            <div className="auth-panel px-6 py-8 text-center">
               <p className="text-sm text-ink">未配置 Supabase 云端存储。</p>
               <p className="mt-2 text-xs text-muted">
                 所有数据仅保存在云端（除登录信息外不写本地）。请在 <code className="rounded bg-black/[0.06] px-1">.env.local</code> 配置
@@ -213,55 +223,56 @@ export function AppShell({ initialView }: AppShellProps) {
                 <code className="mx-1 rounded bg-black/[0.06] px-1">NEXT_PUBLIC_SUPABASE_ANON_KEY</code> 后重启。
               </p>
             </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="relative z-10 min-h-dvh lg:pl-64">
+    <div className="relative z-10 min-h-dvh lg:pl-[272px]">
       <a className="skip-link" href="#main-content">跳到主要内容</a>
 
-      {/* 桌面：固定左侧边栏（claude.ai 式：燕麦底、紧凑导航、oat pill 激活态） */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col bg-panel px-3 py-5 lg:flex">
-        <div className="flex items-center gap-2.5 px-2">
-          <span className="shrink-0 text-accent">
-            <BrandMark size={22} />
-          </span>
+      <aside className="app-sidebar fixed inset-y-0 left-0 z-30 hidden w-[272px] flex-col px-4 py-6 lg:flex">
+        <div className="flex items-center gap-3 border-b border-white/15 px-2 pb-6">
+          <BrandMark size={34} />
           <div className="min-w-0 leading-tight">
-            <div className="font-display text-[17px] text-ink">NutriTrain</div>
+            <div className="font-display text-[17px] text-white">NUTRITRAIN</div>
+            <div className="mt-1 font-mono text-[9px] text-white/45">SYSTEM 02.6</div>
           </div>
         </div>
 
-        <nav className="mt-7 flex flex-col gap-0.5" aria-label="主导航">
-          {navItems.map((item) => {
+        <p className="mt-7 px-2 font-mono text-[9px] font-bold text-accent">WORKSPACE / 01-09</p>
+        <nav className="mt-3 flex flex-col gap-1" aria-label="主导航">
+          {navItems.map((item, index) => {
             const Icon = item.icon;
             const active = view === item.id;
             return (
               <button
                 key={item.id}
-                className={`group relative flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-[13.5px] transition-colors ${
-                  active ? "bg-raised font-medium text-ink" : "text-muted hover:bg-black/[0.04] hover:text-ink"
+                className={`app-nav-item group relative flex h-11 items-center gap-3 rounded px-3 text-[13px] transition-colors ${
+                  active ? "bg-white/[0.09] font-semibold text-white" : "text-white/55 hover:bg-white/[0.06] hover:text-white"
                 }`}
                 type="button"
                 onClick={() => setView(item.id)}
                 aria-current={active ? "page" : undefined}
               >
-                <Icon size={17} className={`shrink-0 ${active ? "text-accent2" : "text-muted-soft group-hover:text-muted"}`} />
+                <span className="w-5 font-mono text-[9px] text-white/35">{String(index + 1).padStart(2, "0")}</span>
+                <Icon size={17} className={`shrink-0 ${active ? "text-accent" : "text-white/40 group-hover:text-white/70"}`} />
                 <span className="truncate">{item.label}</span>
               </button>
             );
           })}
         </nav>
 
-        <div className="mt-auto flex flex-col gap-1 border-t border-black/[0.06] pt-4">
+        <div className="mt-auto flex flex-col gap-1 border-t border-white/15 pt-4">
           <div className="flex items-center gap-2 px-2.5 pb-2">
-            <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${configured && user ? "bg-success" : "bg-muted-soft"}`} />
-            <span className="truncate text-xs text-muted">{userStatus}</span>
+            <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${configured && user ? "bg-accent" : "bg-white/30"}`} />
+            <span className="truncate text-xs text-white/45">{userStatus}</span>
           </div>
           <button
-            className="flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-[13.5px] text-muted transition-colors hover:bg-black/[0.04] hover:text-ink"
+            className="flex h-10 items-center gap-2.5 rounded px-2.5 text-[13px] text-white/55 transition-colors hover:bg-white/[0.06] hover:text-white"
             type="button"
             onClick={refreshFoods}
             title="刷新食物库"
@@ -271,7 +282,7 @@ export function AppShell({ initialView }: AppShellProps) {
           </button>
           {user ? (
             <button
-              className="flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-[13.5px] text-muted transition-colors hover:bg-black/[0.04] hover:text-ink"
+              className="flex h-10 items-center gap-2.5 rounded px-2.5 text-[13px] text-white/55 transition-colors hover:bg-white/[0.06] hover:text-white"
               type="button"
               onClick={signOut}
               title="退出登录"
@@ -283,15 +294,12 @@ export function AppShell({ initialView }: AppShellProps) {
         </div>
       </aside>
 
-      {/* 移动/平板：顶部细 bar */}
-      <header className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-line bg-ground/90 px-4 py-3 backdrop-blur-xl lg:hidden">
+      <header className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-ink bg-ground/95 px-4 py-3 backdrop-blur-xl lg:hidden">
         <div className="flex min-w-0 items-center gap-2.5">
-          <span className="shrink-0 text-accent">
-            <BrandMark size={22} />
-          </span>
+          <BrandMark size={28} />
           <div className="min-w-0">
-            <div className="font-display text-[16px] leading-tight text-ink">{activeLabel}</div>
-            <div className="truncate text-[11px] text-muted">{userStatus}</div>
+            <div className="font-display text-[15px] leading-tight text-ink">{activeLabel}</div>
+            <div className="truncate font-mono text-[9px] text-muted">{String(activeIndex + 1).padStart(2, "0")} / 09</div>
           </div>
         </div>
         <div className="flex shrink-0 gap-1.5">
@@ -306,11 +314,13 @@ export function AppShell({ initialView }: AppShellProps) {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-[1240px] px-4 py-6 pb-28 md:px-8 lg:pb-12">
-        {/* 桌面页头：大衬线标题（Claude 官网排版锚点） */}
-        <div className="mb-8 hidden items-end justify-between gap-4 lg:flex">
-          <h1 className="text-[34px] text-ink">{activeLabel}</h1>
-          <p className="pb-1 text-sm text-muted">{today}</p>
+      <main className="mx-auto w-full max-w-[1480px] px-4 py-6 pb-28 md:px-8 lg:px-10 lg:py-8 lg:pb-12">
+        <div className="page-masthead mb-7 hidden items-end justify-between gap-6 pb-5 lg:flex">
+          <div className="flex items-end gap-5">
+            <span className="page-index pb-1">{String(activeIndex + 1).padStart(2, "0")} / 09</span>
+            <h1 className="text-[38px] text-ink">{activeLabel}</h1>
+          </div>
+          <p className="pb-1 font-mono text-[11px] text-muted">{today}</p>
         </div>
 
         {!authReady ? (
@@ -353,22 +363,21 @@ export function AppShell({ initialView }: AppShellProps) {
         ) : null}
       </main>
 
-      {/* 移动端底部导航 */}
-      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-9 gap-0.5 border-t border-line bg-ground/85 px-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl lg:hidden" aria-label="主导航">
+      <nav className="mobile-dock fixed inset-x-0 bottom-0 z-30 border-t border-ink bg-[#11130F]/95 px-1 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-1.5 backdrop-blur-xl lg:hidden" aria-label="主导航">
         {navItems.map((item) => {
           const Icon = item.icon;
           const active = view === item.id;
           return (
             <button
               key={item.id}
-              className={`relative flex min-h-12 flex-col items-center justify-center gap-1 rounded-lg px-2 text-[11px] font-medium transition-colors ${
-                active ? "text-accent" : "text-muted hover:text-ink"
+              className={`relative flex min-h-14 flex-col items-center justify-center gap-1 rounded px-2 text-[10px] font-semibold transition-colors ${
+                active ? "bg-white/[0.08] text-accent" : "text-white/45 hover:text-white"
               }`}
               type="button"
               onClick={() => setView(item.id)}
               aria-current={active ? "page" : undefined}
             >
-              {active ? <span className="absolute inset-x-4 top-0 h-0.5 rounded-full bg-accent" /> : null}
+              {active ? <span className="absolute inset-x-3 top-0 h-0.5 rounded-full bg-accent" /> : null}
               <Icon size={18} />
               <span>{item.shortLabel}</span>
             </button>

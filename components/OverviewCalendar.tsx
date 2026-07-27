@@ -71,8 +71,8 @@ function Sparkline({ data }: { data: Array<{ date: string; value: number }> }) {
         </span>
       </div>
       <svg viewBox={`0 0 ${w} ${h}`} className="mt-1 w-full" preserveAspectRatio="none" role="img" aria-label="体重趋势">
-        <path d={path} fill="none" stroke="rgb(168,130,255)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
-        <circle cx={last.x} cy={last.y} r={3} fill="rgb(168,130,255)" />
+        <path d={path} fill="none" stroke="#155D4A" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+        <circle cx={last.x} cy={last.y} r={3} fill="#C7F36B" stroke="#11130F" strokeWidth={1} />
       </svg>
     </div>
   );
@@ -222,7 +222,11 @@ export function OverviewCalendar({ user, onEditPlanner, onEditTraining }: Overvi
                       <span className="truncate">{session.splitLabel}</span>
                     </span>
                   ) : null}
-                  {plan ? <span className="mt-auto truncate text-[10px] text-muted">🍚 {round(plan.result.dailyTarget.kcal, 0)}</span> : null}
+                  {plan ? (
+                    <span className="mt-auto flex items-center gap-1 truncate text-[10px] text-muted">
+                      <Utensils size={10} /> {round(plan.result.dailyTarget.kcal, 0)}
+                    </span>
+                  ) : null}
                 </button>
               );
             })}
@@ -242,7 +246,7 @@ export function OverviewCalendar({ user, onEditPlanner, onEditTraining }: Overvi
           ) : null}
           <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-muted">
             <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-accent" />已排训练</span>
-            <span>🍚 = 饮食目标 kcal</span>
+            <span className="flex items-center gap-1"><Utensils size={11} />饮食目标 kcal</span>
           </div>
           {error ? <p className="mt-3 rounded-lg border border-rose/35 bg-rose/10 px-3 py-2 text-xs text-rose">{error}</p> : null}
         </section>

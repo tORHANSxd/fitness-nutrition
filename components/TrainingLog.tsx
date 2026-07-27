@@ -300,7 +300,7 @@ export function TrainingLog({ user, onRequireLogin, dateRequest }: TrainingLogPr
               }`}
               title={`标记 ${weekStartKey(selectedDate)} 起的一周为减载周`}
             >
-              <input type="checkbox" className="h-3.5 w-3.5 accent-[#D97757]" checked={deloadActive} onChange={handleToggleDeload} />
+              <input type="checkbox" className="h-3.5 w-3.5 accent-[#155D4A]" checked={deloadActive} onChange={handleToggleDeload} />
               本周减载
             </label>
           </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import type { User } from "@supabase/supabase-js";
-import { CalendarCheck, ChevronLeft, ChevronRight, Dumbbell, Trash2, Utensils } from "lucide-react";
+import { ArrowRight, CalendarCheck, ChevronLeft, ChevronRight, Dumbbell, Trash2, Utensils } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { loadBodyLogs, mergeLatestBodyMetrics, type BodyLog } from "@/lib/bodyLogs";
 import { emptyProfile } from "@/lib/demoState";
@@ -267,7 +267,9 @@ export function ScheduleCalendar({ user, foods, onGoTraining, onGoPlanner }: Sch
                   </span>
                 ) : null}
                 {plan ? (
-                  <span className="mt-auto truncate text-[10px] text-muted">🍚 {round(plan.result.dailyTarget.kcal, 0)}kcal</span>
+                  <span className="mt-auto flex items-center gap-1 truncate text-[10px] text-muted">
+                    <Utensils size={10} /> {round(plan.result.dailyTarget.kcal, 0)}kcal
+                  </span>
                 ) : null}
               </button>
             );
@@ -275,7 +277,7 @@ export function ScheduleCalendar({ user, foods, onGoTraining, onGoPlanner }: Sch
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-muted">
           <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-accent" />已排训练</span>
-          <span>🍚 = 已排饮食目标</span>
+          <span className="flex items-center gap-1"><Utensils size={11} />已排饮食目标</span>
         </div>
       </section>
 
@@ -297,7 +299,7 @@ export function ScheduleCalendar({ user, foods, onGoTraining, onGoPlanner }: Sch
                 className={`flex cursor-pointer items-center gap-1 rounded px-2 py-0.5 text-[11px] ${deloadActive ? "bg-accent/20 text-accent" : "text-muted hover:text-ink"}`}
                 title={`标记 ${weekStartKey(selectedDate)} 起的一周为减载周`}
               >
-                <input type="checkbox" className="h-3 w-3 accent-[#D97757]" checked={deloadActive} onChange={handleToggleDeload} />
+                <input type="checkbox" className="h-3 w-3 accent-[#155D4A]" checked={deloadActive} onChange={handleToggleDeload} />
                 减载
               </label>
             </div>
@@ -329,7 +331,9 @@ export function ScheduleCalendar({ user, foods, onGoTraining, onGoPlanner }: Sch
               </button>
             ))}
           </div>
-          <button className="btn-secondary mt-2 h-8 w-full text-xs" type="button" onClick={() => onGoTraining(selectedDate)}>去训练日历逐组填写 →</button>
+          <button className="btn-secondary mt-2 h-8 w-full text-xs" type="button" onClick={() => onGoTraining(selectedDate)}>
+            去训练日历逐组填写 <ArrowRight size={14} />
+          </button>
         </div>
 
         {/* 饮食 */}
@@ -350,7 +354,9 @@ export function ScheduleCalendar({ user, foods, onGoTraining, onGoPlanner }: Sch
             <button className="btn-primary h-8 flex-1 text-xs" type="button" onClick={generateDietTarget} disabled={busy}>
               {selectedPlan ? "重新生成饮食目标" : "生成饮食目标"}
             </button>
-            <button className="btn-secondary h-8 px-3 text-xs" type="button" onClick={() => onGoPlanner(selectedDate, selectedPlan)}>去分餐 →</button>
+            <button className="btn-secondary h-8 px-3 text-xs" type="button" onClick={() => onGoPlanner(selectedDate, selectedPlan)}>
+              去分餐 <ArrowRight size={14} />
+            </button>
           </div>
           <p className="mt-1.5 text-[11px] text-muted">目标按档案身体数据（体重/体脂随体测）经 v2 公式与现有求解器计算，数学与分餐一致。</p>
         </div>

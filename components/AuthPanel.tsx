@@ -1,7 +1,7 @@
 "use client";
 
 import type { User } from "@supabase/supabase-js";
-import { KeyRound, Mail } from "lucide-react";
+import { ArrowRight, KeyRound, LogIn, Mail, UserPlus } from "lucide-react";
 import { useState } from "react";
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase";
 
@@ -55,11 +55,11 @@ export function AuthPanel({ user, onSignedIn }: AuthPanelProps) {
 
   const isErrorMessage = message && !message.includes("成功");
 
-  // Claude 式登录卡：单列窄卡居中，说明信息降级为卡底注脚，不再用左右分栏与方框堆砌。
   return (
-    <section className="panel mx-auto w-full max-w-md px-6 py-7 sm:px-8">
-      <div className="mb-6">
-        <h2 className="text-2xl text-ink">{user ? "已登录" : mode === "login" ? "登录" : "注册"}</h2>
+    <section className="auth-panel mx-auto w-full max-w-md px-6 py-7 sm:px-8 sm:py-9">
+      <div className="mb-7 border-b border-line pb-5">
+        <p className="eyebrow mb-2">Secure access / 01</p>
+        <h2 className="text-3xl font-semibold text-ink">{user ? "已登录" : mode === "login" ? "登录" : "注册"}</h2>
         <p className="mt-1.5 text-sm text-muted">
           {configured
             ? user
@@ -104,6 +104,7 @@ export function AuthPanel({ user, onSignedIn }: AuthPanelProps) {
             </span>
           </label>
           <button className="btn-primary w-full" type="button" onClick={submit} disabled={busy}>
+            {mode === "login" ? <LogIn size={17} /> : <UserPlus size={17} />}
             {busy ? "处理中…" : mode === "login" ? "登录" : "注册"}
           </button>
           <p className="text-center text-sm text-muted">
@@ -117,6 +118,7 @@ export function AuthPanel({ user, onSignedIn }: AuthPanelProps) {
               }}
             >
               {mode === "login" ? "注册" : "登录"}
+              <ArrowRight size={14} className="ml-1 inline" />
             </button>
           </p>
         </div>
@@ -130,19 +132,6 @@ export function AuthPanel({ user, onSignedIn }: AuthPanelProps) {
         >
           {message}
         </p>
-      ) : null}
-
-      {!user ? (
-        <ul className="mt-7 space-y-2 border-t border-line pt-5 text-xs leading-relaxed text-muted">
-          <li className="flex gap-2">
-            <span className="mt-[5px] h-1 w-1 shrink-0 rounded-full bg-accent" />
-            所有数据按账户保存在 Supabase 云端，浏览器本地只保留登录状态。
-          </li>
-          <li className="flex gap-2">
-            <span className="mt-[5px] h-1 w-1 shrink-0 rounded-full bg-accent" />
-            公共食物库与你的私有食物合并显示，私有数据仅本人可见。
-          </li>
-        </ul>
       ) : null}
     </section>
   );

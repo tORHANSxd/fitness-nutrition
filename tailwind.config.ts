@@ -1,7 +1,5 @@
 import type { Config } from "tailwindcss";
 
-// Claude 官网风主题：奶油纸感底色 + 白卡片 + 珊瑚陶土 accent（#D97757）+ 暖灰墨字。
-// 令牌名保持不变，组件无需改 JSX 即随主题切换；旧紫色/霓虹引用全部重定向到珊瑚色。
 const config: Config = {
   content: [
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
@@ -11,44 +9,50 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        ink: "#1F1E1D", // 主文字（暖近黑）
-        muted: "#6E6C66", // 次要文字（暖灰）
-        "muted-soft": "#9C9A93", // 三级/弱化文字
-        ground: "#FAF9F5", // 页面底（象牙奶油）
-        surface: "#FFFFFF", // 卡片表面（白）
-        panel: "#F4F1E9", // 内层/燕麦色表面
-        raised: "#E8E4DA", // 更高一层/选中底
-        line: "#E3DFD3", // 暖调细描边
-        accent: "#D97757", // 品牌强调色（Claude 珊瑚陶土）
-        "accent-ink": "#FFFFFF", // 强调色上的文字
-        accent2: "#C6613F", // 深珊瑚（hover/图表）
-        neon: "#D97757", // 兼容旧引用
-        success: "#5E8B62", // 状态：完成（低饱和绿）
-        amber: { DEFAULT: "#C28A2D", 50: "rgba(194,138,45,0.12)", 800: "#8A6116" }, // 状态：偏差/排队
-        rose: { DEFAULT: "#BF4D43", 50: "rgba(191,77,67,0.10)" }, // 状态：危险/超额（暖红）
-        // 组件硬编码的原生色阶 → 珊瑚色调（维持单强调）
+        ink: "#11130F",
+        muted: "#5D6258",
+        "muted-soft": "#858B80",
+        ground: "#EFF1EA",
+        surface: "#FBFCF7",
+        panel: "#E4E7DD",
+        raised: "#D8DCD0",
+        line: "#C6CBC0",
+        accent: "#C7F36B",
+        "accent-ink": "#11130F",
+        accent2: "#155D4A",
+        neon: "#C7F36B",
+        success: "#12845B",
+        amber: { DEFAULT: "#C88410", 50: "rgba(200,132,16,0.12)", 800: "#7E520B" },
+        rose: { DEFAULT: "#D8493F", 50: "rgba(216,73,63,0.10)" },
         blue: {
-          50: "rgba(217,119,87,0.08)",
-          100: "rgba(217,119,87,0.14)",
-          200: "rgba(217,119,87,0.28)",
-          800: "#B25A3C"
+          50: "rgba(40,100,220,0.08)",
+          100: "rgba(40,100,220,0.14)",
+          200: "rgba(40,100,220,0.28)",
+          800: "#2454B8"
         },
         slate: { 100: "rgba(0,0,0,0.05)" }
       },
-      // 全站统一字体栈：英文 Anthropic Serif（本机安装即生效）→ Source Serif 4（开源回退），
-      // 中文霞鹜文楷。sans/serif/display 全部映射同一栈，font-sans 工具类也不例外。
       fontFamily: {
-        sans: ["Anthropic Serif", "var(--font-serif)", "Source Serif 4", "LXGW WenKai", "Georgia", "Songti SC", "serif"],
-        serif: ["Anthropic Serif", "var(--font-serif)", "Source Serif 4", "LXGW WenKai", "Georgia", "Songti SC", "serif"],
-        display: ["Anthropic Serif", "var(--font-serif)", "Source Serif 4", "LXGW WenKai", "Georgia", "Songti SC", "serif"]
+        sans: ["Arial", "Helvetica Neue", "PingFang SC", "Microsoft YaHei", "sans-serif"],
+        serif: ["Arial", "Helvetica Neue", "PingFang SC", "Microsoft YaHei", "sans-serif"],
+        display: ["Arial Black", "Arial", "PingFang SC", "Microsoft YaHei", "sans-serif"]
+      },
+      borderRadius: {
+        sm: "2px",
+        DEFAULT: "4px",
+        md: "4px",
+        lg: "6px",
+        xl: "8px",
+        "2xl": "8px",
+        "3xl": "8px"
       },
       boxShadow: {
-        soft: "0 1px 2px rgba(31,30,29,0.04), 0 12px 32px -20px rgba(31,30,29,0.16)",
-        glow: "0 0 0 1px rgba(217,119,87,0.25), 0 10px 30px -14px rgba(217,119,87,0.35)",
-        "glow-neon": "0 6px 20px -10px rgba(217,119,87,0.35)"
+        soft: "0 1px 0 rgba(17,19,15,0.08), 0 16px 36px -28px rgba(17,19,15,0.45)",
+        glow: "0 0 0 1px rgba(199,243,107,0.5), 0 12px 30px -18px rgba(21,93,74,0.45)",
+        "glow-neon": "0 8px 24px -16px rgba(21,93,74,0.5)"
       },
       backgroundImage: {
-        "neon-grad": "linear-gradient(135deg, #D97757 0%, #C6613F 100%)"
+        "neon-grad": "linear-gradient(135deg, #C7F36B 0%, #8CDFA8 100%)"
       },
       keyframes: {
         "view-in": { from: { opacity: "0", transform: "translateY(8px)" }, to: { opacity: "1", transform: "translateY(0)" } },

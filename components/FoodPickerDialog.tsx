@@ -55,6 +55,17 @@ export function FoodPickerDialog({ open, foods, currentFoodId, title = "选择�
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [open]);
+
   // 仅展示实际存在食物的分类标签（按 foodCategories 顺序）。
   const presentCategories = useMemo(
     () => foodCategories.filter((category) => foods.some((food) => food.category === category)),
@@ -81,7 +92,7 @@ export function FoodPickerDialog({ open, foods, currentFoodId, title = "选择�
 
   return createPortal(
     <div
-      className="dialog-overlay fixed inset-0 z-50 flex items-center justify-center bg-[#1F1E1D]/30 p-4 backdrop-blur-[2px]"
+      className="dialog-overlay fixed inset-0 z-50 flex items-center justify-center bg-ink/60 p-4 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       aria-label={title}

@@ -78,6 +78,20 @@ describe("FoodPickerDialog（先选分类，再选食物）", () => {
     expect(dialog).not.toHaveClass("items-end");
   });
 
+  it("locks page scrolling while open and restores it after closing", () => {
+    document.body.style.overflow = "auto";
+    const { rerender, unmount } = render(
+      <FoodPickerDialog open foods={foods} onSelect={vi.fn()} onClose={vi.fn()} />
+    );
+
+    expect(document.body.style.overflow).toBe("hidden");
+
+    rerender(<FoodPickerDialog open={false} foods={foods} onSelect={vi.fn()} onClose={vi.fn()} />);
+    expect(document.body.style.overflow).toBe("auto");
+
+    unmount();
+  });
+
   it("lists foods sorted by category then pinyin and reports the picked food", () => {
     const onSelect = vi.fn();
     const onClose = vi.fn();
@@ -111,7 +125,7 @@ describe("FoodPickerDialog（先选分类，再选食物）", () => {
   });
 });
 
-describe("AuthPanel（Claude 式单列登录卡）", () => {
+describe("AuthPanel（账户登录面板）", () => {
   it("renders the login form with email/password, primary action and a register link", () => {
     render(<AuthPanel user={null} onSignedIn={vi.fn()} />);
 

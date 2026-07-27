@@ -662,13 +662,6 @@ function dailyMacroBandScore(total: MacroTotals, target: MacroTotals) {
   }, 0);
 }
 
-/**
- * 全天宏量冲突时生成字典序评分：蛋白误差优先于碳水误差，碳水误差再优先于脂肪误差。
- */
-function prioritizedDailyMacroScore(total: MacroTotals, target: MacroTotals) {
-  return nutritionKeys.map((key) => Math.abs(total[key] - target[key]));
-}
-
 function isDailyMacroBandAligned(total: MacroTotals, target: MacroTotals) {
   return nutritionKeys.every((key) => {
     const difference = total[key] - target[key];
@@ -1198,14 +1191,20 @@ function refineDailyRecommendations(
       const macroScoreState = () => {
         const dailyTotals = calculateRecommendedTotals();
         let structureScore = 0;
-        // 结构项只用于在蛋白、碳水、脂肪结果完全等价时打破并列，不参与宏量之间的取舍。
+        // 结构项只用于在容忍带、热量上限和综合宏量误差完全等价时打破并列。
         for (const meal of meals) {
           const mealEntries = solvedEntriesByMealId.get(meal.id) ?? Object.fromEntries(meal.entries.map((e) => [e.id, e.grams]));
           structureScore += mealStructureScore(macroModelsByMealId.get(meal.id) ?? [], mealEntries);
         }
         return [
-          ...prioritizedDailyMacroScore(dailyTotals, dailyTarget),
+          dailyMacroBandScore(dailyTotals, dailyTarget),
           dailyKcalSurplusScore(dailyTotals, dailyTarget),
+          macroFitScore(dailyTotals, dailyTarget, dailyFitWeights, {
+            kcal: 120,
+            carbs: 12,
+            protein: 10,
+            fat: 8
+          }),
           structureScore
         ];
       };

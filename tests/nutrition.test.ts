@@ -921,7 +921,7 @@ describe("meal solving", () => {
     expect(result.mealRecommendations[0].recommendedEntries.oil).toBeLessThanOrEqual(20);
   });
 
-  it("prioritizes protein, then carbohydrates, then fat when the targets conflict", () => {
+  it("balances conflicting macros without forcing protein to zero error", () => {
     const foods: FoodItem[] = [
       {
         id: "protein-fat",
@@ -966,9 +966,15 @@ describe("meal solving", () => {
       foods
     );
 
-    expect(Math.abs(result.recommendedRemaining.protein)).toBeLessThanOrEqual(0.5);
-    expect(Math.abs(result.recommendedRemaining.carbs)).toBeLessThan(Math.abs(result.recommendedRemaining.fat));
-    expect(result.mealRecommendations[0].recommendedEntries.protein).toBe(350);
+    const macroErrors = [
+      Math.abs(result.recommendedRemaining.protein),
+      Math.abs(result.recommendedRemaining.carbs),
+      Math.abs(result.recommendedRemaining.fat)
+    ];
+
+    expect(macroErrors[0]).toBeGreaterThan(10);
+    expect(Math.max(...macroErrors)).toBeLessThanOrEqual(85);
+    expect(result.mealRecommendations[0].recommendedEntries.protein).toBeLessThan(350);
   });
 
   it("prefers a solution inside every macro tolerance band over one exact macro", () => {
@@ -1047,10 +1053,11 @@ describe("meal solving", () => {
       fatTargetG: 45, trainingTime: "afternoon", planDate: "2026-06-22"
     };
     const result = buildNutritionResult(userProfile, meals, foods);
-    // 冲突时按蛋白 → 碳水 → 脂肪收尾：蛋白几乎精确，碳水误差小于最后处理的脂肪误差。
-    expect(Math.abs(result.recommendedRemaining.protein)).toBeLessThanOrEqual(0.5);
-    expect(Math.abs(result.recommendedRemaining.carbs)).toBeLessThan(Math.abs(result.recommendedRemaining.fat));
-    expect(Math.abs(result.recommendedRemaining.fat)).toBeLessThanOrEqual(25);
+    // 冲突时综合平衡宏量误差：蛋白允许落在容忍带附近，不再为了 0 误差牺牲其他宏量。
+    expect(Math.abs(result.recommendedRemaining.protein)).toBeGreaterThan(0.5);
+    expect(Math.abs(result.recommendedRemaining.protein)).toBeLessThanOrEqual(12);
+    expect(Math.abs(result.recommendedRemaining.carbs)).toBeLessThanOrEqual(12);
+    expect(Math.abs(result.recommendedRemaining.fat)).toBeLessThanOrEqual(12);
     // 主餐动物蛋白下限仍然保留（不会为了降脂把鸡肉压成迷你份量）。
     const lunch = result.mealRecommendations.find((item) => item.mealId === "lunch")!.recommendedEntries;
     expect(lunch["u-chicken-138"]).toBeGreaterThanOrEqual(85);

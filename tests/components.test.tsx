@@ -283,6 +283,70 @@ describe("MealSplitView（分餐单独页含应用推荐/保存计划 + 弹出�
     expect(controller.applyRecommendations).toHaveBeenCalledTimes(1);
   });
 
+  it("disables applying recommendations when every food is locked", () => {
+    const base = makeController();
+    const meals = base.meals.map((meal) => ({
+      ...meal,
+      locked: true,
+      entries: meal.entries.map((entry) => ({ ...entry, locked: true }))
+    }));
+    const result = buildNutritionResult(base.profile, meals, builtinFoods);
+    const controller = makeController({}, {
+      meals,
+      result,
+      recommendationsByMeal: new Map(result.mealRecommendations.map((recommendation) => [recommendation.mealId, recommendation]))
+    });
+
+    render(<MealSplitView controller={controller} foods={builtinFoods} templates={templates} />);
+
+    expect(screen.getByText("推荐受锁定限制")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /应用推荐/ })).toBeDisabled();
+  });
+
+  it("shows an unavailable state instead of a locked state when the plan has no food", () => {
+    const base = makeController();
+    const meals = base.meals.map((meal) => ({ ...meal, entries: [] }));
+    const result = buildNutritionResult(base.profile, meals, builtinFoods);
+    const controller = makeController({}, {
+      meals,
+      result,
+      recommendationsByMeal: new Map(result.mealRecommendations.map((recommendation) => [recommendation.mealId, recommendation]))
+    });
+
+    render(<MealSplitView controller={controller} foods={builtinFoods} templates={templates} />);
+
+    expect(screen.getByText("暂时无法生成推荐")).toBeInTheDocument();
+    expect(screen.queryByText("推荐受锁定限制")).not.toBeInTheDocument();
+  });
+
+  it("applies and locks one food recommendation", () => {
+    const controller = makeController();
+    const meal = controller.meals[0];
+    const entry = meal.entries.find((item) => item.foodId === "public-oats-raw")!;
+    const recommendedGrams = controller.recommendationsByMeal.get(meal.id)!.recommendedEntries[entry.id];
+
+    render(<MealSplitView controller={controller} foods={builtinFoods} templates={templates} />);
+    fireEvent.click(screen.getByRole("button", { name: "采用燕麦片推荐克重" }));
+
+    expect(controller.updateEntry).toHaveBeenCalledTimes(1);
+    const [, calledEntryId, mapper] = vi.mocked(controller.updateEntry).mock.calls[0];
+    expect(calledEntryId).toBe(entry.id);
+    expect(mapper(entry)).toEqual({ ...entry, grams: recommendedGrams, locked: true });
+  });
+
+  it("normalizes a negative serving weight to zero before updating the plan", () => {
+    const controller = makeController();
+    const meal = controller.meals[0];
+    const entry = meal.entries.find((item) => item.foodId === "public-oats-raw")!;
+
+    render(<MealSplitView controller={controller} foods={builtinFoods} templates={templates} />);
+    fireEvent.change(screen.getByRole("spinbutton", { name: "燕麦片克重" }), { target: { value: "-20" } });
+
+    const [, calledEntryId, mapper] = vi.mocked(controller.updateEntry).mock.calls[0];
+    expect(calledEntryId).toBe(entry.id);
+    expect(mapper(entry)).toEqual({ ...entry, grams: 0, locked: true });
+  });
+
   it("lets the user define an ad-hoc custom food with auto-calculated kcal", () => {
     const controller = makeController();
     render(<MealSplitView controller={controller} foods={builtinFoods} templates={templates} />);

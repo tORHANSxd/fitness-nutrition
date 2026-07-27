@@ -5,7 +5,14 @@ import { useState } from "react";
 import { FoodPickerDialog } from "@/components/FoodPickerDialog";
 import type { PlannerController } from "@/components/usePlanner";
 import { createCustomFood } from "@/lib/foods";
-import { buildNutritionResult, calculateFoodTotals, convertWeightLabel, getDefaultMealEntrySettings, round } from "@/lib/nutrition";
+import {
+  assessNutritionRecommendation,
+  buildNutritionResult,
+  calculateFoodTotals,
+  convertWeightLabel,
+  getDefaultMealEntrySettings,
+  round
+} from "@/lib/nutrition";
 import type { CustomFoodDraft, FoodItem, MacroRatio, MacroTotals, MealFoodEntry, MealPlan, MealTemplate, PlannerTemplates } from "@/lib/types";
 
 interface MealSplitViewProps {
@@ -40,6 +47,15 @@ export function MealSplitView({ controller, foods, templates }: MealSplitViewPro
   const [selectedDayTemplateId, setSelectedDayTemplateId] = useState("");
 
   const activeMeal = meals.find((meal) => meal.id === activeMealId) ?? meals[0];
+  const recommendationAssessment = assessNutritionRecommendation(result, meals);
+  const recommendationStatus =
+    recommendationAssessment.status === "ready"
+      ? { label: "推荐可直接应用", tone: "text-accent", surface: "bg-accent/10" }
+      : recommendationAssessment.status === "constrained"
+        ? { label: "推荐受当前约束限制", tone: "text-amber", surface: "bg-amber/10" }
+        : recommendationAssessment.blockedReason === "locked"
+          ? { label: "推荐受锁定限制", tone: "text-rose", surface: "bg-rose/10" }
+          : { label: "暂时无法生成推荐", tone: "text-rose", surface: "bg-rose/10" };
 
   return (
     <section className="animate-fade-up space-y-4">
@@ -56,9 +72,15 @@ export function MealSplitView({ controller, foods, templates }: MealSplitViewPro
                 <Check size={14} />
                 归一比例
               </button>
-              <button className="btn-cta h-9 px-3 text-xs" type="button" onClick={applyRecommendations}>
+              <button
+                className="btn-cta h-9 px-3 text-xs"
+                type="button"
+                onClick={applyRecommendations}
+                disabled={recommendationAssessment.changedEntryCount === 0}
+                title={recommendationAssessment.changedEntryCount === 0 ? "当前没有可应用的推荐变化" : undefined}
+              >
                 <Wand2 size={14} />
-                应用推荐
+                应用推荐{recommendationAssessment.changedEntryCount > 0 ? ` · ${recommendationAssessment.changedEntryCount} 项` : ""}
               </button>
               <button className="btn-primary h-9 px-3 text-xs" type="button" onClick={persistPlan} disabled={saving}>
                 <Save size={14} />
@@ -102,6 +124,18 @@ export function MealSplitView({ controller, foods, templates }: MealSplitViewPro
               保存全天模板
             </button>
           </div>
+        </div>
+
+        <div className={`flex flex-col gap-1 border-b border-line px-5 py-3 sm:flex-row sm:items-center sm:justify-between ${recommendationStatus.surface}`}>
+          <div>
+            <p className={`text-sm font-semibold ${recommendationStatus.tone}`}>{recommendationStatus.label}</p>
+            <p className="text-xs text-muted">
+              推荐后 {round(result.recommendedTotals.kcal, 0)} kcal · 碳 {round(result.recommendedTotals.carbs, 0)}g / 蛋 {round(result.recommendedTotals.protein, 0)}g / 脂 {round(result.recommendedTotals.fat, 0)}g
+            </p>
+          </div>
+          <p className="text-xs tabular-nums text-muted">
+            目标 {round(result.dailyTarget.kcal, 0)} kcal · 可调整 {recommendationAssessment.adjustableEntryCount} 项
+          </p>
         </div>
 
         {message ? <p className="mx-4 mt-3 rounded-lg border border-accent/20 bg-accent/10 px-4 py-2.5 text-sm font-medium text-accent">{message}</p> : null}
@@ -237,6 +271,35 @@ function MealEditor({
 
   const currentPickerFoodId = pickerTarget && pickerTarget !== "add" ? meal.entries.find((entry) => entry.id === pickerTarget)?.foodId : undefined;
 
+  function applyEntryRecommendation(entry: MealFoodEntry, recommendedGrams: number) {
+    onUpdateEntry(entry.id, (current) => ({ ...current, grams: nonNegativeNumber(recommendedGrams), locked: true }));
+  }
+
+  function nonNegativeNumber(value: string | number) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? Math.max(parsed, 0) : 0;
+  }
+
+  function updateEntryGrams(entryId: string, value: string) {
+    onUpdateEntry(entryId, (current) => ({ ...current, grams: nonNegativeNumber(value), locked: true }));
+  }
+
+  function updateEntryMinimum(entryId: string, value: string) {
+    onUpdateEntry(entryId, (current) => {
+      const minGrams = value === "" ? null : nonNegativeNumber(value);
+      const maxGrams = minGrams != null && current.maxGrams != null && current.maxGrams < minGrams ? minGrams : current.maxGrams;
+      return { ...current, minGrams, maxGrams };
+    });
+  }
+
+  function updateEntryMaximum(entryId: string, value: string) {
+    onUpdateEntry(entryId, (current) => {
+      const maxGrams = value === "" ? null : nonNegativeNumber(value);
+      const minGrams = maxGrams != null && current.minGrams != null && current.minGrams > maxGrams ? maxGrams : current.minGrams;
+      return { ...current, minGrams, maxGrams };
+    });
+  }
+
   return (
     <section className="overflow-hidden bg-surface">
       <div className="flex flex-col gap-3 border-b border-line bg-surface/70 p-4 xl:flex-row xl:items-center xl:justify-between">
@@ -343,19 +406,29 @@ function MealEditor({
                       className="field w-full"
                       type="number"
                       inputMode="decimal"
+                      min="0"
+                      step="1"
+                      aria-label={`${food?.name ?? "食物"}克重`}
                       value={entry.grams}
-                      onChange={(event) =>
-                        onUpdateEntry(entry.id, (current) => ({
-                          ...current,
-                          grams: Number(event.target.value),
-                          locked: true
-                        }))
-                      }
+                      onChange={(event) => updateEntryGrams(entry.id, event.target.value)}
                     />
                   </label>
-                  <div className="rounded-md bg-panel p-2">
-                    <div className="metric-label">推荐</div>
-                    <div className="font-semibold text-accent">{round(recommendedGrams, 1)} g</div>
+                  <div className="flex items-center justify-between gap-2 rounded-md bg-panel p-2">
+                    <div>
+                      <div className="metric-label">推荐</div>
+                      <div className="font-semibold text-accent">{round(recommendedGrams, 1)} g</div>
+                    </div>
+                    {!meal.locked && !entry.locked && Math.abs(recommendedGrams - entry.grams) >= 0.05 ? (
+                      <button
+                        className="btn-secondary h-8 w-8 p-0"
+                        type="button"
+                        aria-label={`采用${food?.name ?? "此食物"}推荐克重`}
+                        title="采用推荐克重并固定"
+                        onClick={() => applyEntryRecommendation(entry, recommendedGrams)}
+                      >
+                        <Check size={14} />
+                      </button>
+                    ) : null}
                   </div>
                   <label>
                     <span className="metric-label mb-1 block">最小</span>
@@ -363,13 +436,10 @@ function MealEditor({
                       className="field w-full"
                       type="number"
                       inputMode="decimal"
+                      min="0"
+                      step="1"
                       value={entry.minGrams ?? ""}
-                      onChange={(event) =>
-                        onUpdateEntry(entry.id, (current) => ({
-                          ...current,
-                          minGrams: event.target.value === "" ? null : Number(event.target.value)
-                        }))
-                      }
+                      onChange={(event) => updateEntryMinimum(entry.id, event.target.value)}
                     />
                   </label>
                   <label>
@@ -378,14 +448,11 @@ function MealEditor({
                       className="field w-full"
                       type="number"
                       inputMode="decimal"
+                      min="0"
+                      step="1"
                       value={entry.maxGrams ?? ""}
                       placeholder={defaultBounds ? `${defaultBounds.maxGrams}` : ""}
-                      onChange={(event) =>
-                        onUpdateEntry(entry.id, (current) => ({
-                          ...current,
-                          maxGrams: event.target.value === "" ? null : Number(event.target.value)
-                        }))
-                      }
+                      onChange={(event) => updateEntryMaximum(entry.id, event.target.value)}
                     />
                   </label>
                 </div>
@@ -456,29 +523,38 @@ function MealEditor({
                         className="field h-9 w-24"
                         type="number"
                         inputMode="decimal"
+                        min="0"
+                        step="1"
+                        aria-label={`桌面端${food?.name ?? "食物"}克重`}
                         value={entry.grams}
-                        onChange={(event) =>
-                          onUpdateEntry(entry.id, (current) => ({
-                            ...current,
-                            grams: Number(event.target.value),
-                            locked: true
-                          }))
-                        }
+                        onChange={(event) => updateEntryGrams(entry.id, event.target.value)}
                       />
                     </td>
-                    <td className="tabular-nums px-4 py-2.5 font-semibold text-accent">{round(recommendedGrams, 1)} g</td>
+                    <td className="px-4 py-2.5">
+                      <div className="flex items-center gap-2 tabular-nums font-semibold text-accent">
+                        <span>{round(recommendedGrams, 1)} g</span>
+                        {!meal.locked && !entry.locked && Math.abs(recommendedGrams - entry.grams) >= 0.05 ? (
+                          <button
+                            className="btn-secondary h-8 w-8 p-0"
+                            type="button"
+                            aria-label={`桌面端采用${food?.name ?? "此食物"}推荐克重`}
+                            title="采用推荐克重并固定"
+                            onClick={() => applyEntryRecommendation(entry, recommendedGrams)}
+                          >
+                            <Check size={14} />
+                          </button>
+                        ) : null}
+                      </div>
+                    </td>
                     <td className="px-4 py-2.5">
                       <input
                         className="field h-9 w-24"
                         type="number"
                         inputMode="decimal"
+                        min="0"
+                        step="1"
                         value={entry.minGrams ?? ""}
-                        onChange={(event) =>
-                          onUpdateEntry(entry.id, (current) => ({
-                            ...current,
-                            minGrams: event.target.value === "" ? null : Number(event.target.value)
-                          }))
-                        }
+                        onChange={(event) => updateEntryMinimum(entry.id, event.target.value)}
                       />
                     </td>
                     <td className="px-4 py-2.5">
@@ -486,14 +562,11 @@ function MealEditor({
                         className="field h-9 w-24"
                         type="number"
                         inputMode="decimal"
+                        min="0"
+                        step="1"
                         value={entry.maxGrams ?? ""}
                         placeholder={defaultBounds ? `${defaultBounds.maxGrams}` : ""}
-                        onChange={(event) =>
-                          onUpdateEntry(entry.id, (current) => ({
-                            ...current,
-                            maxGrams: event.target.value === "" ? null : Number(event.target.value)
-                          }))
-                        }
+                        onChange={(event) => updateEntryMaximum(entry.id, event.target.value)}
                       />
                     </td>
                     <td className="tabular-nums px-4 py-2.5 text-muted">{round(totals.kcal, 0)}</td>

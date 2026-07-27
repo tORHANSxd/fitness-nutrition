@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createStarterMeals, defaultProfile, emptyProfile } from "@/lib/demoState";
 import { builtinFoods } from "@/lib/foods";
 import {
+  assessNutritionRecommendation,
   buildNutritionResult,
   calculateBaselineDailyTarget,
   calculateFoodKcalPer100g,
@@ -226,6 +227,14 @@ describe("nutrition formulas", () => {
     expect(calculateFoodTotals(food, 100).kcal).toBe(109);
   });
 
+  it("treats negative and non-finite serving weights as zero", () => {
+    const food = builtinFoods[0];
+
+    expect(calculateFoodTotals(food, -100)).toEqual({ kcal: 0, carbs: 0, protein: 0, fat: 0 });
+    expect(calculateFoodTotals(food, Number.NaN)).toEqual({ kcal: 0, carbs: 0, protein: 0, fat: 0 });
+    expect(calculateFoodTotals(food, Number.POSITIVE_INFINITY)).toEqual({ kcal: 0, carbs: 0, protein: 0, fat: 0 });
+  });
+
   it("creates training and rest meals with expected counts", () => {
     expect(createDefaultMeals(profile)).toHaveLength(4);
     expect(createDefaultMeals({ ...profile, trainingTime: "rest" })).toHaveLength(3);
@@ -331,6 +340,71 @@ describe("carb taper (v2 文档第五节渐进热量校准：每步 ±100~150 kc
 });
 
 describe("meal solving", () => {
+  it("reports whether a recommendation is constrained or blocked", () => {
+    const adjustableMeals: MealPlan[] = [
+      {
+        id: "all-day",
+        name: "整天",
+        ratio: 1,
+        locked: false,
+        entries: [{ id: "oil", foodId: "public-cooking-oil", grams: 10, locked: false, minGrams: 0, maxGrams: 20 }]
+      }
+    ];
+    const constrainedResult = buildNutritionResult(profile, adjustableMeals, builtinFoods);
+    const constrained = assessNutritionRecommendation(constrainedResult, adjustableMeals);
+
+    expect(constrained.status).toBe("constrained");
+    expect(constrained.adjustableEntryCount).toBe(1);
+    expect(constrained.changedEntryCount).toBe(1);
+    expect(constrained.macroAligned).toBe(false);
+
+    const lockedMeals = adjustableMeals.map((meal) => ({
+      ...meal,
+      locked: true,
+      entries: meal.entries.map((entry) => ({ ...entry, locked: true }))
+    }));
+    const blockedResult = buildNutritionResult(profile, lockedMeals, builtinFoods);
+    const blocked = assessNutritionRecommendation(blockedResult, lockedMeals);
+
+    expect(blocked.status).toBe("blocked");
+    expect(blocked.blockedReason).toBe("locked");
+    expect(blocked.adjustableEntryCount).toBe(0);
+    expect(blocked.changedEntryCount).toBe(0);
+
+    const emptyResult = buildNutritionResult(profile, [], builtinFoods);
+    const empty = assessNutritionRecommendation(emptyResult, []);
+
+    expect(empty.status).toBe("blocked");
+    expect(empty.blockedReason).toBe("empty_plan");
+  });
+
+  it("normalizes non-finite serving bounds before solving", () => {
+    const meals: MealPlan[] = [
+      {
+        id: "all-day",
+        name: "整天",
+        ratio: 1,
+        locked: false,
+        entries: [
+          {
+            id: "oats",
+            foodId: "public-oats-raw",
+            grams: 80,
+            locked: false,
+            minGrams: Number.NaN,
+            maxGrams: Number.POSITIVE_INFINITY
+          }
+        ]
+      }
+    ];
+
+    const result = buildNutritionResult(profile, meals, builtinFoods);
+    const recommendedGrams = result.mealRecommendations[0].recommendedEntries.oats;
+
+    expect(Number.isFinite(recommendedGrams)).toBe(true);
+    expect(recommendedGrams).toBeGreaterThanOrEqual(0);
+  });
+
   it("respects locked entries while recommending unlocked grams", () => {
     const meals: MealPlan[] = [
       {
@@ -895,6 +969,59 @@ describe("meal solving", () => {
     expect(Math.abs(result.recommendedRemaining.protein)).toBeLessThanOrEqual(0.5);
     expect(Math.abs(result.recommendedRemaining.carbs)).toBeLessThan(Math.abs(result.recommendedRemaining.fat));
     expect(result.mealRecommendations[0].recommendedEntries.protein).toBe(350);
+  });
+
+  it("prefers a solution inside every macro tolerance band over one exact macro", () => {
+    const foods: FoodItem[] = [
+      {
+        id: "protein-fat",
+        name: "蛋白脂肪混合物",
+        category: "补剂",
+        kcalPer100g: 650,
+        fatPer100g: 50,
+        carbsPer100g: 0,
+        proteinPer100g: 50,
+        weightBasis: "raw",
+        cookedRawRatio: null,
+        source: "user"
+      },
+      {
+        id: "carb-protein",
+        name: "碳水蛋白混合物",
+        category: "补剂",
+        kcalPer100g: 280,
+        fatPer100g: 0,
+        carbsPer100g: 50,
+        proteinPer100g: 20,
+        weightBasis: "raw",
+        cookedRawRatio: null,
+        source: "user"
+      }
+    ];
+    const meals: MealPlan[] = [
+      {
+        id: "all-day",
+        name: "整天",
+        ratio: 1,
+        locked: false,
+        entries: [
+          { id: "protein-fat", foodId: "protein-fat", grams: 120, locked: false, minGrams: 0, maxGrams: 350 },
+          { id: "carb-protein", foodId: "carb-protein", grams: 530, locked: false, minGrams: 0, maxGrams: 600 }
+        ]
+      }
+    ];
+    const result = buildNutritionResult(
+      { ...defaultProfile, targetKcal: 2300, proteinTargetG: 175, fatTargetG: 60, planDate: "2026-07-28" },
+      meals,
+      foods
+    );
+
+    expect(result.recommendedRemaining.protein).toBeGreaterThanOrEqual(-5);
+    expect(result.recommendedRemaining.protein).toBeLessThanOrEqual(10);
+    expect(result.recommendedRemaining.carbs).toBeGreaterThanOrEqual(-5);
+    expect(result.recommendedRemaining.carbs).toBeLessThanOrEqual(10);
+    expect(result.recommendedRemaining.fat).toBeGreaterThanOrEqual(-5);
+    expect(result.recommendedRemaining.fat).toBeLessThanOrEqual(10);
   });
 
   it("trims fatty filler to approach macros when foods are too fat-dense to hit the band", () => {

@@ -526,7 +526,8 @@ export function calculatePlannedCalorieDelta(profile: UserProfile) {
 }
 
 export function calculateFoodTotals(food: FoodItem, grams: number): MacroTotals {
-  const ratio = grams / 100;
+  const safeGrams = Number.isFinite(grams) ? Math.max(grams, 0) : 0;
+  const ratio = safeGrams / 100;
   return {
     kcal: calculateMacroKcalPer100g(food) * ratio,
     carbs: food.carbsPer100g * ratio,
@@ -576,10 +577,16 @@ export function createDefaultMeals(profile: UserProfile): MealPlan[] {
 }
 
 function entryBounds(entry: MealFoodEntry, food?: FoodItem, meal?: Pick<MealPlan, "id" | "name">) {
-  const min = Math.max(entry.minGrams ?? 0, 0);
+  const requestedMin = entry.minGrams ?? 0;
+  const min = Number.isFinite(requestedMin) ? Math.max(requestedMin, 0) : 0;
   const defaultMax = food ? getFoodPortionRule(food, meal).maxGrams : Number.POSITIVE_INFINITY;
   const requestedMax = entry.maxGrams == null ? defaultMax : entry.maxGrams;
-  const max = Math.max(requestedMax, min);
+  const finiteMax = Number.isFinite(requestedMax)
+    ? Math.max(requestedMax, 0)
+    : Number.isFinite(defaultMax)
+      ? Math.max(defaultMax, 0)
+      : min;
+  const max = Math.max(finiteMax, min);
   return { min, max };
 }
 
@@ -681,6 +688,61 @@ function dailyKcalSurplusScore(total: MacroTotals, target: MacroTotals) {
 
 function isDailyKcalWithinSurplusCap(total: MacroTotals, target: MacroTotals) {
   return total.kcal - target.kcal <= dailyKcalSurplusCap;
+}
+
+export type RecommendationStatus = "ready" | "constrained" | "blocked";
+export type RecommendationBlockedReason = "no_target" | "empty_plan" | "locked";
+
+export interface RecommendationAssessment {
+  status: RecommendationStatus;
+  blockedReason: RecommendationBlockedReason | null;
+  adjustableEntryCount: number;
+  changedEntryCount: number;
+  macroAligned: boolean;
+  kcalWithinLimit: boolean;
+}
+
+/**
+ * 把求解结果转换为稳定的交互状态。该评估不进入 NutritionResult，避免历史计划因新增展示字段而失配。
+ */
+export function assessNutritionRecommendation(result: NutritionResult, meals: MealPlan[]): RecommendationAssessment {
+  const recommendationsByMeal = new Map(result.mealRecommendations.map((recommendation) => [recommendation.mealId, recommendation]));
+  let adjustableEntryCount = 0;
+  let changedEntryCount = 0;
+  let entryCount = 0;
+
+  for (const meal of meals) {
+    entryCount += meal.entries.length;
+    if (meal.locked) {
+      continue;
+    }
+    const recommendation = recommendationsByMeal.get(meal.id);
+    for (const entry of meal.entries) {
+      if (entry.locked) {
+        continue;
+      }
+      adjustableEntryCount += 1;
+      const recommendedGrams = recommendation?.recommendedEntries[entry.id] ?? entry.grams;
+      if (Math.abs(recommendedGrams - entry.grams) >= 0.05) {
+        changedEntryCount += 1;
+      }
+    }
+  }
+
+  const macroAligned = isDailyMacroBandAligned(result.recommendedTotals, result.dailyTarget);
+  const kcalWithinLimit = isDailyKcalWithinSurplusCap(result.recommendedTotals, result.dailyTarget);
+  const hasTarget = result.dailyTarget.kcal > 0;
+  const canResolveConstraints = adjustableEntryCount > 0;
+  const blockedReason: RecommendationBlockedReason | null = !hasTarget
+    ? "no_target"
+    : entryCount === 0
+      ? "empty_plan"
+      : (!macroAligned || !kcalWithinLimit) && !canResolveConstraints
+        ? "locked"
+        : null;
+  const status: RecommendationStatus = blockedReason ? "blocked" : macroAligned && kcalWithinLimit ? "ready" : "constrained";
+
+  return { status, blockedReason, adjustableEntryCount, changedEntryCount, macroAligned, kcalWithinLimit };
 }
 
 function buildMealSolverModels(

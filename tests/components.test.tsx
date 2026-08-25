@@ -163,6 +163,30 @@ describe("PlannerProfileView v2 固定目标 / 训练时间", () => {
     expect(fieldInput("减脂赤字 kcal/天")).toHaveValue(600);
   });
 
+  it("keeps daily macro targets, calorie deficit and exercise expenditure directly visible and editable", () => {
+    const controller = makeController({
+      exerciseKcal: 600,
+      calorieDeficit: 450,
+      proteinTargetG: 135,
+      fatTargetG: 60
+    });
+    render(<PlannerProfileView controller={controller} />);
+
+    expect(screen.getByRole("heading", { name: "每日目标与消耗" })).toBeInTheDocument();
+    expect(screen.queryByText("高级目标设置")).not.toBeInTheDocument();
+    expect(fieldInput("运动消耗 kcal")).toBeVisible();
+    expect(fieldInput("运动消耗 kcal")).toHaveValue(600);
+    expect(fieldInput("减脂赤字 kcal/天")).toBeVisible();
+    expect(fieldInput("减脂赤字 kcal/天")).toHaveValue(450);
+    expect(fieldInput("蛋白目标 g")).toBeVisible();
+    expect(fieldInput("蛋白目标 g")).toHaveValue(135);
+    expect(fieldInput("脂肪目标 g")).toBeVisible();
+    expect(fieldInput("脂肪目标 g")).toHaveValue(60);
+
+    fireEvent.change(fieldInput("蛋白目标 g"), { target: { value: "140" } });
+    expect(controller.updateProfile).toHaveBeenCalledWith("proteinTargetG", 140);
+  });
+
   it("shows the guidance banner and generic placeholders on an empty new-account profile", () => {
     render(<PlannerProfileView controller={makeController({ age: 0, heightCm: 0, weightKg: 0, bodyFatPct: null })} />);
     expect(screen.getByText(/先填写年龄、身高、体重/)).toBeInTheDocument();

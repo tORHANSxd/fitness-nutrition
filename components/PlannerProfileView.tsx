@@ -400,9 +400,8 @@ function ProfilePanel({ profile, updateProfile, timeZone, unitSystem, energyUnit
             <span className="mt-1 block text-[11px] text-muted">随体测更新；决定去脂体重与蛋白目标。</span>
           </label>
         </div>
-        <details className="border-t border-line pt-3">
-          <summary className="flex min-h-11 cursor-pointer items-center font-semibold text-ink">高级目标设置</summary>
-          <div className="mt-3 grid gap-3">
+        <div className="grid gap-3 border-t border-line pt-4">
+          <h3 className="text-sm font-semibold text-ink">每日目标与消耗</h3>
             <div className="grid grid-cols-2 gap-3">
           <label>
             <span className="metric-label mb-1 block">日常活动</span>
@@ -494,8 +493,7 @@ function ProfilePanel({ profile, updateProfile, timeZone, unitSystem, energyUnit
             <span className="mt-1 block text-[11px] text-muted">留空 = 体重×0.65；碳水吃掉剩余热量。</span>
           </label>
             </div>
-          </div>
-        </details>
+        </div>
         <label>
           <span className="metric-label mb-1 block">训练时间</span>
           <select

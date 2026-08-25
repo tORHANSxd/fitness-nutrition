@@ -3,19 +3,24 @@
 import type { User } from "@supabase/supabase-js";
 import { CalendarClock, RefreshCw, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { formatDateKey } from "@/lib/dateTime";
 import { round, trainingTimeLabels } from "@/lib/nutrition";
+import { displayEnergy, type AppLocale, type EnergyUnit } from "@/lib/preferences";
 import { deletePlan, loadPlans } from "@/lib/storage";
 import type { SavedPlan } from "@/lib/types";
 
 interface HistoryViewProps {
   user: User | null;
+  locale?: AppLocale;
+  energyUnit?: EnergyUnit;
 }
 
-export function HistoryView({ user }: HistoryViewProps) {
+export function HistoryView({ user, locale = "zh-CN", energyUnit = "kcal" }: HistoryViewProps) {
   const [plans, setPlans] = useState<SavedPlan[]>([]);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const energyLabel = energyUnit === "kj" ? "kJ" : "kcal";
 
   async function refresh() {
     if (!user) {
@@ -72,13 +77,13 @@ export function HistoryView({ user }: HistoryViewProps) {
         </button>
       </div>
       {message ? (
-        <p className={`m-4 rounded-md p-3 text-sm ${message.includes("失败") ? "bg-rose/10 text-rose" : "border border-line bg-surface/80 text-ink"}`}>
+        <p className={`m-4 rounded-md p-3 text-sm ${message.includes("失败") ? "bg-rose/10 text-rose" : "border border-line bg-surface/80 text-ink"}`} role={message.includes("失败") ? "alert" : "status"} aria-live="polite">
           {message}
         </p>
       ) : null}
       <div className="scrollbar-thin overflow-x-auto">
         <table className="w-full min-w-[860px] text-left text-sm">
-          <thead className="border-b border-line text-[11px] uppercase tracking-[0.08em] text-muted-soft">
+          <thead className="border-b border-line text-[11px] uppercase text-muted-soft">
             <tr>
               <th className="px-4 py-3">日期</th>
               <th className="px-4 py-3">训练时间</th>
@@ -104,19 +109,20 @@ export function HistoryView({ user }: HistoryViewProps) {
                   className="border-t border-line animate-fade-up transition-colors hover:bg-panel/40"
                   style={{ animationDelay: `${index * 40}ms` }}
                 >
-                  <td className="px-4 py-3 font-medium text-ink">{plan.planDate}</td>
+                  <td className="px-4 py-3 font-medium text-ink">{formatDateKey(plan.planDate, locale, { year: "numeric", month: "short", day: "numeric" })}</td>
                   <td className="px-4 py-3">{trainingTimeLabels[plan.profile.trainingTime]}</td>
-                  <td className="px-4 py-3">{round(plan.result.dailyTarget.kcal, 0)} kcal</td>
-                  <td className="px-4 py-3">{round(plan.result.actualTotals.kcal, 0)} kcal</td>
+                  <td className="px-4 py-3">{round(displayEnergy(plan.result.dailyTarget.kcal, energyUnit), 0)} {energyLabel}</td>
+                  <td className="px-4 py-3">{round(displayEnergy(plan.result.actualTotals.kcal, energyUnit), 0)} {energyLabel}</td>
                   <td className="px-4 py-3">{round(plan.result.actualTotals.carbs)} g</td>
                   <td className="px-4 py-3">{round(plan.result.actualTotals.protein)} g</td>
                   <td className="px-4 py-3">{round(plan.result.actualTotals.fat)} g</td>
                   <td className="px-4 py-3 text-right">
                     <button
-                      className="btn-danger h-8 px-2.5"
+                      className="btn-danger h-11 w-11 p-0"
                       type="button"
                       onClick={() => removePlan(plan)}
                       disabled={deletingId === plan.id}
+                      aria-label={`删除 ${plan.planDate} 的计划记录`}
                       title="删除该记录"
                     >
                       <Trash2 size={14} className={deletingId === plan.id ? "animate-pulse" : ""} />

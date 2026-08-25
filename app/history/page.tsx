@@ -1,6 +1,6 @@
-import { AppShell } from "@/components/AppShell";
+import { redirect } from "next/navigation";
 
 export default function HistoryPage() {
-  return <AppShell initialView="history" />;
+  redirect("/progress?tab=nutrition");
 }
 

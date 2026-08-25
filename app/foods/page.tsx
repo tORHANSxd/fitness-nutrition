@@ -1,6 +1,6 @@
-import { AppShell } from "@/components/AppShell";
+import { redirect } from "next/navigation";
 
 export default function FoodsPage() {
-  return <AppShell initialView="foods" />;
+  redirect("/resources?tab=foods");
 }
 

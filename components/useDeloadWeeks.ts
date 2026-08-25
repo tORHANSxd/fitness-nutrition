@@ -9,7 +9,7 @@ import { weekStartKey } from "@/lib/training";
  * 按周的减载标记（训练日历与安排日历共用）：
  * 登录后从 profiles.preferences.deloadWeeks 水合；toggle 乐观更新，保存失败自动回滚。
  */
-export function useDeloadWeeks(user: User | null) {
+export function useDeloadWeeks(user: User | null, weekStartsOn = 1) {
   const [deloadWeeks, setDeloadWeeks] = useState<string[]>([]);
   const weeksRef = useRef(deloadWeeks);
   useEffect(() => {
@@ -25,14 +25,14 @@ export function useDeloadWeeks(user: User | null) {
     loadDeloadWeeks(user)
       .then((weeks) => {
         if (mounted) {
-          setDeloadWeeks(weeks);
+          setDeloadWeeks(Array.from(new Set(weeks.map((week) => weekStartKey(week, weekStartsOn)))).sort());
         }
       })
       .catch(() => {});
     return () => {
       mounted = false;
     };
-  }, [user]);
+  }, [user, weekStartsOn]);
 
   /** 切换 dateKey 所在周的减载标记；返回是否保存成功。 */
   const toggleDeloadWeek = useCallback(
@@ -40,7 +40,7 @@ export function useDeloadWeeks(user: User | null) {
       if (!user) {
         return false;
       }
-      const week = weekStartKey(dateKey);
+      const week = weekStartKey(dateKey, weekStartsOn);
       const current = weeksRef.current;
       const next = current.includes(week) ? current.filter((item) => item !== week) : [...current, week].sort();
       setDeloadWeeks(next);
@@ -52,7 +52,7 @@ export function useDeloadWeeks(user: User | null) {
         return false;
       }
     },
-    [user]
+    [user, weekStartsOn]
   );
 
   return { deloadWeeks, toggleDeloadWeek };

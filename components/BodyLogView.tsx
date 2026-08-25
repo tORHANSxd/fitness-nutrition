@@ -13,11 +13,17 @@ import {
   type BodyLog,
   type BodyMetricKey
 } from "@/lib/bodyLogs";
+import { formatDateKey } from "@/lib/dateTime";
+import { useZonedToday } from "@/hooks/useZonedToday";
+import { canonicalLength, canonicalWeight, displayLength, displayWeight, type AppLocale, type UnitSystem } from "@/lib/preferences";
 import { StorageAuthError } from "@/lib/storage";
 import { round } from "@/lib/nutrition";
 
 interface BodyLogViewProps {
   user: User | null;
+  timeZone: string;
+  locale: AppLocale;
+  unitSystem: UnitSystem;
 }
 
 type RangeOption = { label: string; value: number | "all" };
@@ -31,27 +37,55 @@ const rangeOptions: RangeOption[] = [
 ];
 
 const chartGrid = { stroke: "rgba(0,0,0,0.07)", strokeDasharray: "3 3" };
-const chartAxis = { fill: "rgba(110,108,102,0.85)", fontSize: 12 };
+const chartAxis = { fill: "rgb(var(--color-muted))", fontSize: 12 };
 const chartTooltip = {
-  backgroundColor: "#FFFFFF",
-  borderColor: "rgba(0,0,0,0.10)",
-  borderRadius: 10,
+  backgroundColor: "rgb(var(--color-surface))",
+  borderColor: "rgb(var(--color-line))",
+  borderRadius: 6,
   boxShadow: "0 8px 24px -12px rgba(0,0,0,0.25)",
-  color: "#11130F"
+  color: "rgb(var(--color-ink))"
 };
 
-function todayKey() {
-  return new Date().toISOString().slice(0, 10);
+function displayMetricValue(key: BodyMetricKey, value: number, unitSystem: UnitSystem): number {
+  if (key === "weightKg") {
+    return displayWeight(value, unitSystem);
+  }
+  if (key.endsWith("Cm")) {
+    return displayLength(value, unitSystem);
+  }
+  return value;
 }
 
-export function BodyLogView({ user }: BodyLogViewProps) {
+function canonicalMetricValue(key: BodyMetricKey, value: number, unitSystem: UnitSystem): number {
+  if (key === "weightKg") {
+    return canonicalWeight(value, unitSystem);
+  }
+  if (key.endsWith("Cm")) {
+    return canonicalLength(value, unitSystem);
+  }
+  return value;
+}
+
+function metricUnit(key: BodyMetricKey, unitSystem: UnitSystem): string {
+  if (key === "bodyFatPct") {
+    return "%";
+  }
+  return unitSystem === "imperial" ? (key === "weightKg" ? "lb" : "in") : (key === "weightKg" ? "kg" : "cm");
+}
+
+export function BodyLogView({ user, timeZone, locale, unitSystem }: BodyLogViewProps) {
+  const today = useZonedToday(timeZone);
   const [logs, setLogs] = useState<BodyLog[]>([]);
-  const [form, setForm] = useState<BodyLog>({ logDate: todayKey() });
+  const [form, setForm] = useState<BodyLog>({ logDate: today });
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   // 折线图显示控制：日期范围 + 显示哪些系列（缩放由图内 Brush 拖选完成）。
   const [range, setRange] = useState<number | "all">(90);
-  const [visibleKeys, setVisibleKeys] = useState<Set<BodyMetricKey>>(new Set(["weightKg", "waistCm"]));
+  const [visibleKeys, setVisibleKeys] = useState<Set<BodyMetricKey>>(new Set(["weightKg"]));
+
+  useEffect(() => {
+    setForm((current) => current.logDate ? current : { ...current, logDate: today });
+  }, [today]);
 
   const refresh = useCallback(async () => {
     if (!user) {
@@ -78,34 +112,26 @@ export function BodyLogView({ user }: BodyLogViewProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.logDate, logs.length]);
 
-  const chartLogs = useMemo(() => filterLogsByRange(logs, range, todayKey()), [logs, range]);
+  const chartLogs = useMemo(() => filterLogsByRange(logs, range, today), [logs, range, today]);
   const chartData = useMemo(
     () =>
       chartLogs.map((log) => {
         const point: Record<string, number | string | null> = { date: log.logDate.slice(5) };
         for (const field of bodyMetricFields) {
-          point[field.key] = log[field.key] ?? null;
+          point[field.key] = log[field.key] == null ? null : round(displayMetricValue(field.key, log[field.key] as number, unitSystem), 1);
         }
         return point;
       }),
-    [chartLogs]
+    [chartLogs, unitSystem]
   );
   const activeFields = bodyMetricFields.filter((field) => visibleKeys.has(field.key));
 
   function toggleKey(key: BodyMetricKey) {
-    setVisibleKeys((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) {
-        next.delete(key);
-      } else {
-        next.add(key);
-      }
-      return next;
-    });
+    setVisibleKeys(new Set([key]));
   }
 
   function updateField(key: BodyMetricKey, value: string) {
-    setForm((current) => ({ ...current, [key]: value === "" ? null : Number(value) }));
+    setForm((current) => ({ ...current, [key]: value === "" ? null : canonicalMetricValue(key, Number(value), unitSystem) }));
   }
 
   async function submit() {
@@ -160,7 +186,7 @@ export function BodyLogView({ user }: BodyLogViewProps) {
               {bodyMetricFields.map((field) => (
                 <label key={field.key}>
                   <span className="metric-label mb-1 block">
-                    {field.label} {field.unit}
+                    {field.label} {metricUnit(field.key, unitSystem)}
                   </span>
                   <input
                     className="field w-full"
@@ -168,17 +194,17 @@ export function BodyLogView({ user }: BodyLogViewProps) {
                     inputMode="decimal"
                     step="0.1"
                     min="0"
-                    value={form[field.key] ?? ""}
+                    value={form[field.key] == null ? "" : round(displayMetricValue(field.key, form[field.key] as number, unitSystem), 1)}
                     onChange={(event) => updateField(field.key, event.target.value)}
                   />
                 </label>
               ))}
             </div>
-            <button className="btn-primary h-10" type="button" onClick={submit} disabled={busy}>
+            <button className="btn-primary h-11" type="button" onClick={submit} disabled={busy}>
               <Save size={16} />
               保存记录
             </button>
-            {message ? <p className="rounded-lg border border-accent/20 bg-accent/10 px-3 py-2 text-sm text-accent">{message}</p> : null}
+            {message ? <p className="rounded border border-accent/20 bg-accent/10 px-3 py-2 text-sm text-accent2" role="status" aria-live="polite">{message}</p> : null}
           </div>
         </section>
 
@@ -191,15 +217,15 @@ export function BodyLogView({ user }: BodyLogViewProps) {
               {recentLogs.map((log) => (
                 <li key={log.logDate} className="flex items-center justify-between gap-2 py-2">
                   <div className="min-w-0">
-                    <div className="font-medium text-ink">{log.logDate}</div>
+                    <div className="font-medium text-ink">{formatDateKey(log.logDate, locale, { year: "numeric", month: "short", day: "numeric" })}</div>
                     <div className="truncate text-xs text-muted">
                       {bodyMetricFields
                         .filter((field) => log[field.key] != null)
-                        .map((field) => `${field.label} ${round(log[field.key] as number, 1)}${field.unit}`)
+                        .map((field) => `${field.label} ${round(displayMetricValue(field.key, log[field.key] as number, unitSystem), 1)}${metricUnit(field.key, unitSystem)}`)
                         .join(" · ") || "（空）"}
                     </div>
                   </div>
-                  <button className="btn-danger h-8 shrink-0 px-2" type="button" onClick={() => removeLog(log.logDate)} disabled={busy} title="删除">
+                  <button className="btn-danger h-11 w-11 shrink-0 px-0" type="button" onClick={() => removeLog(log.logDate)} disabled={busy} aria-label={`删除 ${log.logDate} 的体测记录`}>
                     <Trash2 size={14} />
                   </button>
                 </li>
@@ -212,7 +238,7 @@ export function BodyLogView({ user }: BodyLogViewProps) {
       <section className="panel p-4">
         <div className="mb-3 flex flex-col gap-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="font-semibold tracking-tight text-ink">变化趋势</h3>
+            <h3 className="font-semibold text-ink">变化趋势</h3>
             <div className="flex flex-wrap gap-1.5">
               {rangeOptions.map((option) => (
                 <button
@@ -237,6 +263,7 @@ export function BodyLogView({ user }: BodyLogViewProps) {
                   key={field.key}
                   type="button"
                   onClick={() => toggleKey(field.key)}
+                  aria-pressed={active}
                   className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${
                     active ? "border-accent/50 bg-accent/10 text-ink" : "border-line text-muted hover:text-ink"
                   }`}
@@ -247,7 +274,7 @@ export function BodyLogView({ user }: BodyLogViewProps) {
               );
             })}
           </div>
-          <p className="text-[11px] text-muted">拖动图表下方的滑块可以缩放查看任意区间。</p>
+          <p className="text-[11px] text-muted">一次显示一个指标；拖动图表下方滑块查看任意区间。</p>
         </div>
         <div className="h-[420px]">
           {chartData.length === 0 ? (
@@ -267,7 +294,7 @@ export function BodyLogView({ user }: BodyLogViewProps) {
                     key={field.key}
                     type="monotone"
                     dataKey={field.key}
-                    name={`${field.label} ${field.unit}`}
+                    name={`${field.label} ${metricUnit(field.key, unitSystem)}`}
                     stroke={field.color}
                     strokeWidth={2}
                     dot={{ r: 2.5 }}
@@ -279,6 +306,15 @@ export function BodyLogView({ user }: BodyLogViewProps) {
             </ResponsiveContainer>
           )}
         </div>
+        {chartData.length > 0 ? (
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full min-w-[360px] border-collapse text-left text-xs">
+              <caption className="sr-only">当前趋势数据表</caption>
+              <thead><tr className="border-b border-line text-muted"><th className="px-2 py-2">日期</th>{activeFields.map((field) => <th key={field.key} className="px-2 py-2">{field.label} ({metricUnit(field.key, unitSystem)})</th>)}</tr></thead>
+              <tbody>{chartData.slice(-14).map((point) => <tr key={String(point.date)} className="border-b border-line/70"><td className="px-2 py-2 text-muted">{point.date}</td>{activeFields.map((field) => <td key={field.key} className="px-2 py-2 font-medium text-ink">{point[field.key] ?? "--"}</td>)}</tr>)}</tbody>
+            </table>
+          </div>
+        ) : null}
       </section>
     </section>
   );

@@ -1,5 +1,5 @@
-import { AppShell } from "@/components/AppShell";
+import { redirect } from "next/navigation";
 
 export default function MealsPage() {
-  return <AppShell initialView="meals" />;
+  redirect("/today?section=meals");
 }

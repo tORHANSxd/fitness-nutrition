@@ -8,12 +8,14 @@ import { deleteFood, saveFood } from "@/lib/storage";
 import { sortFoods } from "@/lib/foods";
 import { calculateFoodKcalPer100g, getFoodEnergyMismatch, round } from "@/lib/nutrition";
 import { csvToFoodForms, foodsToCsv, jsonToFoodForms } from "@/lib/dataIO";
+import { displayEnergy, type EnergyUnit } from "@/lib/preferences";
 
 interface FoodLibraryProps {
   foods: FoodItem[];
   user: User | null;
   onFoodsChanged: () => Promise<void>;
   onFoodsUpdated: (foods: FoodItem[]) => void;
+  energyUnit?: EnergyUnit;
 }
 
 type SourceFilter = "all" | "public" | "user";
@@ -31,8 +33,8 @@ const emptyForm: FoodFormState = {
 
 const severityBadge: Record<"ok" | "warn" | "error", { label: string; cls: string } | null> = {
   ok: null,
-  warn: { label: "能量偏差", cls: "border-amber/40 bg-amber-50 text-amber-800" },
-  error: { label: "能量不符", cls: "border-rose/40 bg-rose-50 text-rose" }
+  warn: { label: "能量偏差", cls: "border-amber/40 bg-amber/10 text-amber" },
+  error: { label: "能量不符", cls: "border-rose/40 bg-rose/10 text-rose" }
 };
 
 function downloadFile(filename: string, content: string, mime: string) {
@@ -45,10 +47,12 @@ function downloadFile(filename: string, content: string, mime: string) {
   URL.revokeObjectURL(url);
 }
 
-export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated }: FoodLibraryProps) {
+export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated, energyUnit = "kcal" }: FoodLibraryProps) {
   const [form, setForm] = useState<FoodFormState>(emptyForm);
   const [search, setSearch] = useState("");
   const [activeCategories, setActiveCategories] = useState<Set<FoodItem["category"]>>(new Set());
+  const energyLabel = energyUnit === "kj" ? "kJ" : "kcal";
+  const energyValue = (kcal: number) => round(displayEnergy(kcal, energyUnit), 1);
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -278,8 +282,8 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated }: Foo
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <span className="metric-label mb-1 block">热量 kcal/100g</span>
-              <div className="field flex w-full items-center bg-surface/60 text-muted">{round(formKcalPer100g, 1)}</div>
+              <span className="metric-label mb-1 block">热量 {energyLabel}/100g</span>
+              <div className="field flex w-full items-center bg-surface/60 text-muted">{energyValue(formKcalPer100g)}</div>
             </div>
             <label>
               <span className="metric-label mb-1 block">脂肪 g/100g</span>
@@ -333,13 +337,13 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated }: Foo
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <button className="btn-secondary h-9 px-2.5 text-xs" type="button" onClick={() => exportFoods("csv")}>
+              <button className="btn-secondary h-11 px-2.5 text-xs" type="button" onClick={() => exportFoods("csv")}>
                 <Download size={14} /> CSV
               </button>
-              <button className="btn-secondary h-9 px-2.5 text-xs" type="button" onClick={() => exportFoods("json")}>
+              <button className="btn-secondary h-11 px-2.5 text-xs" type="button" onClick={() => exportFoods("json")}>
                 <Download size={14} /> JSON
               </button>
-              <button className="btn-cta h-9 px-2.5 text-xs" type="button" onClick={() => fileInputRef.current?.click()} disabled={busy}>
+              <button className="btn-cta h-11 px-2.5 text-xs" type="button" onClick={() => fileInputRef.current?.click()} disabled={busy}>
                 <Upload size={14} /> 导入
               </button>
               <input
@@ -359,9 +363,9 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated }: Foo
           <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
             <div className="relative flex-1">
               <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-              <input className="field w-full pl-9" placeholder="按名称搜索…" value={search} onChange={(event) => setSearch(event.target.value)} />
+              <input className="field w-full pl-9" aria-label="搜索食物" placeholder="按名称搜索…" value={search} onChange={(event) => setSearch(event.target.value)} />
             </div>
-            <select className="field lg:w-32" value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value as SourceFilter)}>
+            <select className="field lg:w-32" aria-label="食物来源" value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value as SourceFilter)}>
               <option value="all">全部来源</option>
               <option value="public">公共</option>
               <option value="user">本人</option>
@@ -375,14 +379,14 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated }: Foo
                   key={category}
                   type="button"
                   onClick={() => toggleCategory(category)}
-                  className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${active ? "border-accent bg-accent/15 text-accent" : "border-line text-muted hover:text-ink"}`}
+                  className={`min-h-11 rounded-full border px-2.5 py-1 text-xs transition-colors ${active ? "border-accent bg-accent/15 text-accent" : "border-line text-muted hover:text-ink"}`}
                 >
                   {category}
                 </button>
               );
             })}
             {activeCategories.size > 0 ? (
-              <button type="button" onClick={() => setActiveCategories(new Set())} className="rounded-full px-2 py-1 text-xs text-muted hover:text-ink">
+              <button type="button" onClick={() => setActiveCategories(new Set())} className="min-h-11 rounded-full px-2 py-1 text-xs text-muted hover:text-ink">
                 清除
               </button>
             ) : null}
@@ -391,11 +395,11 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated }: Foo
         <div className="scrollbar-thin overflow-x-auto">
           {/* 单位并入表头、单元格全部 nowrap；操作列右侧吸附，窄屏横向滚动时也始终可见。 */}
           <table className="w-full min-w-[860px] text-left text-sm [&_td]:whitespace-nowrap [&_th]:whitespace-nowrap">
-            <thead className="border-b border-line text-[11px] uppercase tracking-[0.08em] text-muted-soft">
+            <thead className="border-b border-line text-[11px] uppercase text-muted-soft">
               <tr>
                 <th className="px-4 py-3">食物</th>
                 <th className="px-3 py-3">分类</th>
-                <th className="px-3 py-3">热量 kcal</th>
+                <th className="px-3 py-3">热量 {energyLabel}</th>
                 <th className="px-3 py-3">脂肪 g</th>
                 <th className="px-3 py-3">净碳水 g</th>
                 <th className="px-3 py-3">蛋白 g</th>
@@ -418,8 +422,8 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated }: Foo
                       </div>
                     </td>
                     <td className="px-3 py-3 text-muted">{food.category}</td>
-                    <td className="tabular-nums px-3 py-3" title={badge ? `按宏量应为 ${round(mismatch.macroKcalPer100g, 1)} kcal` : undefined}>
-                      {round(calculateFoodKcalPer100g(food), 1)}
+                    <td className="tabular-nums px-3 py-3" title={badge ? `按宏量应为 ${energyValue(mismatch.macroKcalPer100g)} ${energyLabel}` : undefined}>
+                      {energyValue(calculateFoodKcalPer100g(food))}
                     </td>
                     <td className="tabular-nums px-3 py-3">{food.fatPer100g}</td>
                     <td className="tabular-nums px-3 py-3">{food.carbsPer100g}</td>
@@ -431,21 +435,21 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated }: Foo
                         {badge ? <span className={`rounded-full border px-1.5 py-0.5 text-[10px] ${badge.cls}`}>{badge.label}</span> : null}
                       </div>
                     </td>
-                    <td className="sticky right-0 bg-surface px-3 py-3 shadow-[-10px_0_10px_-10px_rgba(31,30,29,0.10)] transition-colors group-hover:bg-[#F9F7F1]">
+                    <td className="sticky right-0 bg-surface px-3 py-3 shadow-[-10px_0_10px_-10px_rgba(31,30,29,0.10)] transition-colors group-hover:bg-panel">
                       <div className="flex justify-end gap-1.5">
-                        <button className="btn-secondary h-8 px-2" type="button" onClick={() => startEditFood(food)} disabled={busy} title="编辑">
+                        <button className="btn-secondary h-11 w-11 p-0" type="button" onClick={() => startEditFood(food)} disabled={busy} aria-label={`编辑${food.name}`} title="编辑">
                           <Pencil size={14} />
                         </button>
-                        <button className="btn-secondary h-8 px-2" type="button" onClick={() => copyFood(food)} disabled={busy} title="复制为自定义">
+                        <button className="btn-secondary h-11 w-11 p-0" type="button" onClick={() => copyFood(food)} disabled={busy} aria-label={`复制${food.name}为自定义食物`} title="复制为自定义">
                           <Copy size={14} />
                         </button>
                         {food.source === "user" ? (
-                          <button className="btn-danger h-8 px-2" type="button" onClick={() => removeFood(food.id)} disabled={busy} title="删除">
+                          <button className="btn-danger h-11 w-11 p-0" type="button" onClick={() => removeFood(food.id)} disabled={busy} aria-label={`删除${food.name}`} title="删除">
                             <Trash2 size={14} />
                           </button>
                         ) : null}
                         {food.source === "public" && food.isUserOverride ? (
-                          <button className="btn-secondary h-8 px-2" type="button" onClick={() => removeFood(food.id)} disabled={busy} title="重置为默认">
+                          <button className="btn-secondary h-11 w-11 p-0" type="button" onClick={() => removeFood(food.id)} disabled={busy} aria-label={`重置${food.name}为默认值`} title="重置为默认">
                             <RotateCcw size={14} />
                           </button>
                         ) : null}

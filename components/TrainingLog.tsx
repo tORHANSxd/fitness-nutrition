@@ -4,6 +4,9 @@ import type { User } from "@supabase/supabase-js";
 import { CalendarRange, ChevronLeft, ChevronRight, LogIn, Plus, Save, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useDeloadWeeks } from "@/components/useDeloadWeeks";
+import { useZonedToday } from "@/hooks/useZonedToday";
+import { addDays, addMonths, formatDateKey, monthGrid, monthKey, weekdayLabels } from "@/lib/dateTime";
+import { canonicalWeight, displayWeight, type AppLocale, type UnitSystem } from "@/lib/preferences";
 import {
   applyDeloadToTemplate,
   autoregulate,
@@ -16,7 +19,6 @@ import {
   rpeFromRir,
   sessionTonnage,
   splitLabels,
-  toDateKey,
   volumeLandmarks,
   volumeStatus,
   volumeStatusLabels,
@@ -31,6 +33,10 @@ interface TrainingLogProps {
   onRequireLogin: () => void;
   /** 从安排日历跳转：nonce 变化时把日历定位到该日并选中。 */
   dateRequest?: { date: string; nonce: number } | null;
+  timeZone: string;
+  locale: AppLocale;
+  weekStartsOn: number;
+  unitSystem: UnitSystem;
 }
 
 const experienceLabels: Record<ExperienceLevel, string> = {
@@ -64,35 +70,12 @@ function newSet(partial?: Partial<WorkoutSet>): WorkoutSet {
   };
 }
 
-/** 生成当月日历矩阵（周一为起点）。 */
-function monthMatrix(cursor: Date): Array<Array<{ date: Date; key: string; inMonth: boolean }>> {
-  const year = cursor.getFullYear();
-  const month = cursor.getMonth();
-  const first = new Date(year, month, 1);
-  const startOffset = (first.getDay() + 6) % 7; // 周一=0
-  const gridStart = new Date(year, month, 1 - startOffset);
-  const weeks: Array<Array<{ date: Date; key: string; inMonth: boolean }>> = [];
-  const cell = new Date(gridStart);
-  for (let w = 0; w < 6; w += 1) {
-    const row: Array<{ date: Date; key: string; inMonth: boolean }> = [];
-    for (let d = 0; d < 7; d += 1) {
-      row.push({ date: new Date(cell), key: toDateKey(cell), inMonth: cell.getMonth() === month });
-      cell.setDate(cell.getDate() + 1);
-    }
-    weeks.push(row);
-  }
-  return weeks;
-}
-
-export function TrainingLog({ user, onRequireLogin, dateRequest }: TrainingLogProps) {
-  const todayKey = toDateKey(new Date());
-  const [monthCursor, setMonthCursor] = useState(() => {
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), 1);
-  });
+export function TrainingLog({ user, onRequireLogin, dateRequest, timeZone, locale, weekStartsOn, unitSystem }: TrainingLogProps) {
+  const today = useZonedToday(timeZone);
+  const [monthCursor, setMonthCursor] = useState(() => monthKey(today));
   const [sessions, setSessions] = useState<WorkoutSession[]>([]);
-  const [selectedDate, setSelectedDate] = useState<string>(todayKey);
-  const [draft, setDraft] = useState<WorkoutSession>(() => blankSession(todayKey));
+  const [selectedDate, setSelectedDate] = useState<string>(today);
+  const [draft, setDraft] = useState<WorkoutSession>(() => blankSession(today));
   const [split, setSplit] = useState<TrainingSplit>("fiveDayV2");
   const [experience, setExperience] = useState<ExperienceLevel>("intermediate");
   const [loading, setLoading] = useState(false);
@@ -100,9 +83,7 @@ export function TrainingLog({ user, onRequireLogin, dateRequest }: TrainingLogPr
   const [error, setError] = useState<string | null>(null);
 
   const monthRange = useMemo(() => {
-    const from = new Date(monthCursor.getFullYear(), monthCursor.getMonth() - 1, 1);
-    const to = new Date(monthCursor.getFullYear(), monthCursor.getMonth() + 2, 0);
-    return { from: toDateKey(from), to: toDateKey(to) };
+    return { from: addMonths(monthCursor, -1), to: addDays(addMonths(monthCursor, 2), -1) };
   }, [monthCursor]);
 
   const refresh = useCallback(async () => {
@@ -133,8 +114,7 @@ export function TrainingLog({ user, onRequireLogin, dateRequest }: TrainingLogPr
     if (!dateRequest) {
       return;
     }
-    const target = new Date(`${dateRequest.date}T00:00:00`);
-    setMonthCursor(new Date(target.getFullYear(), target.getMonth(), 1));
+    setMonthCursor(monthKey(dateRequest.date));
     setSelectedDate(dateRequest.date);
   }, [dateRequest]);
 
@@ -152,11 +132,18 @@ export function TrainingLog({ user, onRequireLogin, dateRequest }: TrainingLogPr
     setDraft(existing ? structuredClone(existing) : blankSession(selectedDate));
   }, [selectedDate, sessionsByDate]);
 
-  const weeks = useMemo(() => monthMatrix(monthCursor), [monthCursor]);
+  const weeks = useMemo(() => {
+    const cursorMonth = monthCursor.slice(0, 7);
+    const keys = monthGrid(monthCursor, weekStartsOn);
+    return Array.from({ length: 6 }, (_, weekIndex) => keys.slice(weekIndex * 7, weekIndex * 7 + 7).map((key) => ({
+      key,
+      inMonth: key.startsWith(cursorMonth)
+    })));
+  }, [monthCursor, weekStartsOn]);
 
   // 减载周：按选中日期所在周判断；开着时模板整体换成减载版（组数减半、RIR 4–5）。
-  const { deloadWeeks, toggleDeloadWeek } = useDeloadWeeks(user);
-  const deloadActive = isDeloadWeek(selectedDate, deloadWeeks);
+  const { deloadWeeks, toggleDeloadWeek } = useDeloadWeeks(user, weekStartsOn);
+  const deloadActive = isDeloadWeek(selectedDate, deloadWeeks, weekStartsOn);
   const template = useMemo(
     () => (deloadActive ? applyDeloadToTemplate(programTemplates[split]) : programTemplates[split]),
     [split, deloadActive]
@@ -174,8 +161,8 @@ export function TrainingLog({ user, onRequireLogin, dateRequest }: TrainingLogPr
   }
 
   const weeklyCounts = useMemo(
-    () => weeklyWorkingSets(sessions, weekStartKey(selectedDate)),
-    [sessions, selectedDate]
+    () => weeklyWorkingSets(sessions, weekStartKey(selectedDate, weekStartsOn)),
+    [sessions, selectedDate, weekStartsOn]
   );
   const landmarks = volumeLandmarks[experience];
 
@@ -252,7 +239,7 @@ export function TrainingLog({ user, onRequireLogin, dateRequest }: TrainingLogPr
   if (!user) {
     return (
       <section className="panel flex min-h-[420px] flex-col items-center justify-center gap-4 px-6 text-center">
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-accent/[0.12] text-accent ring-1 ring-accent/25">
+        <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-accent/[0.12] text-accent ring-1 ring-accent/25">
           <CalendarRange size={26} />
         </div>
         <div>
@@ -269,8 +256,9 @@ export function TrainingLog({ user, onRequireLogin, dateRequest }: TrainingLogPr
     );
   }
 
-  const monthLabel = `${monthCursor.getFullYear()} 年 ${monthCursor.getMonth() + 1} 月`;
-  const weekdayHeads = ["一", "二", "三", "四", "五", "六", "日"];
+  const monthLabel = formatDateKey(monthCursor, locale, { year: "numeric", month: "long" });
+  const weekdayHeads = weekdayLabels(locale, weekStartsOn);
+  const weightUnit = unitSystem === "imperial" ? "lb" : "kg";
 
   return (
     <div className="flex flex-col gap-5">
@@ -286,7 +274,7 @@ export function TrainingLog({ user, onRequireLogin, dateRequest }: TrainingLogPr
               <button
                 key={key}
                 type="button"
-                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                className={`min-h-11 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
                   split === key ? "bg-accent text-accent-ink" : "border border-line bg-panel text-muted hover:text-ink"
                 }`}
                 onClick={() => setSplit(key)}
@@ -295,10 +283,10 @@ export function TrainingLog({ user, onRequireLogin, dateRequest }: TrainingLogPr
               </button>
             ))}
             <label
-              className={`flex cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+              className={`flex min-h-11 cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
                 deloadActive ? "border-accent/50 bg-accent/15 text-accent" : "border-line bg-panel text-muted hover:text-ink"
               }`}
-              title={`标记 ${weekStartKey(selectedDate)} 起的一周为减载周`}
+              title={`标记 ${weekStartKey(selectedDate, weekStartsOn)} 起的一周为减载周`}
             >
               <input type="checkbox" className="h-3.5 w-3.5 accent-[#155D4A]" checked={deloadActive} onChange={handleToggleDeload} />
               本周减载
@@ -307,7 +295,7 @@ export function TrainingLog({ user, onRequireLogin, dateRequest }: TrainingLogPr
         </div>
         {deloadActive ? (
           <p className="mb-3 rounded-lg border border-accent/30 bg-accent/[0.07] px-3 py-2 text-xs leading-relaxed text-ink">
-            减载周（{weekStartKey(selectedDate)} 起）：模板已切换为减载版——组数减半、每组留 4–5 次余力；重量用平时的
+            减载周（{weekStartKey(selectedDate, weekStartsOn)} 起）：模板已切换为减载版——组数减半、每组留 4–5 次余力；重量用平时的
             85–90%，停用全部拉长半程/递减组，间歇有氧换匀速或散步。练完应"意犹未尽"，不是"被掏空"。
           </p>
         ) : null}
@@ -318,7 +306,7 @@ export function TrainingLog({ user, onRequireLogin, dateRequest }: TrainingLogPr
               type="button"
               onClick={() => applyTemplateDay(index)}
               title="点击套用到当前选中日期"
-              className="min-w-[120px] shrink-0 rounded-xl border border-line bg-surface/40 px-3 py-2.5 text-left transition-colors hover:border-accent/30"
+              className="min-h-11 min-w-[120px] shrink-0 rounded-lg border border-line bg-surface/40 px-3 py-2.5 text-left transition-colors hover:border-accent/30"
             >
               <div className="text-[11px] font-semibold text-ink">{day.dayLabel}</div>
               <div className="mt-1 text-xs font-medium text-ink">{day.splitLabel}</div>
@@ -337,11 +325,11 @@ export function TrainingLog({ user, onRequireLogin, dateRequest }: TrainingLogPr
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-base font-semibold text-ink">训练日历</h2>
             <div className="flex items-center gap-2">
-              <button className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-line bg-surface text-ink transition-colors hover:border-accent/50 hover:bg-accent/15 hover:text-accent" type="button" onClick={() => setMonthCursor(new Date(monthCursor.getFullYear(), monthCursor.getMonth() - 1, 1))} aria-label="上个月">
+              <button className="icon-button shrink-0" type="button" onClick={() => setMonthCursor(addMonths(monthCursor, -1))} aria-label="上个月">
                 <ChevronLeft size={16} />
               </button>
               <span className="min-w-[110px] text-center text-sm font-medium text-ink">{monthLabel}</span>
-              <button className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-line bg-surface text-ink transition-colors hover:border-accent/50 hover:bg-accent/15 hover:text-accent" type="button" onClick={() => setMonthCursor(new Date(monthCursor.getFullYear(), monthCursor.getMonth() + 1, 1))} aria-label="下个月">
+              <button className="icon-button shrink-0" type="button" onClick={() => setMonthCursor(addMonths(monthCursor, 1))} aria-label="下个月">
                 <ChevronRight size={16} />
               </button>
             </div>
@@ -353,12 +341,13 @@ export function TrainingLog({ user, onRequireLogin, dateRequest }: TrainingLogPr
             {weeks.flat().map((cell) => {
               const session = sessionsByDate.get(cell.key);
               const isSelected = cell.key === selectedDate;
-              const isToday = cell.key === todayKey;
+              const isToday = cell.key === today;
               return (
                 <button
                   key={cell.key}
                   type="button"
                   onClick={() => setSelectedDate(cell.key)}
+                  aria-label={`${formatDateKey(cell.key, locale, { month: "short", day: "numeric" })}${session ? `，${session.splitLabel}` : "，无训练记录"}`}
                   className={`relative flex aspect-square flex-col items-center justify-center rounded-lg border text-sm transition-colors ${
                     isSelected
                       ? "border-accent bg-accent/15 text-ink"
@@ -367,7 +356,7 @@ export function TrainingLog({ user, onRequireLogin, dateRequest }: TrainingLogPr
                         : "border-transparent text-muted/55"
                   }`}
                 >
-                  <span className={isToday ? "font-bold text-accent" : ""}>{cell.date.getDate()}</span>
+                  <span className={isToday ? "font-bold text-accent2" : ""}>{Number(cell.key.slice(8, 10))}</span>
                   {session ? <span className="mt-1 h-1.5 w-1.5 rounded-full bg-accent" /> : null}
                 </button>
               );
@@ -381,7 +370,7 @@ export function TrainingLog({ user, onRequireLogin, dateRequest }: TrainingLogPr
           {/* 当周训练量地标 */}
           <div className="mt-4 border-t border-line pt-4">
             <div className="mb-2 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-ink">本周训练量（{weekStartKey(selectedDate)} 起）</h3>
+              <h3 className="text-sm font-semibold text-ink">本周训练量（{weekStartKey(selectedDate, weekStartsOn)} 起）</h3>
               <div className="flex gap-1">
                 {(Object.keys(experienceLabels) as ExperienceLevel[]).map((lvl) => (
                   <button
@@ -433,7 +422,7 @@ export function TrainingLog({ user, onRequireLogin, dateRequest }: TrainingLogPr
             </div>
             <div className="text-right">
               <div className="metric-label">容量</div>
-              <div className="text-lg font-semibold text-accent">{tonnage.toLocaleString()} kg</div>
+              <div className="text-lg font-semibold text-accent2">{Math.round(displayWeight(tonnage, unitSystem)).toLocaleString(locale)} {weightUnit}</div>
             </div>
           </div>
 
@@ -444,8 +433,8 @@ export function TrainingLog({ user, onRequireLogin, dateRequest }: TrainingLogPr
               <input className="field" value={draft.splitLabel} placeholder="如 腿 Legs" onChange={(e) => updateDraft({ splitLabel: e.target.value })} />
             </label>
             <label className="flex flex-col gap-1">
-              <span className="metric-label">体重 kg</span>
-              <input className="field" type="number" inputMode="decimal" value={draft.bodyweightKg ?? ""} placeholder="—" onChange={(e) => updateDraft({ bodyweightKg: e.target.value === "" ? null : Number(e.target.value) })} />
+              <span className="metric-label">体重 {weightUnit}</span>
+              <input className="field" type="number" inputMode="decimal" value={draft.bodyweightKg == null ? "" : Math.round(displayWeight(draft.bodyweightKg, unitSystem) * 10) / 10} placeholder="—" onChange={(e) => updateDraft({ bodyweightKg: e.target.value === "" ? null : canonicalWeight(Number(e.target.value), unitSystem) })} />
             </label>
             <label className="flex flex-col gap-1">
               <span className="metric-label">恢复 1–5</span>
@@ -462,30 +451,30 @@ export function TrainingLog({ user, onRequireLogin, dateRequest }: TrainingLogPr
           <div className="mt-4">
             <div className="mb-1.5 flex items-center justify-between">
               <h3 className="text-sm font-semibold text-ink">逐组记录（{workingSetCount} 有效组）</h3>
-              <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={addSet}>
+              <button className="btn-secondary h-11 px-2.5 text-xs" type="button" onClick={addSet}>
                 <Plus size={14} /> 加一组
               </button>
             </div>
             <div className="flex flex-col gap-1.5">
-              <div className="hidden grid-cols-[1.6fr_1fr_0.9fr_0.7fr_0.7fr_auto] gap-1.5 px-1 text-[10px] font-semibold uppercase tracking-wide text-muted sm:grid">
-                <span>动作</span><span>部位</span><span>重量kg</span><span>次数</span><span>RIR</span><span></span>
+              <div className="hidden grid-cols-[1.6fr_1fr_0.9fr_0.7fr_0.7fr_auto] gap-1.5 px-1 text-[10px] font-semibold uppercase text-muted sm:grid">
+                <span>动作</span><span>部位</span><span>重量{weightUnit}</span><span>次数</span><span>RIR</span><span></span>
               </div>
               {draft.sets.map((set) => (
                 <div key={set.id} className="grid grid-cols-2 gap-1.5 rounded-lg border border-line bg-panel/50 p-1.5 sm:grid-cols-[1.6fr_1fr_0.9fr_0.7fr_0.7fr_auto] sm:border-0 sm:bg-transparent sm:p-0">
-                  <input className="field h-9" value={set.exercise} placeholder="动作" onChange={(e) => updateSet(set.id, { exercise: e.target.value })} />
-                  <select className="field h-9" value={set.muscleGroup} onChange={(e) => updateSet(set.id, { muscleGroup: e.target.value as MuscleGroup })}>
+                  <input className="field h-11" value={set.exercise} placeholder="动作" aria-label="动作名称" onChange={(e) => updateSet(set.id, { exercise: e.target.value })} />
+                  <select className="field h-11" value={set.muscleGroup} aria-label="训练部位" onChange={(e) => updateSet(set.id, { muscleGroup: e.target.value as MuscleGroup })}>
                     {muscleGroupOrder.map((m) => (
                       <option key={m} value={m}>{muscleGroupLabels[m]}</option>
                     ))}
                   </select>
-                  <input className="field h-9" type="number" inputMode="decimal" value={set.weightKg || ""} placeholder="0" onChange={(e) => updateSet(set.id, { weightKg: Number(e.target.value) || 0 })} />
-                  <input className="field h-9" type="number" inputMode="numeric" value={set.reps || ""} placeholder="0" onChange={(e) => updateSet(set.id, { reps: Number(e.target.value) || 0 })} />
-                  <input className="field h-9" type="number" inputMode="numeric" value={set.rir ?? ""} placeholder="—" title="剩余次数 RIR" onChange={(e) => updateSet(set.id, { rir: e.target.value === "" ? null : Number(e.target.value) })} />
+                  <input className="field h-11" type="number" inputMode="decimal" value={set.weightKg ? Math.round(displayWeight(set.weightKg, unitSystem) * 100) / 100 : ""} placeholder="0" aria-label={`重量 ${weightUnit}`} onChange={(e) => updateSet(set.id, { weightKg: canonicalWeight(Number(e.target.value) || 0, unitSystem) })} />
+                  <input className="field h-11" type="number" inputMode="numeric" value={set.reps || ""} placeholder="0" aria-label="次数" onChange={(e) => updateSet(set.id, { reps: Number(e.target.value) || 0 })} />
+                  <input className="field h-11" type="number" inputMode="numeric" value={set.rir ?? ""} placeholder="—" aria-label="剩余次数 RIR" onChange={(e) => updateSet(set.id, { rir: e.target.value === "" ? null : Number(e.target.value) })} />
                   <div className="col-span-2 flex items-center justify-between gap-1 sm:col-span-1 sm:justify-end">
                     <label className="flex items-center gap-1 text-[11px] text-muted">
                       <input type="checkbox" checked={set.isWarmup} onChange={(e) => updateSet(set.id, { isWarmup: e.target.checked })} /> 热身
                     </label>
-                    <button className="btn-danger h-8 w-8 px-0" type="button" onClick={() => removeSet(set.id)} aria-label="删除该组">
+                    <button className="btn-danger h-11 w-11 px-0" type="button" onClick={() => removeSet(set.id)} aria-label="删除该组">
                       <Trash2 size={14} />
                     </button>
                   </div>
@@ -501,19 +490,19 @@ export function TrainingLog({ user, onRequireLogin, dateRequest }: TrainingLogPr
 
           {/* 计算结果 */}
           {e1rms.length > 0 ? (
-            <div className="mt-4 rounded-xl border border-line bg-panel/40 p-3">
+            <div className="mt-4 rounded-lg border border-line bg-panel/40 p-3">
               <h3 className="mb-2 text-sm font-semibold text-ink">本次估算 1RM（E1RM）</h3>
               <div className="flex flex-wrap gap-2">
                 {e1rms.map((item) => (
                   <span key={item.exercise} className="rounded-lg border border-accent/30 bg-accent/[0.08] px-2.5 py-1 text-xs text-ink">
-                    {item.exercise} <span className="font-semibold text-accent">{item.e1rm} kg</span>
+                    {item.exercise} <span className="font-semibold text-accent2">{Math.round(displayWeight(item.e1rm, unitSystem) * 10) / 10} {weightUnit}</span>
                   </span>
                 ))}
               </div>
             </div>
           ) : null}
 
-          {error ? <p className="mt-3 rounded-lg border border-rose/35 bg-rose/10 px-3 py-2 text-xs text-rose">{error}</p> : null}
+          {error ? <p className="mt-3 rounded border border-rose/35 bg-rose/10 px-3 py-2 text-xs text-rose" role="alert">{error}</p> : null}
 
           <div className="mt-4 flex gap-2">
             <button className="btn-primary flex-1" type="button" onClick={handleSave} disabled={saving}>
@@ -545,7 +534,7 @@ function ReferencePanel() {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div>
           <h3 className="mb-2 text-sm font-semibold text-ink">%1RM ↔ 次数 ↔ 目标（NSCA）</h3>
-          <div className="overflow-hidden rounded-xl border border-line">
+          <div className="overflow-hidden rounded-lg border border-line">
             <table className="w-full text-xs">
               <thead className="bg-panel text-muted">
                 <tr><th className="px-3 py-2 text-left">目标</th><th className="px-3 py-2">%1RM</th><th className="px-3 py-2">次数</th></tr>
@@ -574,7 +563,7 @@ function ReferencePanel() {
               <input className="field w-full min-w-0" type="number" value={actualRir} onChange={(e) => setActualRir(Number(e.target.value) || 0)} />
             </label>
           </div>
-          <div className="mt-3 rounded-xl border border-accent/30 bg-accent/[0.07] p-3 text-sm text-ink">
+          <div className="mt-3 rounded-lg border border-accent/30 bg-accent/[0.07] p-3 text-sm text-ink">
             <div className="text-xs text-muted">建议(RPE {rpeFromRir(actualRir)})</div>
             <div className="mt-0.5 font-medium">
               {suggestion.loadPct > 0 ? `▲ +${suggestion.loadPct}%` : suggestion.loadPct < 0 ? `▼ ${suggestion.loadPct}%` : "维持"} · {suggestion.note}

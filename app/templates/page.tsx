@@ -1,5 +1,5 @@
-import { AppShell } from "@/components/AppShell";
+import { redirect } from "next/navigation";
 
 export default function TemplatesPage() {
-  return <AppShell initialView="templates" />;
+  redirect("/resources?tab=templates");
 }

@@ -13,15 +13,17 @@ import {
   getDefaultMealEntrySettings,
   round
 } from "@/lib/nutrition";
+import { displayEnergy, type EnergyUnit } from "@/lib/preferences";
 import type { CustomFoodDraft, FoodItem, MacroRatio, MacroTotals, MealFoodEntry, MealPlan, MealTemplate, PlannerTemplates } from "@/lib/types";
 
 interface MealSplitViewProps {
   controller: PlannerController;
   foods: FoodItem[];
   templates: PlannerTemplates;
+  energyUnit?: EnergyUnit;
 }
 
-export function MealSplitView({ controller, foods, templates }: MealSplitViewProps) {
+export function MealSplitView({ controller, foods, templates, energyUnit = "kcal" }: MealSplitViewProps) {
   const {
     meals,
     activeMealId,
@@ -45,6 +47,8 @@ export function MealSplitView({ controller, foods, templates }: MealSplitViewPro
     applyDayTemplate
   } = controller;
   const [selectedDayTemplateId, setSelectedDayTemplateId] = useState("");
+  const energyLabel = energyUnit === "kj" ? "kJ" : "kcal";
+  const energyValue = (value: number) => round(displayEnergy(value, energyUnit), 0);
 
   const activeMeal = meals.find((meal) => meal.id === activeMealId) ?? meals[0];
   const recommendationAssessment = assessNutritionRecommendation(result, meals);
@@ -63,17 +67,17 @@ export function MealSplitView({ controller, foods, templates }: MealSplitViewPro
         <div className="flex flex-col gap-3 border-b border-line bg-surface/80 px-5 py-3.5">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <h2 className="text-base font-semibold tracking-tight text-ink">分餐计划</h2>
+              <h2 className="text-base font-semibold text-ink">分餐计划</h2>
               <p className="text-xs text-muted">每次只显示一餐；全天求解会动态调配各餐推荐比例。</p>
             </div>
             {/* 主操作：归一比例 / 应用推荐 / 保存计划（从指挥台顶栏移来） */}
             <div className="flex flex-wrap items-center gap-2">
-              <button className="btn-secondary h-9 px-3 text-xs" type="button" onClick={normalizeRatios}>
+              <button className="btn-secondary h-11 px-3 text-xs" type="button" onClick={normalizeRatios}>
                 <Check size={14} />
                 归一比例
               </button>
               <button
-                className="btn-cta h-9 px-3 text-xs"
+                className="btn-cta h-11 px-3 text-xs"
                 type="button"
                 onClick={applyRecommendations}
                 disabled={recommendationAssessment.changedEntryCount === 0}
@@ -82,24 +86,24 @@ export function MealSplitView({ controller, foods, templates }: MealSplitViewPro
                 <Wand2 size={14} />
                 应用推荐{recommendationAssessment.changedEntryCount > 0 ? ` · ${recommendationAssessment.changedEntryCount} 项` : ""}
               </button>
-              <button className="btn-primary h-9 px-3 text-xs" type="button" onClick={persistPlan} disabled={saving}>
+              <button className="btn-primary h-11 px-3 text-xs" type="button" onClick={persistPlan} disabled={saving}>
                 <Save size={14} />
                 {saving ? "保存中" : "保存计划"}
               </button>
             </div>
           </div>
           <div className="grid gap-2 sm:grid-cols-[minmax(0,200px)_minmax(0,200px)_auto_auto]">
-            <select className="field w-full" value={activeMeal?.id ?? ""} onChange={(event) => setActiveMealId(event.target.value)}>
+            <select aria-label="当前餐次" className="field w-full" value={activeMeal?.id ?? ""} onChange={(event) => setActiveMealId(event.target.value)}>
               {meals.map((meal) => {
                 const recommendation = recommendationsByMeal.get(meal.id);
                 return (
                   <option key={meal.id} value={meal.id}>
-                    {meal.name} · {round(recommendation?.target.kcal ?? 0, 0)} kcal
+                    {meal.name} · {energyValue(recommendation?.target.kcal ?? 0)} {energyLabel}
                   </option>
                 );
               })}
             </select>
-            <select className="field w-full" value={selectedDayTemplateId} onChange={(event) => setSelectedDayTemplateId(event.target.value)}>
+            <select aria-label="全天模板" className="field w-full" value={selectedDayTemplateId} onChange={(event) => setSelectedDayTemplateId(event.target.value)}>
               <option value="">选择全天模板</option>
               {templates.dayTemplates.map((template) => (
                 <option key={template.id} value={template.id}>
@@ -130,23 +134,22 @@ export function MealSplitView({ controller, foods, templates }: MealSplitViewPro
           <div>
             <p className={`text-sm font-semibold ${recommendationStatus.tone}`}>{recommendationStatus.label}</p>
             <p className="text-xs text-muted">
-              推荐后 {round(result.recommendedTotals.kcal, 0)} kcal · 碳 {round(result.recommendedTotals.carbs, 0)}g / 蛋 {round(result.recommendedTotals.protein, 0)}g / 脂 {round(result.recommendedTotals.fat, 0)}g
+              推荐后 {energyValue(result.recommendedTotals.kcal)} {energyLabel} · 碳 {round(result.recommendedTotals.carbs, 0)}g / 蛋 {round(result.recommendedTotals.protein, 0)}g / 脂 {round(result.recommendedTotals.fat, 0)}g
             </p>
           </div>
           <p className="text-xs tabular-nums text-muted">
-            目标 {round(result.dailyTarget.kcal, 0)} kcal · 可调整 {recommendationAssessment.adjustableEntryCount} 项
+            目标 {energyValue(result.dailyTarget.kcal)} {energyLabel} · 可调整 {recommendationAssessment.adjustableEntryCount} 项
           </p>
         </div>
 
-        {message ? <p className="mx-4 mt-3 rounded-lg border border-accent/20 bg-accent/10 px-4 py-2.5 text-sm font-medium text-accent">{message}</p> : null}
+        {message ? <p className="mx-4 mt-3 rounded-lg border border-accent/20 bg-accent/10 px-4 py-2.5 text-sm font-medium text-accent" role="status" aria-live="polite">{message}</p> : null}
         {result.conflicts.length > 0 ? (
-          <div className="mx-4 mt-3 space-y-1.5">
-            {result.conflicts.map((conflict) => (
-              <p key={conflict} className="rounded-lg border border-rose/20 bg-rose/10 px-4 py-2.5 text-sm text-rose">
-                {conflict}
-              </p>
-            ))}
-          </div>
+          <details className="mx-4 mt-3 rounded-lg border border-rose/20 bg-rose/10 px-4 py-2.5 text-sm text-rose" role="alert">
+            <summary className="cursor-pointer font-semibold">需要处理 {result.conflicts.length} 项约束冲突</summary>
+            <ul className="mt-2 space-y-1">
+              {result.conflicts.map((conflict) => <li key={conflict}>· {conflict}</li>)}
+            </ul>
+          </details>
         ) : null}
 
         {/* 餐次 pill-tab 组（claude.ai 设置页 tab 语言：oat 容器内白 pill 激活） */}
@@ -158,7 +161,7 @@ export function MealSplitView({ controller, foods, templates }: MealSplitViewPro
               return (
                 <button
                   key={meal.id}
-                  className={`flex shrink-0 items-baseline gap-2 whitespace-nowrap rounded-full px-4 py-2 text-sm transition-colors ${
+                  className={`flex min-h-11 shrink-0 items-baseline gap-2 whitespace-nowrap rounded-full px-4 py-2 text-sm transition-colors ${
                     active ? "bg-surface font-medium text-ink shadow-soft" : "text-muted hover:text-ink"
                   }`}
                   type="button"
@@ -182,6 +185,7 @@ export function MealSplitView({ controller, foods, templates }: MealSplitViewPro
               foodsById={foodsById}
               recommendation={recommendationsByMeal.get(activeMeal.id)}
               mealTemplates={templates.mealTemplates}
+              energyUnit={energyUnit}
               onAddFood={(foodId) => addFoodToMeal(activeMeal.id, foodId)}
               onAddCustomFood={(draft) => addCustomFoodToMeal(activeMeal.id, draft)}
               onApplyMealTemplate={(templateId) => applyMealTemplate(activeMeal.id, templateId)}
@@ -203,6 +207,7 @@ interface MealEditorProps {
   foodsById: Map<string, FoodItem>;
   recommendation: ReturnType<typeof buildNutritionResult>["mealRecommendations"][number] | undefined;
   mealTemplates: MealTemplate[];
+  energyUnit: EnergyUnit;
   onAddFood: (foodId: string) => void;
   onAddCustomFood: (draft: CustomFoodDraft) => void;
   onApplyMealTemplate: (templateId: string) => void;
@@ -218,6 +223,7 @@ function MealEditor({
   foodsById,
   recommendation,
   mealTemplates,
+  energyUnit,
   onAddFood,
   onAddCustomFood,
   onApplyMealTemplate,
@@ -229,6 +235,8 @@ function MealEditor({
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   // 选食面板目标："add" 表示新增食物，字符串表示替换该 entry 的食物，null 表示关闭。
   const [pickerTarget, setPickerTarget] = useState<"add" | string | null>(null);
+  const energyLabel = energyUnit === "kj" ? "kJ" : "kcal";
+  const energyValue = (value: number) => round(displayEnergy(value, energyUnit), 0);
 
   function changeEntryFood(entryId: string, foodId: string) {
     const nextFood = foodsById.get(foodId);
@@ -306,14 +314,14 @@ function MealEditor({
         <div>
           <h3 className="text-lg font-semibold text-ink">{meal.name}</h3>
           <p className="text-sm text-muted">
-            目标 {round(recommendation?.target.kcal ?? 0, 0)} kcal / 当前 {round(recommendation?.actual.kcal ?? 0, 0)} kcal
+            目标 {energyValue(recommendation?.target.kcal ?? 0)} {energyLabel} / 当前 {energyValue(recommendation?.actual.kcal ?? 0)} {energyLabel}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <label className="flex items-center gap-2 text-sm text-muted">
             <span>比例</span>
             <input
-              className="field h-9 w-24"
+              className="field h-11 w-24"
               type="number"
               inputMode="numeric"
               min="0"
@@ -329,7 +337,7 @@ function MealEditor({
             <span>%</span>
           </label>
           <button
-            className={meal.locked ? "btn-primary h-9" : "btn-secondary h-9"}
+            className={meal.locked ? "btn-primary h-11" : "btn-secondary h-11"}
             type="button"
             onClick={() => onUpdateMeal((current) => ({ ...current, locked: !current.locked }))}
           >
@@ -378,7 +386,7 @@ function MealEditor({
             target={recommendation.target}
             targetRatio={recommendation.targetRatio}
           />
-          <LockedMealGapNotice meal={meal} recommendation={recommendation} />
+          <LockedMealGapNotice meal={meal} recommendation={recommendation} energyUnit={energyUnit} />
         </>
       ) : null}
 
@@ -420,7 +428,7 @@ function MealEditor({
                     </div>
                     {!meal.locked && !entry.locked && Math.abs(recommendedGrams - entry.grams) >= 0.05 ? (
                       <button
-                        className="btn-secondary h-8 w-8 p-0"
+                        className="btn-secondary h-11 w-11 p-0"
                         type="button"
                         aria-label={`采用${food?.name ?? "此食物"}推荐克重`}
                         title="采用推荐克重并固定"
@@ -439,6 +447,7 @@ function MealEditor({
                       min="0"
                       step="1"
                       value={entry.minGrams ?? ""}
+                      aria-label={`${food?.name ?? "食物"}最小克重`}
                       onChange={(event) => updateEntryMinimum(entry.id, event.target.value)}
                     />
                   </label>
@@ -451,27 +460,28 @@ function MealEditor({
                       min="0"
                       step="1"
                       value={entry.maxGrams ?? ""}
+                      aria-label={`${food?.name ?? "食物"}最大克重`}
                       placeholder={defaultBounds ? `${defaultBounds.maxGrams}` : ""}
                       onChange={(event) => updateEntryMaximum(entry.id, event.target.value)}
                     />
                   </label>
                 </div>
                 <div className="mt-3 grid grid-cols-4 gap-2 text-center text-xs">
-                  <div className="rounded-md bg-panel p-2"><div className="metric-label">热量</div><div>{round(totals.kcal, 0)}</div></div>
+                  <div className="rounded-md bg-panel p-2"><div className="metric-label">热量 {energyLabel}</div><div>{energyValue(totals.kcal)}</div></div>
                   <div className="rounded-md bg-panel p-2"><div className="metric-label">碳水</div><div>{round(totals.carbs)}</div></div>
                   <div className="rounded-md bg-panel p-2"><div className="metric-label">蛋白</div><div>{round(totals.protein)}</div></div>
                   <div className="rounded-md bg-panel p-2"><div className="metric-label">脂肪</div><div>{round(totals.fat)}</div></div>
                 </div>
                 <div className="mt-3 flex gap-2">
                   <button
-                    className={entry.locked ? "btn-primary h-9 flex-1" : "btn-secondary h-9 flex-1"}
+                    className={entry.locked ? "btn-primary h-11 flex-1" : "btn-secondary h-11 flex-1"}
                     type="button"
                     onClick={() => onUpdateEntry(entry.id, (current) => ({ ...current, locked: !current.locked }))}
                   >
                     {entry.locked ? <Lock size={16} /> : <Unlock size={16} />}
                     {entry.locked ? "已锁定" : "未锁定"}
                   </button>
-                  <button className="btn-danger h-9 px-3" type="button" onClick={() => onRemoveEntry(entry.id)} title="删除食物">
+                  <button className="btn-danger h-11 px-3" type="button" onClick={() => onRemoveEntry(entry.id)} aria-label={`删除${food?.name ?? "食物"}`} title="删除食物">
                     <Trash2 size={16} />
                   </button>
                 </div>
@@ -483,14 +493,14 @@ function MealEditor({
 
       <div className="scrollbar-thin hidden overflow-x-auto md:block">
         <table className="w-full min-w-[1080px] text-left text-sm">
-          <thead className="border-b border-line text-[11px] uppercase tracking-[0.08em] text-muted-soft">
+          <thead className="border-b border-line text-[11px] uppercase text-muted-soft">
             <tr>
               <th className="px-4 py-2.5 font-semibold">食物</th>
               <th className="px-4 py-2.5 font-semibold">克重</th>
               <th className="px-4 py-2.5 font-semibold text-accent">推荐</th>
               <th className="px-4 py-2.5 font-semibold">最小</th>
               <th className="px-4 py-2.5 font-semibold">最大</th>
-              <th className="px-4 py-2.5 font-semibold">热量</th>
+              <th className="px-4 py-2.5 font-semibold">热量 {energyLabel}</th>
               <th className="px-4 py-2.5 font-semibold">碳水</th>
               <th className="px-4 py-2.5 font-semibold">蛋白</th>
               <th className="px-4 py-2.5 font-semibold">脂肪</th>
@@ -520,7 +530,7 @@ function MealEditor({
                     </td>
                     <td className="px-4 py-2.5">
                       <input
-                        className="field h-9 w-24"
+                        className="field h-11 w-24"
                         type="number"
                         inputMode="decimal"
                         min="0"
@@ -535,7 +545,7 @@ function MealEditor({
                         <span>{round(recommendedGrams, 1)} g</span>
                         {!meal.locked && !entry.locked && Math.abs(recommendedGrams - entry.grams) >= 0.05 ? (
                           <button
-                            className="btn-secondary h-8 w-8 p-0"
+                            className="btn-secondary h-11 w-11 p-0"
                             type="button"
                             aria-label={`桌面端采用${food?.name ?? "此食物"}推荐克重`}
                             title="采用推荐克重并固定"
@@ -548,42 +558,45 @@ function MealEditor({
                     </td>
                     <td className="px-4 py-2.5">
                       <input
-                        className="field h-9 w-24"
+                        className="field h-11 w-24"
                         type="number"
                         inputMode="decimal"
                         min="0"
                         step="1"
                         value={entry.minGrams ?? ""}
+                        aria-label={`桌面端${food?.name ?? "食物"}最小克重`}
                         onChange={(event) => updateEntryMinimum(entry.id, event.target.value)}
                       />
                     </td>
                     <td className="px-4 py-2.5">
                       <input
-                        className="field h-9 w-24"
+                        className="field h-11 w-24"
                         type="number"
                         inputMode="decimal"
                         min="0"
                         step="1"
                         value={entry.maxGrams ?? ""}
+                        aria-label={`桌面端${food?.name ?? "食物"}最大克重`}
                         placeholder={defaultBounds ? `${defaultBounds.maxGrams}` : ""}
                         onChange={(event) => updateEntryMaximum(entry.id, event.target.value)}
                       />
                     </td>
-                    <td className="tabular-nums px-4 py-2.5 text-muted">{round(totals.kcal, 0)}</td>
+                    <td className="tabular-nums px-4 py-2.5 text-muted">{energyValue(totals.kcal)}</td>
                     <td className="tabular-nums px-4 py-2.5 text-muted">{round(totals.carbs)}</td>
                     <td className="tabular-nums px-4 py-2.5 text-muted">{round(totals.protein)}</td>
                     <td className="tabular-nums px-4 py-2.5 text-muted">{round(totals.fat)}</td>
                     <td className="px-4 py-2.5">
                       <button
-                        className={entry.locked ? "btn-primary h-8 px-2" : "btn-secondary h-8 px-2"}
+                        className={entry.locked ? "btn-primary h-11 w-11 p-0" : "btn-secondary h-11 w-11 p-0"}
                         type="button"
+                        aria-label={`${entry.locked ? "解锁" : "锁定"}${food?.name ?? "食物"}`}
                         onClick={() => onUpdateEntry(entry.id, (current) => ({ ...current, locked: !current.locked }))}
                       >
                         {entry.locked ? <Lock size={14} /> : <Unlock size={14} />}
                       </button>
                     </td>
                     <td className="px-4 py-2.5">
-                      <button className="btn-danger h-8 px-2" type="button" onClick={() => onRemoveEntry(entry.id)}>
+                      <button className="btn-danger h-11 w-11 p-0" type="button" aria-label={`删除${food?.name ?? "食物"}`} onClick={() => onRemoveEntry(entry.id)}>
                         <Trash2 size={14} />
                       </button>
                     </td>
@@ -599,6 +612,7 @@ function MealEditor({
         open={pickerTarget !== null}
         foods={foods}
         currentFoodId={currentPickerFoodId}
+        energyUnit={energyUnit}
         title={pickerTarget === "add" ? `给「${meal.name}」添加食物` : "更换食物"}
         onSelect={handlePick}
         onSelectCustom={handlePickCustom}
@@ -610,7 +624,7 @@ function MealEditor({
 
 function FoodPickerButton({ food, className = "", onClick }: { food: FoodItem | undefined; className?: string; onClick: () => void }) {
   return (
-    <button type="button" className={`field flex h-9 items-center justify-between gap-1.5 text-left ${className}`} onClick={onClick}>
+    <button type="button" aria-label={food ? `更换${food.name}` : "选择食物"} className={`field flex h-11 items-center justify-between gap-1.5 text-left ${className}`} onClick={onClick}>
       <span className="min-w-0 truncate">
         {food ? (
           <>
@@ -628,10 +642,12 @@ function FoodPickerButton({ food, className = "", onClick }: { food: FoodItem | 
 
 function LockedMealGapNotice({
   meal,
-  recommendation
+  recommendation,
+  energyUnit
 }: {
   meal: MealPlan;
   recommendation: ReturnType<typeof buildNutritionResult>["mealRecommendations"][number];
+  energyUnit: EnergyUnit;
 }) {
   const hasLockedItems = meal.locked || meal.entries.some((entry) => entry.locked);
   if (!hasLockedItems || Math.abs(recommendation.deficit.kcal) <= 120) {
@@ -639,9 +655,10 @@ function LockedMealGapNotice({
   }
 
   const direction = recommendation.deficit.kcal > 0 ? "仍亏" : "仍盈";
+  const energyLabel = energyUnit === "kj" ? "kJ" : "kcal";
   return (
     <p className="border-b border-line bg-amber/10 px-4 py-2 text-sm font-medium text-amber ring-inset ring-amber/20">
-      锁定项使本餐推荐后{direction} {round(Math.abs(recommendation.deficit.kcal), 0)} kcal，系统会保留该差额，避免其他餐被过度拉高或压低。
+      锁定项使本餐推荐后{direction} {round(displayEnergy(Math.abs(recommendation.deficit.kcal), energyUnit), 0)} {energyLabel}，系统会保留该差额，避免其他餐被过度拉高或压低。
     </p>
   );
 }

@@ -1,5 +1,5 @@
-import { AppShell } from "@/components/AppShell";
+import { redirect } from "next/navigation";
 
 export default function BodyPage() {
-  return <AppShell initialView="body" />;
+  redirect("/progress?tab=body");
 }

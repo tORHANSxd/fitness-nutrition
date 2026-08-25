@@ -5,7 +5,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { loadBodyLogs, mergeLatestBodyMetrics, type BodyLog } from "@/lib/bodyLogs";
 import { createStarterMeals, defaultProfile, emptyProfile } from "@/lib/demoState";
 import { createCustomFood, customFoodsFromMeals } from "@/lib/foods";
+import { todayKey } from "@/lib/dateTime";
 import { buildNutritionResult, createDefaultMeals, getDefaultMealEntrySettings, normalizeMealRatios, round } from "@/lib/nutrition";
+import { displayEnergy, type EnergyUnit } from "@/lib/preferences";
 import { loadPlannerDraft, savePlan, savePlannerDraft } from "@/lib/storage";
 import {
   buildTemplateName,
@@ -32,6 +34,8 @@ export interface UsePlannerArgs {
   foods: FoodItem[];
   templates: PlannerTemplates;
   user: User | null;
+  timeZone: string;
+  energyUnit?: EnergyUnit;
   onTemplatesChanged: (templates: PlannerTemplates) => void;
   /** 从模板页「一键应用」传入的全天餐食；nonce 变化时载入到当前计划。 */
   applyRequest?: { meals: MealPlan[]; nonce: number } | null;
@@ -45,6 +49,7 @@ export interface PlannerController {
   activeMealId: string;
   message: string;
   saving: boolean;
+  draftState: "idle" | "saving" | "saved" | "error";
   result: NutritionResult;
   foodsById: Map<string, FoodItem>;
   recommendationsByMeal: Map<string, NutritionResult["mealRecommendations"][number]>;
@@ -70,13 +75,14 @@ export interface PlannerController {
  * 计划器控制器：把「当天计划」与「分餐计划」两页共享的 profile/meals 状态、云端草稿水合/自动保存、
  * 一键应用/去分餐载入、以及所有编辑动作集中到一个 hook。AppShell 只调用一次，两页读同一份状态。
  */
-export function usePlanner({ foods, templates, user, onTemplatesChanged, applyRequest, openDateRequest }: UsePlannerArgs): PlannerController {
+export function usePlanner({ foods, templates, user, timeZone, energyUnit = "kcal", onTemplatesChanged, applyRequest, openDateRequest }: UsePlannerArgs): PlannerController {
   const [profile, setProfile] = useState<UserProfile>(defaultProfile);
   const [meals, setMeals] = useState<MealPlan[]>(() => createStarterMeals(defaultProfile));
   const [activeMealId, setActiveMealId] = useState(meals[0]?.id ?? "");
   const [hydrated, setHydrated] = useState(false);
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
+  const [draftState, setDraftState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   // 食物解析链 = 食物库 + 当前计划里内嵌的临时自定义食物，求解器与展示共用同一份。
   const allFoods = useMemo(() => [...foods, ...customFoodsFromMeals(meals)], [foods, meals]);
   const foodsById = useMemo(() => new Map(allFoods.map((food) => [food.id, food])), [allFoods]);
@@ -103,8 +109,9 @@ export function usePlanner({ foods, templates, user, onTemplatesChanged, applyRe
       // 避免（例如登录态刷新触发的）重水合把分餐切回早餐。
       setActiveMealId((current) => (nextMeals.some((meal) => meal.id === current) ? current : nextMeals[0]?.id ?? ""));
       setHydrated(true);
+      setDraftState("idle");
     };
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayKey(timeZone);
 
     // 未登录（仅"未配置 Supabase"的演示模式会走到这）：demo 档案 + 示例餐。
     if (!user) {
@@ -127,7 +134,7 @@ export function usePlanner({ foods, templates, user, onTemplatesChanged, applyRe
     return () => {
       mounted = false;
     };
-  }, [user]);
+  }, [timeZone, user]);
 
   useEffect(() => {
     if (!hydrated || !user) {
@@ -135,7 +142,10 @@ export function usePlanner({ foods, templates, user, onTemplatesChanged, applyRe
     }
     // 自动保存到 Supabase 草稿：防抖 1.2s，避免每次微调克重都打库。
     const handle = window.setTimeout(() => {
-      savePlannerDraft(profile, meals, user).catch(() => {});
+      setDraftState("saving");
+      savePlannerDraft(profile, meals, user)
+        .then(() => setDraftState("saved"))
+        .catch(() => setDraftState("error"));
     }, 1200);
     return () => window.clearTimeout(handle);
   }, [hydrated, meals, profile, user]);
@@ -246,7 +256,7 @@ export function usePlanner({ foods, templates, user, onTemplatesChanged, applyRe
         }
       ]
     }));
-    setMessage(`已添加自定义食物：${food.name}（${round(food.kcalPer100g, 0)} kcal/100g）。`);
+    setMessage(`已添加自定义食物：${food.name}（${round(displayEnergy(food.kcalPer100g, energyUnit), 0)} ${energyUnit === "kj" ? "kJ" : "kcal"}/100g）。`);
   }
 
   function updateEntry(mealId: string, entryId: string, mapper: (entry: MealFoodEntry) => MealFoodEntry) {
@@ -387,6 +397,7 @@ export function usePlanner({ foods, templates, user, onTemplatesChanged, applyRe
     activeMealId,
     message,
     saving,
+    draftState,
     result,
     foodsById,
     recommendationsByMeal,

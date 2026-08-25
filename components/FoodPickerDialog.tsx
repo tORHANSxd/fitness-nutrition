@@ -1,15 +1,17 @@
 "use client";
 
 import { PenLine, Plus, Search, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { sortFoods } from "@/lib/foods";
 import { calculateFoodKcalPer100g, round } from "@/lib/nutrition";
+import { displayEnergy, type EnergyUnit } from "@/lib/preferences";
 import { foodCategories, type CustomFoodDraft, type FoodItem } from "@/lib/types";
 
 interface FoodPickerDialogProps {
   open: boolean;
   foods: FoodItem[];
+  energyUnit?: EnergyUnit;
   /** 当前已选食物（用于高亮）。 */
   currentFoodId?: string;
   title?: string;
@@ -25,11 +27,19 @@ const emptyCustomDraft: CustomFoodDraft = { name: "", category: "主食", carbsP
  * 选食面板：先选食物种类（顶部分类标签），再在下方列表点选食物。列表始终按拼音排序。
  * 用分类把食物库分门别类，辅助在计划里快速找到目标食物。
  */
-export function FoodPickerDialog({ open, foods, currentFoodId, title = "选择食物", onSelect, onSelectCustom, onClose }: FoodPickerDialogProps) {
+export function FoodPickerDialog({ open, foods, energyUnit = "kcal", currentFoodId, title = "选择食物", onSelect, onSelectCustom, onClose }: FoodPickerDialogProps) {
   const [activeCategory, setActiveCategory] = useState<FoodItem["category"] | "all">("all");
   const [search, setSearch] = useState("");
   const [customMode, setCustomMode] = useState(false);
   const [customDraft, setCustomDraft] = useState<CustomFoodDraft>(emptyCustomDraft);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+  const closeRef = useRef(onClose);
+  const energyLabel = energyUnit === "kj" ? "kJ" : "kcal";
+
+  useEffect(() => {
+    closeRef.current = onClose;
+  }, [onClose]);
 
   // 每次打开重置分类/搜索/自定义表单，回到「全部」，避免上次残留状态干扰。
   useEffect(() => {
@@ -41,19 +51,49 @@ export function FoodPickerDialog({ open, foods, currentFoodId, title = "选择�
     }
   }, [open]);
 
-  // Esc 关闭。
   useEffect(() => {
     if (!open) {
       return;
     }
+    previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const focusFrame = window.requestAnimationFrame(() => {
+      const initialFocus = dialogRef.current?.querySelector<HTMLElement>("[autofocus], input, select, button, [href], [tabindex]:not([tabindex='-1'])");
+      (initialFocus ?? dialogRef.current)?.focus();
+    });
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        onClose();
+        event.preventDefault();
+        closeRef.current();
+        return;
+      }
+      if (event.key !== "Tab" || !dialogRef.current) {
+        return;
+      }
+      const focusable = Array.from(
+        dialogRef.current.querySelectorAll<HTMLElement>("button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex='-1'])")
+      ).filter((element) => element.getClientRects().length > 0);
+      if (focusable.length === 0) {
+        event.preventDefault();
+        dialogRef.current.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
       }
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      document.removeEventListener("keydown", onKey);
+      previousFocusRef.current?.focus();
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) {
@@ -93,25 +133,27 @@ export function FoodPickerDialog({ open, foods, currentFoodId, title = "选择�
   return createPortal(
     <div
       className="dialog-overlay fixed inset-0 z-50 flex items-center justify-center bg-ink/60 p-4 backdrop-blur-sm"
+      ref={dialogRef}
+      tabIndex={-1}
       role="dialog"
       aria-modal="true"
       aria-label={title}
       onClick={onClose}
     >
       <div
-        className="dialog-panel flex max-h-[calc(100dvh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-2xl"
+        className="dialog-panel flex max-h-[calc(100dvh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-lg border border-line bg-surface shadow-2xl"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
           <h3 className="text-base font-semibold text-ink">{customMode ? "自定义食物" : title}</h3>
           <div className="flex items-center gap-2">
             {onSelectCustom ? (
-              <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => setCustomMode((value) => !value)}>
+              <button className="btn-secondary h-11 px-2.5 text-xs" type="button" onClick={() => setCustomMode((value) => !value)}>
                 <PenLine size={14} />
                 {customMode ? "返回食物列表" : "自定义食物"}
               </button>
             ) : null}
-            <button className="btn-secondary h-8 px-2" type="button" onClick={onClose} title="关闭">
+            <button className="btn-secondary h-11 w-11 p-0" type="button" onClick={onClose} aria-label="关闭食物选择" title="关闭">
               <X size={16} />
             </button>
           </div>
@@ -120,6 +162,7 @@ export function FoodPickerDialog({ open, foods, currentFoodId, title = "选择�
         {customMode && onSelectCustom ? (
           <CustomFoodForm
             draft={customDraft}
+            energyUnit={energyUnit}
             onChange={setCustomDraft}
             onSubmit={() => {
               onSelectCustom(customDraft);
@@ -133,6 +176,7 @@ export function FoodPickerDialog({ open, foods, currentFoodId, title = "选择�
             <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
             <input
               className="field w-full pl-9"
+              aria-label="搜索食物"
               placeholder="按名称搜索…"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
@@ -169,7 +213,7 @@ export function FoodPickerDialog({ open, foods, currentFoodId, title = "选择�
                         onSelect(food.id);
                         onClose();
                       }}
-                      className={`flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors ${
+                      className={`flex min-h-11 w-full items-center justify-between gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors ${
                         active ? "border-accent bg-accent/10 text-accent" : "border-transparent hover:border-line hover:bg-black/[0.03]"
                       }`}
                     >
@@ -179,7 +223,7 @@ export function FoodPickerDialog({ open, foods, currentFoodId, title = "选择�
                           {food.category} · {food.weightBasis === "raw" ? "生重" : "熟重"}
                         </span>
                       </span>
-                      <span className="shrink-0 tabular-nums text-xs text-muted">{round(calculateFoodKcalPer100g(food), 0)} kcal/100g</span>
+                      <span className="shrink-0 tabular-nums text-xs text-muted">{round(displayEnergy(calculateFoodKcalPer100g(food), energyUnit), 0)} {energyLabel}/100g</span>
                     </button>
                   </li>
                 );
@@ -197,14 +241,17 @@ export function FoodPickerDialog({ open, foods, currentFoodId, title = "选择�
 
 function CustomFoodForm({
   draft,
+  energyUnit,
   onChange,
   onSubmit
 }: {
   draft: CustomFoodDraft;
+  energyUnit: EnergyUnit;
   onChange: (draft: CustomFoodDraft) => void;
   onSubmit: () => void;
 }) {
   const kcal = draft.carbsPer100g * 4 + draft.proteinPer100g * 4 + draft.fatPer100g * 9;
+  const energyLabel = energyUnit === "kj" ? "kJ" : "kcal";
   const canSubmit = kcal > 0;
 
   function numberField(key: "carbsPer100g" | "proteinPer100g" | "fatPer100g", value: string) {
@@ -255,9 +302,9 @@ function CustomFoodForm({
       </div>
       <div className="flex items-center justify-between rounded-lg border border-line bg-surface/60 px-3 py-2.5">
         <span className="text-xs text-muted">热量（自动计算）</span>
-        <span className="tabular-nums text-sm font-semibold text-accent">{round(kcal, 1)} kcal/100g</span>
+        <span className="tabular-nums text-sm font-semibold text-accent">{round(displayEnergy(kcal, energyUnit), 1)} {energyLabel}/100g</span>
       </div>
-      <button className="btn-primary h-10" type="button" disabled={!canSubmit} onClick={onSubmit}>
+      <button className="btn-primary h-11" type="button" disabled={!canSubmit} onClick={onSubmit}>
         <Plus size={16} />
         添加此食物
       </button>
@@ -271,7 +318,7 @@ function CategoryChip({ label, active, onClick }: { label: string; active: boole
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
+      className={`min-h-11 rounded-full border px-2.5 py-1 text-xs transition-colors ${
         active ? "border-accent bg-accent/15 text-accent" : "border-line text-muted hover:text-ink"
       }`}
     >

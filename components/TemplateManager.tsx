@@ -2,6 +2,8 @@
 
 import { CalendarDays, Send, Trash2, Utensils } from "lucide-react";
 import { useMemo, type ReactNode } from "react";
+import { formatInstant } from "@/lib/dateTime";
+import type { AppLocale } from "@/lib/preferences";
 import { resolveTemplateFood } from "@/lib/templates";
 import type { DayTemplate, FoodItem, MealTemplate, PlannerTemplates, TemplateFoodRef } from "@/lib/types";
 
@@ -10,22 +12,32 @@ interface TemplateManagerProps {
   foods: FoodItem[];
   onTemplatesChanged: (templates: PlannerTemplates) => void;
   onApplyDayTemplate: (template: DayTemplate) => void;
+  locale: AppLocale;
+  timeZone: string;
 }
 
-export function TemplateManager({ templates, foods, onTemplatesChanged, onApplyDayTemplate }: TemplateManagerProps) {
+export function TemplateManager({ templates, foods, onTemplatesChanged, onApplyDayTemplate, locale, timeZone }: TemplateManagerProps) {
   const foodsById = useMemo(() => new Map(foods.map((food) => [food.id, food])), [foods]);
 
   function deleteDayTemplate(templateId: string) {
+    const template = templates.dayTemplates.find((item) => item.id === templateId);
+    if (!window.confirm(`确定删除全天模板「${template?.name ?? "未命名"}」？`)) {
+      return;
+    }
     onTemplatesChanged({ ...templates, dayTemplates: templates.dayTemplates.filter((template) => template.id !== templateId) });
   }
 
   function deleteMealTemplate(templateId: string) {
+    const template = templates.mealTemplates.find((item) => item.id === templateId);
+    if (!window.confirm(`确定删除单餐模板「${template?.name ?? "未命名"}」？`)) {
+      return;
+    }
     onTemplatesChanged({ ...templates, mealTemplates: templates.mealTemplates.filter((template) => template.id !== templateId) });
   }
 
   return (
     <section className="space-y-4">
-      <div className="panel overflow-hidden">
+      <div className="overflow-hidden">
         <div className="border-b border-line bg-surface/80 p-4">
           <h2 className="text-xl font-semibold text-ink">模板管理</h2>
           <p className="mt-1 text-sm text-muted">
@@ -35,20 +47,21 @@ export function TemplateManager({ templates, foods, onTemplatesChanged, onApplyD
         <div className="grid grid-cols-1 gap-4 p-4 xl:grid-cols-2">
           <TemplateSection count={templates.dayTemplates.length} emptyText="还没有全天模板，可在分餐计划中保存。" icon="day" title="全天模板">
             {templates.dayTemplates.map((template) => (
-              <div key={template.id} className="hover-lift min-w-0 rounded-xl border border-line bg-surface/70 p-3">
+              <div key={template.id} className="hover-lift min-w-0 rounded-lg border border-line bg-surface/70 p-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     {/* 模板名=食物清单，可能很长：最多两行、超出省略（悬停看全名），不许撑破布局 */}
                     <div className="line-clamp-2 break-all text-sm font-semibold leading-snug text-ink" title={template.name}>{template.name}</div>
                     <div className="mt-0.5 text-[11px] text-muted">
-                      {template.meals.length} 餐 · {new Date(template.createdAt).toLocaleDateString("zh-CN")}
+                      {template.meals.length} 餐 · {formatInstant(template.createdAt, locale, timeZone, { year: "numeric", month: "short", day: "numeric" })}
                     </div>
                   </div>
                   <div className="flex shrink-0 gap-1.5">
-                    <button className="btn-primary h-9 px-3" type="button" onClick={() => onApplyDayTemplate(template)} title="应用到分餐计划">
+                    <button className="btn-primary h-11 px-3" type="button" onClick={() => onApplyDayTemplate(template)}>
                       <Send size={14} />
+                      应用
                     </button>
-                    <button className="btn-danger h-9 px-3" type="button" onClick={() => deleteDayTemplate(template.id)} title="删除全天模板">
+                    <button className="btn-danger h-11 w-11 px-0" type="button" onClick={() => deleteDayTemplate(template.id)} aria-label={`删除全天模板 ${template.name}`}>
                       <Trash2 size={14} />
                     </button>
                   </div>
@@ -67,15 +80,15 @@ export function TemplateManager({ templates, foods, onTemplatesChanged, onApplyD
 
           <TemplateSection count={templates.mealTemplates.length} emptyText="还没有单餐模板，可在分餐计划中保存。" icon="meal" title="单餐模板">
             {templates.mealTemplates.map((template) => (
-              <div key={template.id} className="hover-lift min-w-0 rounded-xl border border-line bg-surface/70 p-3">
+              <div key={template.id} className="hover-lift min-w-0 rounded-lg border border-line bg-surface/70 p-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <div className="line-clamp-2 break-all text-sm font-semibold leading-snug text-ink" title={template.name}>{template.name}</div>
                     <div className="mt-0.5 text-[11px] text-muted">
-                      {template.foods.length} 种食物 · {new Date(template.createdAt).toLocaleDateString("zh-CN")}
+                      {template.foods.length} 种食物 · {formatInstant(template.createdAt, locale, timeZone, { year: "numeric", month: "short", day: "numeric" })}
                     </div>
                   </div>
-                  <button className="btn-danger h-9 shrink-0 px-3" type="button" onClick={() => deleteMealTemplate(template.id)} title="删除单餐模板">
+                  <button className="btn-danger h-11 w-11 shrink-0 px-0" type="button" onClick={() => deleteMealTemplate(template.id)} aria-label={`删除单餐模板 ${template.name}`}>
                     <Trash2 size={14} />
                   </button>
                 </div>
@@ -115,7 +128,7 @@ function TemplateSection({ children, count, emptyText, icon, title }: { children
   const Icon = icon === "day" ? CalendarDays : Utensils;
   return (
     // min-w-0：grid 子项默认 min-width:auto，超长模板名会把整条轨道撑爆、按钮被顶出卡外
-    <section className="min-w-0 rounded-md border border-line bg-panel p-3">
+    <section className="min-w-0 border-t border-line pt-3">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-accent/10 text-accent ring-1 ring-accent/20">

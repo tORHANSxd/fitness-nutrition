@@ -2,6 +2,7 @@
 
 import { Utensils } from "lucide-react";
 import { useState } from "react";
+import { useZonedToday } from "@/hooks/useZonedToday";
 import { MacroBars } from "@/components/MacroBars";
 import { MetricCard } from "@/components/MetricCard";
 import type { PlannerController } from "@/components/usePlanner";
@@ -22,15 +23,30 @@ import {
   round,
   trainingTimeLabels
 } from "@/lib/nutrition";
-import { toDateKey } from "@/lib/training";
+import { daysBetween, DEFAULT_TIME_ZONE } from "@/lib/dateTime";
+import {
+  canonicalEnergy,
+  canonicalLength,
+  canonicalWeight,
+  displayEnergy,
+  displayLength,
+  displayWeight,
+  type EnergyUnit,
+  type UnitSystem
+} from "@/lib/preferences";
 import type { MacroRatio, MacroTotals, UserProfile } from "@/lib/types";
 
 interface PlannerProfileViewProps {
   controller: PlannerController;
+  timeZone?: string;
+  unitSystem?: UnitSystem;
+  energyUnit?: EnergyUnit;
 }
 
-export function PlannerProfileView({ controller }: PlannerProfileViewProps) {
+export function PlannerProfileView({ controller, timeZone = DEFAULT_TIME_ZONE, unitSystem = "metric", energyUnit = "kcal" }: PlannerProfileViewProps) {
   const { profile, updateProfile, result, meals, message } = controller;
+  const energyLabel = energyUnit === "kj" ? "kJ" : "kcal";
+  const energyValue = (value: number) => displayEnergy(value, energyUnit);
 
   return (
     <section className="animate-fade-up space-y-5">
@@ -40,7 +56,7 @@ export function PlannerProfileView({ controller }: PlannerProfileViewProps) {
             {/* 指挥台顶栏：标题 + 训练时间/日期摘要（操作按钮已移到「分餐计划」页） */}
             <div className="border-b border-line bg-surface/80 px-5 py-3.5">
               <div className="flex flex-wrap items-center gap-2.5">
-                <h2 className="text-base font-semibold tracking-tight text-ink">今日指挥台</h2>
+                <h2 className="text-base font-semibold text-ink">今日指挥台</h2>
                 <span className="hidden text-xs text-muted sm:inline">
                   {trainingTimeLabels[profile.trainingTime]} · {profile.planDate}
                 </span>
@@ -50,51 +66,51 @@ export function PlannerProfileView({ controller }: PlannerProfileViewProps) {
             {/* stat 网格：6 指标。当日目标 = 维持热量(TDEE) − 减脂赤字；档案不完整时全部归 0 并由表单横幅引导。 */}
             <div className="grid grid-cols-2 border-l border-t border-line sm:grid-cols-3 xl:grid-cols-4">
               <div className="border-b border-r border-line px-4 py-3">
-                <MetricCard label="BMR" value={isProfileComplete(profile) ? result.bmr : 0} unit="kcal" />
+                <MetricCard label="BMR" value={energyValue(isProfileComplete(profile) ? result.bmr : 0)} unit={energyLabel} />
               </div>
               <div className="border-b border-r border-line px-4 py-3">
-                <MetricCard label="维持热量" value={isProfileComplete(profile) ? result.tdee : 0} unit="kcal" tone="accent" />
+                <MetricCard label="维持热量" value={energyValue(isProfileComplete(profile) ? result.tdee : 0)} unit={energyLabel} tone="accent" />
               </div>
               <div className="border-b border-r border-line px-4 py-3">
-                <MetricCard label="当日目标" value={result.dailyTarget.kcal} unit="kcal" tone="accent" />
+                <MetricCard label="当日目标" value={energyValue(result.dailyTarget.kcal)} unit={energyLabel} tone="accent" />
               </div>
               <div className="border-b border-r border-line px-4 py-3">
                 <MetricCard
                   label={result.plannedCalorieDelta < 0 ? "计划缺口" : result.plannedCalorieDelta > 0 ? "计划盈余" : "计划差额"}
-                  value={Math.abs(result.plannedCalorieDelta)}
-                  unit="kcal"
+                  value={energyValue(Math.abs(result.plannedCalorieDelta))}
+                  unit={energyLabel}
                   tone={result.plannedCalorieDelta < 0 ? "normal" : "accent"}
                 />
               </div>
               <div className="border-b border-r border-line px-4 py-3">
-                <MetricCard label="当前摄入" value={result.actualTotals.kcal} unit="kcal" />
+                <MetricCard label="当前摄入" value={energyValue(result.actualTotals.kcal)} unit={energyLabel} />
               </div>
               <div className="border-b border-r border-line px-4 py-3">
                 <MetricCard
                   label="剩余目标"
-                  value={result.remaining.kcal}
-                  unit="kcal"
+                  value={energyValue(result.remaining.kcal)}
+                  unit={energyLabel}
                   tone={result.remaining.kcal < 0 ? "danger" : "normal"}
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-1 gap-3 border-t border-line p-4">
-              <DailyBalancePanel actual={result.actualTotals} recommended={result.recommendedTotals} target={result.dailyTarget} />
+              <DailyBalancePanel actual={result.actualTotals} recommended={result.recommendedTotals} target={result.dailyTarget} energyUnit={energyUnit} />
               <MacroRatioPanel
                 actualRatio={result.actualRatio}
                 recommendedRatio={calculateMacroRatio(result.recommendedTotals)}
                 targetRatio={result.targetRatio}
               />
-              <PlanRulePanel ready={isProfileComplete(profile)} target={result.dailyTarget} />
+              <PlanRulePanel ready={isProfileComplete(profile)} target={result.dailyTarget} energyUnit={energyUnit} />
             </div>
 
             {message ? <p className="mx-4 mb-3 rounded-lg border border-accent/20 bg-accent/10 px-4 py-2.5 text-sm font-medium text-accent">{message}</p> : null}
           </section>
-          <MacroBars result={result} meals={meals} />
+          <MacroBars result={result} meals={meals} energyUnit={energyUnit} />
         </div>
         <div className="order-2 space-y-4 xl:order-1">
-          <ProfilePanel profile={profile} updateProfile={updateProfile} />
+          <ProfilePanel profile={profile} updateProfile={updateProfile} timeZone={timeZone} unitSystem={unitSystem} energyUnit={energyUnit} />
         </div>
       </div>
     </section>
@@ -105,17 +121,19 @@ interface DailyBalancePanelProps {
   target: MacroTotals;
   actual: MacroTotals;
   recommended: MacroTotals;
+  energyUnit: EnergyUnit;
 }
 
-function DailyBalancePanel({ actual, recommended, target }: DailyBalancePanelProps) {
+function DailyBalancePanel({ actual, recommended, target, energyUnit }: DailyBalancePanelProps) {
+  const energyLabel = energyUnit === "kj" ? "kJ" : "kcal";
   return (
-    <div className="rounded-xl border border-line bg-panel/60 p-3">
+    <div className="rounded-lg border border-line bg-panel/60 p-3">
       <div className="mb-2.5 flex items-baseline justify-between gap-2">
-        <h3 className="text-xs font-semibold tracking-tight text-ink">热量 &amp; 营养素盈亏</h3>
+        <h3 className="text-xs font-semibold text-ink">热量 &amp; 营养素盈亏</h3>
         <span className="text-[10px] text-muted">摄入 / 目标</span>
       </div>
       <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-        <DailyBalanceCard actual={actual.kcal} label="热量" recommended={recommended.kcal} target={target.kcal} unit="kcal" />
+        <DailyBalanceCard actual={displayEnergy(actual.kcal, energyUnit)} label="热量" recommended={displayEnergy(recommended.kcal, energyUnit)} target={displayEnergy(target.kcal, energyUnit)} unit={energyLabel} />
         <DailyBalanceCard actual={actual.carbs} label="碳水" recommended={recommended.carbs} target={target.carbs} unit="g" />
         <DailyBalanceCard actual={actual.protein} label="蛋白" recommended={recommended.protein} target={target.protein} unit="g" />
         <DailyBalanceCard actual={actual.fat} label="脂肪" recommended={recommended.fat} target={target.fat} unit="g" />
@@ -141,7 +159,7 @@ function DailyBalanceCard({
     <div className="rounded-lg border border-line bg-surface/50 p-2.5">
       <div className="flex items-center justify-between gap-2">
         <span className="metric-label">{label}</span>
-        <span className="text-[10px] text-muted">目标 {round(target, unit === "kcal" ? 0 : 1)}{unit}</span>
+        <span className="text-[10px] text-muted">目标 {round(target, unit === "kcal" || unit === "kJ" ? 0 : 1)}{unit}</span>
       </div>
       <DailyBalanceBar label="当前" target={target} unit={unit} value={actual} />
       <DailyBalanceBar label="推荐后" target={target} unit={unit} value={recommended} />
@@ -163,7 +181,7 @@ function DailyBalanceBar({
   const balance = target - value;
   const ratio = target > 0 ? (value / target) * 100 : 0;
   const isSurplus = balance < 0;
-  const roundedDigits = unit === "kcal" ? 0 : 1;
+  const roundedDigits = unit === "kcal" || unit === "kJ" ? 0 : 1;
   const balanceLabel = isSurplus ? "盈" : "亏";
   const barColor = isSurplus ? "bg-rose" : "bg-accent";
 
@@ -197,9 +215,9 @@ function MacroRatioPanel({ actualRatio, recommendedRatio, targetRatio }: MacroRa
   const recommendedStatus = `${recommendedCheck.cycleAligned ? "公式贴合" : "公式偏离"} / ${recommendedCheck.goalAligned ? "参考内" : "参考外"}`;
 
   return (
-    <div className="rounded-xl border border-line bg-panel/60 p-3">
+    <div className="rounded-lg border border-line bg-panel/60 p-3">
       <div className="mb-2.5">
-        <h3 className="text-xs font-semibold tracking-tight text-ink">宏量素比例</h3>
+        <h3 className="text-xs font-semibold text-ink">宏量素比例</h3>
         <p className="mt-0.5 text-[10px] leading-relaxed text-muted">
           当前 {actualStatus} · 推荐后 {recommendedStatus}
         </p>
@@ -245,7 +263,7 @@ function MacroRatioRow({
   );
 }
 
-function PlanRulePanel({ ready, target }: { ready: boolean; target: MacroTotals }) {
+function PlanRulePanel({ ready, target, energyUnit }: { ready: boolean; target: MacroTotals; energyUnit: EnergyUnit }) {
   // v2 五分化（2026-07-10 计划）：[日, 训练, 重点]。周六日完全休息；无碳循环、每天同一目标。
   const weeklyPlan: Array<[string, string, string, boolean]> = [
     ["周一", "推", "胸主+肩+三头", true],
@@ -258,12 +276,12 @@ function PlanRulePanel({ ready, target }: { ready: boolean; target: MacroTotals 
   ];
 
   return (
-    <div className="rounded-xl border border-line bg-panel/60 p-3">
+    <div className="rounded-lg border border-line bg-panel/60 p-3">
       <div className="mb-2.5">
-        <h3 className="text-xs font-semibold tracking-tight text-ink">v2 五分化训练周（2026-07-10）</h3>
+        <h3 className="text-xs font-semibold text-ink">v2 五分化训练周（2026-07-10）</h3>
         <p className="mt-0.5 text-[11px] text-muted">
           {ready
-            ? `每日目标 ${round(target.kcal, 0)} kcal · 蛋白 ${round(target.protein, 0)}g · 脂肪 ${round(target.fat, 0)}g · 碳水 ${round(target.carbs, 1)}g（按体重/体脂实时测算）；训练日休息日同一目标。`
+            ? `每日目标 ${round(displayEnergy(target.kcal, energyUnit), 0)} ${energyUnit === "kj" ? "kJ" : "kcal"} · 蛋白 ${round(target.protein, 0)}g · 脂肪 ${round(target.fat, 0)}g · 碳水 ${round(target.carbs, 1)}g（按体重/体脂实时测算）；训练日休息日同一目标。`
             : "每日目标 = TDEE − 赤字，蛋白/脂肪按体重与体脂公式——填好身体档案后自动测算；训练日休息日同一目标。"}
         </p>
       </div>
@@ -295,19 +313,36 @@ function PlanRulePanel({ ready, target }: { ready: boolean; target: MacroTotals 
 interface ProfilePanelProps {
   profile: UserProfile;
   updateProfile: <K extends keyof UserProfile>(key: K, value: UserProfile[K]) => void;
+  timeZone: string;
+  unitSystem: UnitSystem;
+  energyUnit: EnergyUnit;
 }
 
-function ProfilePanel({ profile, updateProfile }: ProfilePanelProps) {
+function ProfilePanel({ profile, updateProfile, timeZone, unitSystem, energyUnit }: ProfilePanelProps) {
+  const activityOptions = [1.1, 1.25, 1.4, 1.55];
+  const [customActivity, setCustomActivity] = useState(() => !activityOptions.includes(profile.activityFactor));
   function numberInput<K extends keyof UserProfile>(key: K, value: string) {
-    updateProfile(key, Number(value) as UserProfile[K]);
+    const number = Number(value);
+    const canonical = key === "heightCm"
+      ? canonicalLength(number, unitSystem)
+      : key === "weightKg"
+        ? canonicalWeight(number, unitSystem)
+        : key === "exerciseKcal" || key === "calorieDeficit"
+          ? canonicalEnergy(number, energyUnit)
+          : number;
+    updateProfile(key, canonical as UserProfile[K]);
   }
 
   // 目标覆盖字段：留空 = 用公式（placeholder 显示公式值），填数字 = 手动覆盖。
   function overrideInput(key: "targetKcal" | "proteinTargetG" | "fatTargetG", value: string) {
-    updateProfile(key, value === "" ? undefined : Number(value));
+    const number = value === "" ? undefined : Number(value);
+    updateProfile(key, key === "targetKcal" && number != null ? canonicalEnergy(number, energyUnit) : number);
   }
 
   const ready = isProfileComplete(profile);
+  const lengthUnit = unitSystem === "imperial" ? "in" : "cm";
+  const weightUnit = unitSystem === "imperial" ? "lb" : "kg";
+  const energyLabel = energyUnit === "kj" ? "kJ" : "kcal";
 
   return (
     <section className="panel p-4">
@@ -343,12 +378,12 @@ function ProfilePanel({ profile, updateProfile }: ProfilePanelProps) {
             <input className="field w-full" inputMode="numeric" type="number" value={profile.age || ""} placeholder="必填" onChange={(event) => numberInput("age", event.target.value)} />
           </label>
           <label>
-            <span className="metric-label mb-1 block">身高 cm</span>
-            <input className="field w-full" inputMode="decimal" type="number" value={profile.heightCm || ""} placeholder="必填" onChange={(event) => numberInput("heightCm", event.target.value)} />
+            <span className="metric-label mb-1 block">身高 {lengthUnit}</span>
+            <input className="field w-full" inputMode="decimal" type="number" value={profile.heightCm ? round(displayLength(profile.heightCm, unitSystem), 1) : ""} placeholder="必填" onChange={(event) => numberInput("heightCm", event.target.value)} />
           </label>
           <label>
-            <span className="metric-label mb-1 block">体重 kg</span>
-            <input className="field w-full" inputMode="decimal" type="number" value={profile.weightKg || ""} placeholder="随体测更新" onChange={(event) => numberInput("weightKg", event.target.value)} />
+            <span className="metric-label mb-1 block">体重 {weightUnit}</span>
+            <input className="field w-full" inputMode="decimal" type="number" value={profile.weightKg ? round(displayWeight(profile.weightKg, unitSystem), 1) : ""} placeholder="随体测更新" onChange={(event) => numberInput("weightKg", event.target.value)} />
             <span className="mt-1 block text-[11px] text-muted">随最新体测记录自动更新。</span>
           </label>
           <label>
@@ -365,44 +400,65 @@ function ProfilePanel({ profile, updateProfile }: ProfilePanelProps) {
             <span className="mt-1 block text-[11px] text-muted">随体测更新；决定去脂体重与蛋白目标。</span>
           </label>
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <details className="border-t border-line pt-3">
+          <summary className="flex min-h-11 cursor-pointer items-center font-semibold text-ink">高级目标设置</summary>
+          <div className="mt-3 grid gap-3">
+            <div className="grid grid-cols-2 gap-3">
           <label>
-            <span className="metric-label mb-1 block">日常活动系数</span>
-            <input className="field w-full" inputMode="decimal" step="0.01" type="number" value={profile.activityFactor} onChange={(event) => numberInput("activityFactor", event.target.value)} />
+            <span className="metric-label mb-1 block">日常活动</span>
+            <select
+              className="field w-full"
+              value={customActivity ? "custom" : String(profile.activityFactor)}
+              onChange={(event) => {
+                if (event.target.value === "custom") {
+                  setCustomActivity(true);
+                } else {
+                  setCustomActivity(false);
+                  numberInput("activityFactor", event.target.value);
+                }
+              }}
+            >
+              <option value="1.1">久坐办公</option>
+              <option value="1.25">轻度活动</option>
+              <option value="1.4">中等活动</option>
+              <option value="1.55">高活动量</option>
+              <option value="custom">自定义</option>
+            </select>
+            {customActivity ? <input className="field mt-2 w-full" aria-label="自定义日常活动系数" inputMode="decimal" step="0.01" min="1" max="2.2" type="number" value={profile.activityFactor} onChange={(event) => numberInput("activityFactor", event.target.value)} /> : null}
           </label>
           <label>
-            <span className="metric-label mb-1 block">运动消耗 kcal</span>
-            <input className="field w-full" inputMode="numeric" type="number" value={profile.exerciseKcal || ""} placeholder="0" onChange={(event) => numberInput("exerciseKcal", event.target.value)} />
+            <span className="metric-label mb-1 block">运动消耗 {energyLabel}</span>
+            <input className="field w-full" inputMode="numeric" type="number" value={profile.exerciseKcal ? round(displayEnergy(profile.exerciseKcal, energyUnit), 0) : ""} placeholder="0" onChange={(event) => numberInput("exerciseKcal", event.target.value)} />
           </label>
           <label className="col-span-2">
-            <span className="metric-label mb-1 block">减脂赤字 kcal/天</span>
+            <span className="metric-label mb-1 block">减脂赤字 {energyLabel}/天</span>
             <input
               className="field w-full"
-              min="200"
-              max="1000"
-              step="50"
+              min={round(displayEnergy(200, energyUnit), 0)}
+              max={round(displayEnergy(1000, energyUnit), 0)}
+              step={round(displayEnergy(50, energyUnit), 0)}
               type="number"
               inputMode="numeric"
-              value={getCalorieDeficit(profile)}
+              value={round(displayEnergy(getCalorieDeficit(profile), energyUnit), 0)}
               onChange={(event) => numberInput("calorieDeficit", event.target.value)}
             />
             <span className="mt-1 block text-[11px] text-muted">目标热量 = TDEE − 赤字；每 2 周按体重周均降幅校准 ±100~150。</span>
           </label>
-        </div>
-        <CarbTaperPanel profile={profile} updateProfile={updateProfile} />
-        {/* v2 目标：默认公式自动（placeholder 显示当前公式值），填数字即手动覆盖，清空回到自动。 */}
-        <div className="grid grid-cols-2 gap-3">
+            </div>
+            <CarbTaperPanel profile={profile} updateProfile={updateProfile} timeZone={timeZone} unitSystem={unitSystem} energyUnit={energyUnit} />
+            {/* v2 目标：默认公式自动（placeholder 显示当前公式值），填数字即手动覆盖，清空回到自动。 */}
+            <div className="grid grid-cols-2 gap-3">
           <label>
-            <span className="metric-label mb-1 block">每日目标 kcal</span>
+            <span className="metric-label mb-1 block">每日目标 {energyLabel}</span>
             <input
               className="field w-full"
-              min="1200"
-              max="6000"
-              step="50"
+              min={round(displayEnergy(1200, energyUnit), 0)}
+              max={round(displayEnergy(6000, energyUnit), 0)}
+              step={round(displayEnergy(50, energyUnit), 0)}
               type="number"
               inputMode="numeric"
-              value={profile.targetKcal ?? ""}
-              placeholder={ready ? `自动 ${autoTargetKcal(profile)}` : "自动"}
+              value={profile.targetKcal == null ? "" : round(displayEnergy(profile.targetKcal, energyUnit), 0)}
+              placeholder={ready ? `自动 ${round(displayEnergy(autoTargetKcal(profile), energyUnit), 0)}` : "自动"}
               onChange={(event) => overrideInput("targetKcal", event.target.value)}
             />
             <span className="mt-1 block text-[11px] text-muted">留空 = TDEE − 赤字自动。</span>
@@ -437,7 +493,9 @@ function ProfilePanel({ profile, updateProfile }: ProfilePanelProps) {
             />
             <span className="mt-1 block text-[11px] text-muted">留空 = 体重×0.65；碳水吃掉剩余热量。</span>
           </label>
-        </div>
+            </div>
+          </div>
+        </details>
         <label>
           <span className="metric-label mb-1 block">训练时间</span>
           <select
@@ -462,23 +520,15 @@ function ProfilePanel({ profile, updateProfile }: ProfilePanelProps) {
  * 降一步 = 每日目标 −N kcal（全部落在碳水，蛋白/脂肪守底不动）；回升一步 = 加回；可撤销。
  * 系统只显示文档触发条件作参考，绝不自动执行任何一步。
  */
-function CarbTaperPanel({ profile, updateProfile }: ProfilePanelProps) {
-  const [stepInput, setStepInput] = useState("100");
-  // 惰性初始化固定"今天"，保持渲染纯净（react-hooks/purity）；跨午夜由下次进入页面刷新。
-  const [todayKey] = useState(() => toDateKey(new Date()));
+function CarbTaperPanel({ profile, updateProfile, timeZone, energyUnit, unitSystem }: ProfilePanelProps) {
+  const [stepInput, setStepInput] = useState(() => String(round(displayEnergy(100, energyUnit), 0)));
+  const today = useZonedToday(timeZone);
   const steps = profile.carbTaperSteps ?? [];
   const stage = steps.length;
   const taperKcal = getCarbTaperKcal(profile);
   const lastStep = stage > 0 ? steps[stage - 1] : null;
-  const daysSinceLast = lastStep
-    ? Math.max(
-        Math.floor(
-          (new Date(`${todayKey}T00:00:00`).getTime() - new Date(`${lastStep.date}T00:00:00`).getTime()) / 86_400_000
-        ),
-        0
-      )
-    : null;
-  const stepKcal = Number(stepInput);
+  const daysSinceLast = lastStep ? Math.max(daysBetween(lastStep.date, today), 0) : null;
+  const stepKcal = canonicalEnergy(Number(stepInput), energyUnit);
   const stepValid = Number.isFinite(stepKcal) && stepKcal >= 50 && stepKcal <= 300;
   const ready = isProfileComplete(profile);
   // 首周目标 = 渐降基线（残差法：蛋白/脂肪按身体数据锚定后，剩余热量 ÷4），随体测实时重算；
@@ -486,13 +536,16 @@ function CarbTaperPanel({ profile, updateProfile }: ProfilePanelProps) {
   const baselineCarbs = calculateBaselineDailyTarget(profile).carbs;
   const taperedCarbs = calculateDailyTarget(profile).carbs;
   const taperedCarbsPerKg = carbsPerKgBodyweight(profile, taperedCarbs);
-  const signed = (value: number) => `${value > 0 ? "+" : ""}${round(value, 1)}`;
+  const energyLabel = energyUnit === "kj" ? "kJ" : "kcal";
+  const weightLabel = unitSystem === "imperial" ? "lb" : "kg";
+  const weightValue = (value: number) => round(displayWeight(value, unitSystem), 1);
+  const signedEnergy = (value: number) => `${value > 0 ? "+" : ""}${round(displayEnergy(value, energyUnit), 0)}`;
 
   function pushStep(direction: 1 | -1) {
     if (!stepValid) {
       return;
     }
-    updateProfile("carbTaperSteps", [...steps, { date: toDateKey(new Date()), deltaKcal: direction * stepKcal }]);
+    updateProfile("carbTaperSteps", [...steps, { date: today, deltaKcal: direction * stepKcal }]);
   }
 
   function undoStep() {
@@ -505,11 +558,11 @@ function CarbTaperPanel({ profile, updateProfile }: ProfilePanelProps) {
   return (
     <div className="rounded-lg border border-line bg-panel/60 p-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="text-xs font-semibold tracking-tight text-ink">碳水渐降</h3>
+        <h3 className="text-xs font-semibold text-ink">碳水渐降</h3>
         <span className="text-[11px] font-medium tabular-nums text-ink">
           {stage === 0
             ? "第 0 步 · 未开始（完整碳水基线）"
-            : `第 ${stage} 步 · 累计 ${signed(taperKcal)} kcal ≈ 碳水 ${signed(taperKcal / 4)}g`}
+            : `第 ${stage} 步 · 累计 ${signedEnergy(taperKcal)} ${energyLabel} ≈ 碳水 ${taperKcal > 0 ? "+" : ""}${round(taperKcal / 4, 1)}g`}
         </span>
       </div>
       <p className="mt-1 text-[11px] font-medium tabular-nums text-ink">
@@ -520,11 +573,11 @@ function CarbTaperPanel({ profile, updateProfile }: ProfilePanelProps) {
             : `本周碳水目标 ${round(taperedCarbs, 1)}g · ${round(taperedCarbsPerKg, 1)} g/kg · 基线 ${round(baselineCarbs, 1)}g`}
       </p>
       <p className="mt-1 text-[11px] leading-relaxed text-muted">
-        文档第五节（每 2 周评估）：周均降幅 &lt;0.3kg 连续 2 周 → 降一步 −100~150；0.5–0.7kg → 不动；&gt;0.9kg 且训练重量下滑 → 回升一步。蛋白/脂肪守底，增减全部落在碳水。<span className="font-medium">只随你手动操作，系统不会自动降。</span>
+        文档第五节（每 2 周评估）：周均降幅 &lt;{weightValue(0.3)}{weightLabel} 连续 2 周 → 降一步；{weightValue(0.5)}–{weightValue(0.7)}{weightLabel} → 不动；&gt;{weightValue(0.9)}{weightLabel} 且训练重量下滑 → 回升一步。蛋白/脂肪守底，增减全部落在碳水。<span className="font-medium">只随你手动操作，系统不会自动降。</span>
       </p>
       {lastStep ? (
         <p className="mt-1 text-[11px] text-muted">
-          上次调整 {lastStep.date}（{daysSinceLast} 天前，{signed(lastStep.deltaKcal)} kcal）
+          上次调整 {lastStep.date}（{daysSinceLast} 天前，{signedEnergy(lastStep.deltaKcal)} {energyLabel}）
           {daysSinceLast != null && daysSinceLast < 14 ? " · 未满 2 周，文档建议先观察满 2 周再动。" : " · 已满 2 周，可按周均降幅评估下一步。"}
         </p>
       ) : null}
@@ -532,26 +585,26 @@ function CarbTaperPanel({ profile, updateProfile }: ProfilePanelProps) {
         <label className="flex items-center gap-1.5">
           <span className="metric-label">本步幅度</span>
           <input
-            className="field h-8 w-20 text-xs"
+            className="field h-11 w-24 text-xs"
             inputMode="numeric"
             type="number"
-            min="50"
-            max="300"
-            step="25"
+            min={round(displayEnergy(50, energyUnit), 0)}
+            max={round(displayEnergy(300, energyUnit), 0)}
+            step={round(displayEnergy(25, energyUnit), 0)}
             value={stepInput}
             onChange={(event) => setStepInput(event.target.value)}
           />
-          <span className="text-[11px] text-muted">kcal ≈ 碳水 {stepValid ? round(stepKcal / 4, 1) : "--"}g（文档每步 100–150）</span>
+          <span className="text-[11px] text-muted">{energyLabel} ≈ 碳水 {stepValid ? round(stepKcal / 4, 1) : "--"}g（等价于每步 100–150 kcal）</span>
         </label>
       </div>
       <div className="mt-2 flex flex-wrap gap-2">
-        <button className="btn-primary h-8 px-3 text-xs" type="button" disabled={!stepValid} onClick={() => pushStep(-1)}>
-          降一步 −{stepValid ? stepKcal : "?"} kcal
+        <button className="btn-primary h-11 px-3 text-xs" type="button" disabled={!stepValid} onClick={() => pushStep(-1)}>
+          降一步 −{stepValid ? round(displayEnergy(stepKcal, energyUnit), 0) : "?"} {energyLabel}
         </button>
-        <button className="btn-secondary h-8 px-3 text-xs" type="button" disabled={!stepValid} onClick={() => pushStep(1)}>
-          回升一步 +{stepValid ? stepKcal : "?"} kcal
+        <button className="btn-secondary h-11 px-3 text-xs" type="button" disabled={!stepValid} onClick={() => pushStep(1)}>
+          回升一步 +{stepValid ? round(displayEnergy(stepKcal, energyUnit), 0) : "?"} {energyLabel}
         </button>
-        <button className="btn-secondary h-8 px-3 text-xs" type="button" disabled={stage === 0} onClick={undoStep}>
+        <button className="btn-secondary h-11 px-3 text-xs" type="button" disabled={stage === 0} onClick={undoStep}>
           撤销上一步
         </button>
       </div>

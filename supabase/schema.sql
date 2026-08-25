@@ -195,12 +195,28 @@ create table if not exists public.profiles (
   height_cm numeric(6,2),
   starting_weight_kg numeric(6,2),
   preferences jsonb not null default '{}'::jsonb,
+  locale text,
+  time_zone text,
+  time_zone_mode text not null default 'auto',
+  week_starts_on smallint not null default 1,
+  unit_system text not null default 'metric',
+  energy_unit text not null default 'kcal',
+  hour_cycle text not null default 'h23',
+  theme text not null default 'system',
+  reduce_motion boolean,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 alter table public.profiles add constraint profiles_pkey PRIMARY KEY (id);
 alter table public.profiles add constraint profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE;
 alter table public.profiles add constraint profiles_sex_check CHECK ((sex = ANY (ARRAY['male'::text, 'female'::text])));
+alter table public.profiles add constraint profiles_locale_check CHECK ((locale is null) or (locale = any (array['zh-CN'::text, 'en'::text])));
+alter table public.profiles add constraint profiles_time_zone_mode_check CHECK ((time_zone_mode = any (array['auto'::text, 'fixed'::text])));
+alter table public.profiles add constraint profiles_week_starts_on_check CHECK ((week_starts_on between 0 and 6));
+alter table public.profiles add constraint profiles_unit_system_check CHECK ((unit_system = any (array['metric'::text, 'imperial'::text])));
+alter table public.profiles add constraint profiles_energy_unit_check CHECK ((energy_unit = any (array['kcal'::text, 'kj'::text])));
+alter table public.profiles add constraint profiles_hour_cycle_check CHECK ((hour_cycle = any (array['h12'::text, 'h23'::text])));
+alter table public.profiles add constraint profiles_theme_check CHECK ((theme = any (array['system'::text, 'light'::text, 'dark'::text])));
 
 create table if not exists public.training_logs (
   id uuid not null default gen_random_uuid(),

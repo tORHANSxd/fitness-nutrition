@@ -1,6 +1,7 @@
 "use client";
 
 import type { User } from "@supabase/supabase-js";
+import { addDays, dateKeyInRange } from "@/lib/dateTime";
 import { getSupabaseClient } from "@/lib/supabase";
 import { StorageAuthError } from "@/lib/storage";
 
@@ -106,12 +107,8 @@ export function filterLogsByRange(logs: BodyLog[], rangeDays: number | "all", to
   if (rangeDays === "all") {
     return sorted;
   }
-  const end = new Date(`${today}T00:00:00Z`).getTime();
-  const start = end - (rangeDays - 1) * 24 * 60 * 60 * 1000;
-  return sorted.filter((log) => {
-    const time = new Date(`${log.logDate}T00:00:00Z`).getTime();
-    return time >= start && time <= end;
-  });
+  const start = addDays(today, -(rangeDays - 1));
+  return sorted.filter((log) => dateKeyInRange(log.logDate, start, today));
 }
 
 // ---------------------------------------------------------------------------

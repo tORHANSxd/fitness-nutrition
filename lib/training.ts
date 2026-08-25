@@ -1,4 +1,5 @@
 import { round } from "@/lib/nutrition";
+import { addDays, dateKeyFromInstant, resolveTimeZone, startOfWeek } from "@/lib/dateTime";
 import type {
   ExperienceLevel,
   MuscleGroup,
@@ -171,30 +172,21 @@ export function bestE1RMByExercise(session: WorkoutSession): Array<{ exercise: s
     .sort((a, b) => b.e1rm - a.e1rm);
 }
 
-/** ISO 周一为一周起点，返回 YYYY-MM-DD。 */
-export function weekStartKey(dateKey: string): string {
-  const date = new Date(`${dateKey}T00:00:00`);
-  const day = (date.getDay() + 6) % 7; // 周一=0
-  date.setDate(date.getDate() - day);
-  return toDateKey(date);
+/** 按用户设置的一周起始日返回 YYYY-MM-DD；默认保持 ISO 周一。 */
+export function weekStartKey(dateKey: string, weekStartsOn = 1): string {
+  return startOfWeek(dateKey, weekStartsOn);
 }
 
-export function toDateKey(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+export function toDateKey(date: Date, timeZone = resolveTimeZone()): string {
+  return dateKeyFromInstant(date, timeZone);
 }
 
 /** 统计某一周（含 weekStart 起 7 天）每肌群的有效硬组数。 */
 export function weeklyWorkingSets(sessions: WorkoutSession[], weekStart: string): Record<MuscleGroup, number> {
   const counts = Object.fromEntries(muscleGroupOrder.map((m) => [m, 0])) as Record<MuscleGroup, number>;
-  const start = new Date(`${weekStart}T00:00:00`);
-  const end = new Date(start);
-  end.setDate(end.getDate() + 7);
+  const end = addDays(weekStart, 7);
   for (const session of sessions) {
-    const date = new Date(`${session.sessionDate}T00:00:00`);
-    if (date < start || date >= end) {
+    if (session.sessionDate < weekStart || session.sessionDate >= end) {
       continue;
     }
     for (const set of session.sets) {
@@ -277,9 +269,9 @@ export function applyDeloadToTemplate(template: ProgramTemplate): ProgramTemplat
   };
 }
 
-/** 某日期是否落在被标记为减载周的一周内（deloadWeeks 存周一起始日 YYYY-MM-DD 列表）。 */
-export function isDeloadWeek(dateKey: string, deloadWeeks: string[]): boolean {
-  return deloadWeeks.includes(weekStartKey(dateKey));
+/** 某日期是否落在被标记为减载周的一周内。 */
+export function isDeloadWeek(dateKey: string, deloadWeeks: string[], weekStartsOn = 1): boolean {
+  return deloadWeeks.includes(weekStartKey(dateKey, weekStartsOn));
 }
 
 /** 减载触发：任意 2 条满足即建议安排 1 周 deload。 */

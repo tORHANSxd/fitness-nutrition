@@ -1,34 +1,26 @@
-import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
+import { createBrowserClient } from "@supabase/ssr";
+import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { calculateFoodKcalPer100g } from "@/lib/nutrition";
+import { getPublicSupabaseConfig, isSupabaseConfigured as hasSupabaseConfig } from "@/lib/supabase/config";
 import type { FoodItem, SavedPlan, WorkoutSession, WorkoutSet } from "@/lib/types";
 
 let client: SupabaseClient | null = null;
 
-function cleanPublicEnv(value: string | undefined) {
-  return value?.replace(/^\uFEFF/, "").trim();
-}
-
 export function getSupabaseClient() {
-  const url = cleanPublicEnv(process.env.NEXT_PUBLIC_SUPABASE_URL);
-  const anonKey = cleanPublicEnv(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
-
-  if (!url || !anonKey || url.includes("your-project") || anonKey.includes("your-anon-key")) {
+  const config = getPublicSupabaseConfig();
+  if (!config) {
     return null;
   }
 
   if (!client) {
-    client = createClient(url, anonKey, {
-      auth: {
-        storageKey: "fitness-nutrition-auth-v1"
-      }
-    });
+    client = createBrowserClient(config.url, config.anonKey);
   }
 
   return client;
 }
 
 export function isSupabaseConfigured() {
-  return getSupabaseClient() !== null;
+  return hasSupabaseConfig();
 }
 
 export function mapFoodRow(row: Record<string, unknown>): FoodItem {

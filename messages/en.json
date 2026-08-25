@@ -1,0 +1,23 @@
+{
+  "nav": {
+    "overview": "Overview",
+    "today": "Today",
+    "calendar": "Calendar",
+    "training": "Training",
+    "progress": "Progress",
+    "resources": "Resources",
+    "settings": "Settings",
+    "more": "More"
+  },
+  "sync": {
+    "loading": "Syncing",
+    "saved": "Synced",
+    "schemaRequired": "Database migration required",
+    "error": "Sync failed"
+  },
+  "actions": {
+    "refreshFoods": "Refresh foods",
+    "signOut": "Sign out",
+    "close": "Close"
+  }
+}

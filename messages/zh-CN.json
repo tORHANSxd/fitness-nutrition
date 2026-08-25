@@ -1,0 +1,23 @@
+{
+  "nav": {
+    "overview": "总览",
+    "today": "今日计划",
+    "calendar": "日历",
+    "training": "训练",
+    "progress": "进度",
+    "resources": "资源",
+    "settings": "设置",
+    "more": "更多"
+  },
+  "sync": {
+    "loading": "正在同步",
+    "saved": "已同步",
+    "schemaRequired": "需要数据库迁移",
+    "error": "同步失败"
+  },
+  "actions": {
+    "refreshFoods": "刷新食物库",
+    "signOut": "退出登录",
+    "close": "关闭"
+  }
+}

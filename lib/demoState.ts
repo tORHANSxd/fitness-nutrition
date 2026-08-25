@@ -14,7 +14,7 @@ export const defaultProfile: UserProfile = {
   exerciseKcal: 800,
   goalType: "cut",
   trainingTime: "afternoon",
-  planDate: new Date().toISOString().slice(0, 10)
+  planDate: "2026-07-10"
 };
 
 // 新账号（登录后无草稿）的起点：身体数据一律留空，由用户自己填或从体测记录同步；
@@ -29,7 +29,7 @@ export const emptyProfile: UserProfile = {
   exerciseKcal: 0,
   goalType: "cut",
   trainingTime: "afternoon",
-  planDate: new Date().toISOString().slice(0, 10)
+  planDate: ""
 };
 
 // v2 每日固定目标 2300 kcal / 碳水约 260g。把碳水分摊到 4 餐并保留高密度碳水（燕麦 66%），

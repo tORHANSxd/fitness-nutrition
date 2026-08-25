@@ -1,4 +1,6 @@
 import type { Metadata, Viewport } from "next";
+import { cookies } from "next/headers";
+import { preferenceCookieNames, preferencesFromCookies, type PreferenceCookieName } from "@/lib/preferences";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -6,25 +8,29 @@ export const metadata: Metadata = {
   description: "NutriTrain 训练、体测与营养计划工作台"
 };
 
-// 手机端视口：锁定为设备宽度、禁止整屏缩放（消除 iOS 聚焦输入框时的自动放大与手势缩放导致
-// 的“部分栏随缩放、部分不随”错位）；viewportFit=cover 让页面内已使用的 env(safe-area-inset-*)
-// 在灵动岛/刘海机型（如 iPhone 16 Pro Max）真正返回非零值，底部导航才能正确避让 Home 指示条。
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
   viewportFit: "cover",
-  themeColor: "#11130F"
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#eff1ea" },
+    { media: "(prefers-color-scheme: dark)", color: "#0d100c" }
+  ]
 };
 
-export default function RootLayout({
-  children
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const cookieStore = await cookies();
+  const cookieValues = Object.fromEntries(
+    Object.values(preferenceCookieNames).map((name) => [name, cookieStore.get(name)?.value])
+  ) as Partial<Record<PreferenceCookieName, string>>;
+  const preferences = preferencesFromCookies(cookieValues);
+
   return (
-    <html lang="zh-CN" suppressHydrationWarning>
+    <html
+      lang={preferences.locale}
+      data-theme={preferences.theme}
+      data-reduce-motion={preferences.reduceMotion == null ? "system" : String(preferences.reduceMotion)}
+    >
       <body>{children}</body>
     </html>
   );

@@ -38,8 +38,12 @@ export function AuthPanel({ user, onSignedIn }: AuthPanelProps) {
         return;
       }
 
-      onSignedIn(result.data.user ?? null);
-      setMessage(mode === "login" ? "登录成功。" : "注册成功；如果项目开启邮箱确认，请先完成邮箱验证。");
+      if (result.data.session?.user) {
+        onSignedIn(result.data.session.user);
+        setMessage("登录成功。");
+      } else if (mode === "register") {
+        setMessage("注册成功，请先完成邮箱验证后再登录。");
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "未知错误";
       const normalizedErrorMessage = errorMessage.toLowerCase();
@@ -74,7 +78,7 @@ export function AuthPanel({ user, onSignedIn }: AuthPanelProps) {
       {user ? (
         <div className="rounded-lg border border-line bg-panel/60 px-4 py-3 text-sm text-ink">当前账户：{user.email}</div>
       ) : (
-        <div className="space-y-4">
+        <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); submit(); }}>
           <label className="block">
             <span className="metric-label mb-1.5 block">邮箱</span>
             <span className="flex items-center gap-2 rounded-lg border border-line bg-surface px-3 transition-colors focus-within:border-[#B9B5A7] focus-within:shadow-[0_0_0_3px_rgba(31,30,29,0.06)] hover:border-[#D5D0C2]">
@@ -103,7 +107,7 @@ export function AuthPanel({ user, onSignedIn }: AuthPanelProps) {
               />
             </span>
           </label>
-          <button className="btn-primary w-full" type="button" onClick={submit} disabled={busy}>
+          <button className="btn-primary w-full" type="submit" disabled={busy}>
             {mode === "login" ? <LogIn size={17} /> : <UserPlus size={17} />}
             {busy ? "处理中…" : mode === "login" ? "登录" : "注册"}
           </button>
@@ -121,7 +125,7 @@ export function AuthPanel({ user, onSignedIn }: AuthPanelProps) {
               <ArrowRight size={14} className="ml-1 inline" />
             </button>
           </p>
-        </div>
+        </form>
       )}
 
       {message ? (
@@ -129,6 +133,8 @@ export function AuthPanel({ user, onSignedIn }: AuthPanelProps) {
           className={`mt-4 rounded-lg border px-4 py-3 text-sm ${
             isErrorMessage ? "border-rose/25 bg-rose/[0.06] text-rose" : "border-accent/25 bg-accent/[0.07] text-accent2"
           }`}
+          role="status"
+          aria-live="polite"
         >
           {message}
         </p>

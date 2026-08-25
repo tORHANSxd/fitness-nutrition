@@ -2,6 +2,7 @@
   "nav": {
     "overview": "Overview",
     "today": "Today",
+    "heatmap": "Nutrition heatmap",
     "calendar": "Calendar",
     "training": "Training",
     "progress": "Progress",

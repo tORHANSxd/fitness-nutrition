@@ -6,8 +6,12 @@ import { calculateFoodKcalPer100g } from "@/lib/nutrition";
 import { foodToOverrideRow, foodToRow, getSupabaseClient, mapFoodOverrideRow, mapFoodRow, mapPlanRow } from "@/lib/supabase";
 import { dayTemplateFromRow, mealTemplateFromRow } from "@/lib/templates";
 import type {
+  DailyCheckin,
+  DailyCheckinActual,
   DayTemplate,
   FoodItem,
+  HeatmapPalette,
+  MacroTotals,
   MealPlan,
   MealTemplate,
   NutritionResult,
@@ -33,6 +37,71 @@ function requireClient(user: User | null) {
     throw new StorageAuthError();
   }
   return { supabase, user } as const;
+}
+
+function toFiniteNumber(value: unknown): number {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function mapMacroTotals(value: unknown): MacroTotals | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const totals = value as Record<string, unknown>;
+  return {
+    kcal: toFiniteNumber(totals.kcal),
+    carbs: toFiniteNumber(totals.carbs),
+    protein: toFiniteNumber(totals.protein),
+    fat: toFiniteNumber(totals.fat)
+  };
+}
+
+function mapDailyCheckinActual(value: unknown, planDate: string): DailyCheckinActual {
+  const actual = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  const foods = Array.isArray(actual.foods) ? actual.foods : [];
+  const exercises = Array.isArray(actual.exercises) ? actual.exercises : [];
+  return {
+    version: 1,
+    foods: foods.flatMap((value) => {
+      if (!value || typeof value !== "object") {
+        return [];
+      }
+      const food = value as Record<string, unknown>;
+      const foodId = String(food.foodId ?? food.food_id ?? "").trim();
+      const name = String(food.name ?? "").trim();
+      const totals = mapMacroTotals(food.totals);
+      return foodId && name && totals
+        ? [{ foodId, name, grams: Math.max(0, toFiniteNumber(food.grams)), totals }]
+        : [];
+    }),
+    exercises: exercises.flatMap((value, index) => {
+      if (!value || typeof value !== "object") {
+        return [];
+      }
+      const exercise = value as Record<string, unknown>;
+      const name = String(exercise.name ?? "").trim();
+      const kcal = Math.max(0, toFiniteNumber(exercise.kcal));
+      return name && kcal > 0
+        ? [{ id: String(exercise.id ?? `${planDate}-exercise-${index}`), name, kcal }]
+        : [];
+    }),
+    bmrKcal: Math.max(0, toFiniteNumber(actual.bmrKcal ?? actual.bmr_kcal)),
+    activityKcal: Math.max(0, toFiniteNumber(actual.activityKcal ?? actual.activity_kcal))
+  };
+}
+
+function mapDailyCheckinRow(row: Record<string, unknown>): DailyCheckin {
+  const planDate = String(row.plan_date);
+  return {
+    id: String(row.id),
+    planDate,
+    actual: mapDailyCheckinActual(row.actual, planDate),
+    target: mapMacroTotals(row.target),
+    completed: Boolean(row.completed),
+    createdAt: String(row.created_at ?? ""),
+    updatedAt: String(row.updated_at ?? "")
+  };
 }
 
 const mealTemplateLimit = 24;
@@ -136,6 +205,37 @@ export async function saveDeloadWeeks(weeks: string[], user: User | null): Promi
     throw error;
   }
   return weeks;
+}
+
+export async function loadHeatmapPalette(user: User | null): Promise<HeatmapPalette> {
+  const { supabase, user: authedUser } = requireClient(user);
+  const { data, error } = await supabase.from("profiles").select("preferences").eq("id", authedUser.id).maybeSingle();
+  if (error) {
+    throw error;
+  }
+  const preferences = (data?.preferences ?? {}) as Record<string, unknown>;
+  return preferences.heatmapPalette === "green-positive" ? "green-positive" : "red-positive";
+}
+
+export async function saveHeatmapPalette(palette: HeatmapPalette, user: User | null): Promise<HeatmapPalette> {
+  const { supabase, user: authedUser } = requireClient(user);
+  const { data: existing, error: readError } = await supabase
+    .from("profiles")
+    .select("preferences")
+    .eq("id", authedUser.id)
+    .maybeSingle();
+  if (readError) {
+    throw readError;
+  }
+  const preferences = {
+    ...((existing?.preferences as Record<string, unknown>) ?? {}),
+    heatmapPalette: palette
+  };
+  const { error } = await supabase.from("profiles").upsert({ id: authedUser.id, preferences }, { onConflict: "id" });
+  if (error) {
+    throw error;
+  }
+  return palette;
 }
 
 // ---------------------------------------------------------------------------
@@ -410,6 +510,22 @@ export async function loadPlans(user: User | null): Promise<SavedPlan[]> {
   return data.map((row) => mapPlanRow(row));
 }
 
+export async function loadPlansInRange(user: User | null, fromDate: string, toDate: string): Promise<SavedPlan[]> {
+  const { supabase, user: authedUser } = requireClient(user);
+  const { data, error } = await supabase
+    .from("daily_plans")
+    .select("*")
+    .eq("user_id", authedUser.id)
+    .gte("plan_date", fromDate)
+    .lte("plan_date", toDate)
+    .order("plan_date", { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+  return data.map((row) => mapPlanRow(row));
+}
+
 export async function deletePlan(planId: string, user: User | null): Promise<void> {
   const { supabase, user: authedUser } = requireClient(user);
 
@@ -418,4 +534,67 @@ export async function deletePlan(planId: string, user: User | null): Promise<voi
   if (error) {
     throw error;
   }
+}
+
+// ---------------------------------------------------------------------------
+// 每日实际记录（daily_checkins）
+// ---------------------------------------------------------------------------
+
+export async function loadDailyCheckin(planDate: string, user: User | null): Promise<DailyCheckin | null> {
+  const { supabase, user: authedUser } = requireClient(user);
+  const { data, error } = await supabase
+    .from("daily_checkins")
+    .select("*")
+    .eq("user_id", authedUser.id)
+    .eq("plan_date", planDate)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+  return data ? mapDailyCheckinRow(data) : null;
+}
+
+export async function loadDailyCheckins(
+  user: User | null,
+  fromDate: string,
+  toDate: string
+): Promise<DailyCheckin[]> {
+  const { supabase, user: authedUser } = requireClient(user);
+  const { data, error } = await supabase
+    .from("daily_checkins")
+    .select("*")
+    .eq("user_id", authedUser.id)
+    .gte("plan_date", fromDate)
+    .lte("plan_date", toDate)
+    .order("plan_date", { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+  return data.map((row) => mapDailyCheckinRow(row));
+}
+
+export async function saveDailyCheckin(
+  checkin: Omit<DailyCheckin, "id" | "createdAt" | "updatedAt">,
+  user: User | null
+): Promise<DailyCheckin> {
+  const { supabase, user: authedUser } = requireClient(user);
+  const { data, error } = await supabase
+    .from("daily_checkins")
+    .upsert({
+      user_id: authedUser.id,
+      plan_date: checkin.planDate,
+      actual: checkin.actual,
+      target: checkin.target,
+      completed: checkin.completed,
+      updated_at: new Date().toISOString()
+    }, { onConflict: "user_id,plan_date" })
+    .select("*")
+    .single();
+
+  if (error) {
+    throw error;
+  }
+  return mapDailyCheckinRow(data);
 }

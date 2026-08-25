@@ -152,6 +152,39 @@ export interface SavedPlan {
   createdAt: string;
 }
 
+export interface DailyFoodSnapshot {
+  foodId: string;
+  name: string;
+  grams: number;
+  totals: MacroTotals;
+}
+
+export interface ExerciseEnergyEntry {
+  id: string;
+  name: string;
+  kcal: number;
+}
+
+export interface DailyCheckinActual {
+  version: 1;
+  foods: DailyFoodSnapshot[];
+  exercises: ExerciseEnergyEntry[];
+  bmrKcal: number;
+  activityKcal: number;
+}
+
+export interface DailyCheckin {
+  id: string;
+  planDate: string;
+  actual: DailyCheckinActual;
+  target: MacroTotals | null;
+  completed: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type HeatmapPalette = "red-positive" | "green-positive";
+
 export interface PlannerDraft {
   profile: UserProfile;
   meals: MealPlan[];

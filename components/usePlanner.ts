@@ -62,7 +62,7 @@ export interface PlannerController {
   updateEntry: (mealId: string, entryId: string, mapper: (entry: MealFoodEntry) => MealFoodEntry) => void;
   removeEntry: (mealId: string, entryId: string) => void;
   applyRecommendations: () => void;
-  persistPlan: () => Promise<void>;
+  persistPlan: () => Promise<boolean>;
   normalizeRatios: () => void;
   /** 模板只记食物；名字自动生成（分类→拼音 · 连接，无编号），同名直接拒绝创建。 */
   saveMealTemplate: (meal: MealPlan) => void;
@@ -311,8 +311,10 @@ export function usePlanner({ foods, templates, user, timeZone, energyUnit = "kca
         await savePlannerDraft(profile, meals, user).catch(() => {});
       }
       setMessage("计划已保存。");
+      return true;
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "保存失败。");
+      return false;
     } finally {
       setSaving(false);
     }

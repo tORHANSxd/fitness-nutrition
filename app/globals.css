@@ -545,6 +545,301 @@ input[type="date"]::-webkit-date-and-time-value {
   }
 }
 
+.heatmap-range-band {
+  display: grid;
+  gap: 14px;
+  border-block: 1px solid rgb(var(--color-line));
+  padding-block: 16px;
+}
+
+.heatmap-range-options {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  padding: 4px;
+  border: 1px solid rgb(var(--color-line));
+  border-radius: 6px;
+  background: rgb(var(--color-panel));
+  scrollbar-width: thin;
+}
+
+.heatmap-check-control {
+  display: inline-flex;
+  width: fit-content;
+  min-height: 32px;
+  align-items: center;
+  gap: 8px;
+  color: rgb(var(--color-muted));
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.heatmap-check-control input {
+  width: 17px;
+  height: 17px;
+  accent-color: rgb(var(--color-accent-2));
+}
+
+.palette-switch-wrap {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid rgb(var(--color-line));
+  border-radius: 6px;
+  padding: 5px 9px;
+  background: rgb(var(--color-surface));
+  color: rgb(var(--color-muted));
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.palette-switch-wrap > span {
+  min-width: 24px;
+  transition: color 160ms ease;
+}
+
+.palette-switch-wrap > span.is-active {
+  color: rgb(var(--color-ink));
+}
+
+.palette-switch {
+  position: relative;
+  width: 54px;
+  height: 28px;
+  flex: none;
+  border: 1px solid rgb(var(--color-ink));
+  border-radius: 4px;
+  padding: 0;
+  background:
+    repeating-linear-gradient(90deg, transparent 0 7px, rgb(255 255 255 / 0.08) 7px 8px),
+    rgb(var(--color-raised));
+  box-shadow: inset 0 2px 5px rgb(var(--color-ink) / 0.22);
+}
+
+.palette-switch > span {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border: 1px solid rgb(var(--color-ink));
+  border-radius: 3px;
+  background: rgb(var(--color-surface));
+  box-shadow: 2px 2px 0 rgb(var(--color-ink) / 0.18), inset 0 1px rgb(255 255 255 / 0.7);
+  transition: transform 240ms var(--ease-out-soft);
+}
+
+.palette-switch[aria-checked="true"] > span {
+  transform: translateX(26px);
+}
+
+.heatmap-metric-card {
+  min-width: 0;
+  min-height: 112px;
+  border: 1px solid rgb(var(--color-line));
+  border-radius: 6px;
+  padding: 15px;
+  text-align: left;
+  background: rgb(var(--color-surface));
+}
+
+.heatmap-metric-card:hover,
+.heatmap-metric-card.is-active {
+  border-color: rgb(var(--color-ink));
+}
+
+.heatmap-metric-card.is-active {
+  box-shadow: inset 0 4px rgb(var(--color-accent));
+}
+
+.heatmap-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(128px, 156px));
+  justify-content: start;
+  gap: 12px;
+}
+
+.jelly-tile,
+.jelly-skeleton {
+  width: 100%;
+  min-width: 0;
+  aspect-ratio: 1;
+  border-radius: 8px;
+}
+
+.jelly-tile {
+  --jelly-rgb: 216 73 63;
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  overflow: hidden;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  border: 1px solid rgb(var(--jelly-rgb) / calc(0.38 + var(--jelly-strength) * 0.48));
+  padding: 12px;
+  text-align: left;
+  color: rgb(var(--color-ink));
+  background:
+    linear-gradient(145deg, rgb(255 255 255 / 0.42), transparent 42%),
+    linear-gradient(320deg, rgb(var(--jelly-rgb) / 0.26), transparent 58%),
+    rgb(var(--jelly-rgb) / calc(0.13 + var(--jelly-strength) * 0.48));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.72),
+    inset 0 -14px 24px rgb(var(--jelly-rgb) / 0.12),
+    0 12px 24px -18px rgb(var(--jelly-rgb) / 0.7);
+  animation: jelly-in 560ms var(--ease-out-soft) var(--jelly-delay) both;
+}
+
+[data-palette="red-positive"] .jelly-tile.is-positive,
+[data-palette="red-positive"] .heatmap-legend-dot.is-positive {
+  --jelly-rgb: 216 73 63;
+}
+
+[data-palette="red-positive"] .jelly-tile.is-negative,
+[data-palette="red-positive"] .heatmap-legend-dot.is-negative {
+  --jelly-rgb: 18 142 94;
+}
+
+[data-palette="green-positive"] .jelly-tile.is-positive,
+[data-palette="green-positive"] .heatmap-legend-dot.is-positive {
+  --jelly-rgb: 18 142 94;
+}
+
+[data-palette="green-positive"] .jelly-tile.is-negative,
+[data-palette="green-positive"] .heatmap-legend-dot.is-negative {
+  --jelly-rgb: 216 73 63;
+}
+
+[data-palette="red-positive"] .heatmap-sign.is-positive,
+[data-palette="green-positive"] .heatmap-sign.is-negative {
+  color: #c53f37;
+}
+
+[data-palette="red-positive"] .heatmap-sign.is-negative,
+[data-palette="green-positive"] .heatmap-sign.is-positive {
+  color: rgb(var(--color-success));
+}
+
+.jelly-tile:hover {
+  transform: translateY(-2px) scale(1.012);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.78),
+    inset 0 -14px 24px rgb(var(--jelly-rgb) / 0.15),
+    0 16px 28px -17px rgb(var(--jelly-rgb) / 0.85);
+}
+
+.jelly-tile.is-selected {
+  outline: 2px solid rgb(var(--color-ink));
+  outline-offset: 2px;
+}
+
+.jelly-sheen {
+  position: absolute;
+  z-index: -1;
+  inset: -25% auto -25% -70%;
+  width: 54%;
+  transform: translateX(-45%) rotate(9deg);
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.42), transparent);
+  filter: blur(4px);
+  animation: jelly-sheen 7.5s ease-in-out var(--jelly-delay) infinite;
+  pointer-events: none;
+}
+
+.jelly-kind,
+.jelly-name,
+.jelly-value,
+.jelly-direction {
+  position: relative;
+  z-index: 1;
+}
+
+.jelly-kind {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 9px;
+  font-weight: 700;
+  color: rgb(var(--color-ink) / 0.62);
+}
+
+.jelly-name {
+  display: -webkit-box;
+  max-width: 100%;
+  overflow: hidden;
+  color: rgb(var(--color-ink));
+  font-size: 13px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.jelly-value {
+  max-width: 100%;
+  color: rgb(var(--color-ink));
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 12px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.jelly-direction {
+  position: absolute;
+  right: 9px;
+  bottom: 8px;
+  color: rgb(var(--color-ink) / 0.42);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.jelly-skeleton {
+  border: 1px solid rgb(var(--color-line));
+  background: linear-gradient(105deg, rgb(var(--color-panel)) 20%, rgb(var(--color-raised)) 38%, rgb(var(--color-panel)) 56%);
+  background-size: 220% 100%;
+  animation: heatmap-skeleton 1.4s ease-in-out infinite;
+}
+
+.heatmap-legend-dot {
+  --jelly-rgb: 216 73 63;
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border: 1px solid rgb(var(--jelly-rgb) / 0.75);
+  border-radius: 3px;
+  background: rgb(var(--jelly-rgb) / 0.48);
+  box-shadow: inset 0 1px rgb(255 255 255 / 0.55);
+}
+
+.heatmap-detail {
+  display: grid;
+  gap: 14px;
+  border-block: 1px solid rgb(var(--color-ink));
+  padding-block: 20px;
+}
+
+@keyframes jelly-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0) scale(0.88);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes jelly-sheen {
+  0%, 18% { transform: translateX(-45%) rotate(9deg); opacity: 0.2; }
+  48%, 72% { transform: translateX(360%) rotate(9deg); opacity: 0.75; }
+  100% { transform: translateX(360%) rotate(9deg); opacity: 0.2; }
+}
+
+@keyframes heatmap-skeleton {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
+
 @media (min-width: 1024px) {
   .auth-stage {
     grid-template-columns: minmax(0, 1.35fr) minmax(420px, 0.65fr);
@@ -574,6 +869,15 @@ input[type="date"]::-webkit-date-and-time-value {
 
   .timeline-day {
     min-height: 72px;
+  }
+
+  .heatmap-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .jelly-tile {
+    padding: 11px;
   }
 }
 

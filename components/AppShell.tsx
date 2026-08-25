@@ -4,6 +4,7 @@ import {
   BarChart3,
   CalendarDays,
   Dumbbell,
+  Grid3X3,
   LayoutDashboard,
   Library,
   LogOut,
@@ -24,6 +25,7 @@ import { formatDateKey } from "@/lib/dateTime";
 const navigation = [
   { href: "/overview", labelKey: "nav.overview", icon: LayoutDashboard },
   { href: "/today", labelKey: "nav.today", icon: Utensils },
+  { href: "/heatmap", labelKey: "nav.heatmap", icon: Grid3X3 },
   { href: "/calendar", labelKey: "nav.calendar", icon: CalendarDays },
   { href: "/training", labelKey: "nav.training", icon: Dumbbell },
   { href: "/progress", labelKey: "nav.progress", icon: BarChart3 },
@@ -32,7 +34,7 @@ const navigation = [
 ] as const;
 
 const mobilePrimary = navigation.filter((item) => ["/overview", "/today", "/training", "/progress"].includes(item.href));
-const moreNavigation = navigation.filter((item) => ["/calendar", "/resources", "/settings"].includes(item.href));
+const moreNavigation = navigation.filter((item) => ["/heatmap", "/calendar", "/resources", "/settings"].includes(item.href));
 
 function isCurrentPath(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);

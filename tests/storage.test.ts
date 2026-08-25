@@ -6,11 +6,17 @@ import {
   StorageAuthError,
   deleteFood,
   deletePlan,
+  loadDailyCheckin,
+  loadDailyCheckins,
   loadFoods,
+  loadHeatmapPalette,
   loadPlannerDraft,
   loadPlannerTemplates,
   loadPlans,
+  loadPlansInRange,
+  saveDailyCheckin,
   saveFood,
+  saveHeatmapPalette,
   savePlan,
   savePlannerDraft,
   savePlannerTemplates
@@ -42,7 +48,18 @@ describe("storage requires Supabase auth (no local fallback)", () => {
     await expect(deleteFood("public-rice-cooked", null)).rejects.toBeInstanceOf(StorageAuthError);
     await expect(savePlan(defaultProfile, meals, result, null)).rejects.toBeInstanceOf(StorageAuthError);
     await expect(loadPlans(null)).rejects.toBeInstanceOf(StorageAuthError);
+    await expect(loadPlansInRange(null, "2026-01-01", "2026-12-31")).rejects.toBeInstanceOf(StorageAuthError);
     await expect(deletePlan("any-id", null)).rejects.toBeInstanceOf(StorageAuthError);
+    await expect(loadDailyCheckin("2026-08-25", null)).rejects.toBeInstanceOf(StorageAuthError);
+    await expect(loadDailyCheckins(null, "2026-08-01", "2026-08-25")).rejects.toBeInstanceOf(StorageAuthError);
+    await expect(saveDailyCheckin({
+      planDate: "2026-08-25",
+      actual: { version: 1, foods: [], exercises: [], bmrKcal: 0, activityKcal: 0 },
+      target: null,
+      completed: false
+    }, null)).rejects.toBeInstanceOf(StorageAuthError);
+    await expect(loadHeatmapPalette(null)).rejects.toBeInstanceOf(StorageAuthError);
+    await expect(saveHeatmapPalette("red-positive", null)).rejects.toBeInstanceOf(StorageAuthError);
     await expect(loadPlannerDraft(null)).rejects.toBeInstanceOf(StorageAuthError);
     await expect(savePlannerDraft(defaultProfile, meals, null)).rejects.toBeInstanceOf(StorageAuthError);
     await expect(loadPlannerTemplates(null)).rejects.toBeInstanceOf(StorageAuthError);

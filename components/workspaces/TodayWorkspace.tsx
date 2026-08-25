@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { MealSplitView } from "@/components/MealSplitView";
 import { PlannerProfileView } from "@/components/PlannerProfileView";
+import { DailyCheckinPanel } from "@/components/DailyCheckinPanel";
 import { useApp } from "@/components/app/AppProvider";
 import { usePlanner } from "@/components/usePlanner";
 import { useZonedToday } from "@/hooks/useZonedToday";
@@ -106,6 +107,14 @@ export function TodayWorkspace() {
           <MealSplitView controller={controller} foods={foods} templates={templates} energyUnit={preferences.energyUnit} />
         </div>
       </div>
+
+      <DailyCheckinPanel
+        controller={controller}
+        date={requestedDate}
+        today={zonedToday}
+        user={user}
+        energyUnit={preferences.energyUnit}
+      />
     </section>
   );
 }

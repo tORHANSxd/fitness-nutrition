@@ -74,25 +74,41 @@ export function AppProvider({
   useEffect(() => {
     let cancelled = false;
     setSyncState("loading");
-    Promise.all([loadFoods(user), loadPlannerTemplates(user), loadProfilePreferences(user)])
-      .then(async ([nextFoods, nextTemplates, profilePreferences]) => {
+    setLoadingFoods(true);
+    Promise.allSettled([loadFoods(user), loadPlannerTemplates(user), loadProfilePreferences(user)])
+      .then(async ([foodsResult, templatesResult, preferencesResult]) => {
         if (cancelled) {
           return;
         }
-        setFoods(nextFoods);
-        setTemplates(nextTemplates);
-        setPreferences(profilePreferences.preferences);
-        writePreferenceCookies(profilePreferences.preferences);
-        if (profilePreferences.needsInitialization) {
-          await saveProfilePreferences(user, profilePreferences.preferences);
+
+        const errors: unknown[] = [];
+        if (foodsResult.status === "fulfilled") {
+          setFoods(foodsResult.value);
+        } else {
+          errors.push(foodsResult.reason);
         }
-        if (!cancelled) {
-          setSyncState("saved");
+        if (templatesResult.status === "fulfilled") {
+          setTemplates(templatesResult.value);
+        } else {
+          errors.push(templatesResult.reason);
         }
-      })
-      .catch((error) => {
+        if (preferencesResult.status === "fulfilled") {
+          const profilePreferences = preferencesResult.value;
+          setPreferences(profilePreferences.preferences);
+          writePreferenceCookies(profilePreferences.preferences);
+          if (profilePreferences.needsInitialization) {
+            try {
+              await saveProfilePreferences(user, profilePreferences.preferences);
+            } catch (error) {
+              errors.push(error);
+            }
+          }
+        } else {
+          errors.push(preferencesResult.reason);
+        }
+
         if (!cancelled) {
-          setSyncState(isMissingPreferenceSchema(error) ? "schema-required" : "error");
+          setSyncState(errors.some(isMissingPreferenceSchema) ? "schema-required" : errors.length > 0 ? "error" : "saved");
         }
       })
       .finally(() => {

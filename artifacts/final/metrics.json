@@ -1,0 +1,15 @@
+{
+  "page": "/login?next=%2F",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "bodyCharacters": 166,
+  "errorOverlay": false,
+  "horizontalOverflow": false,
+  "resources": {
+    "count": 10,
+    "pending": 0,
+    "transferSize": 223268
+  }
+}

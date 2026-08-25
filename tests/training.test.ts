@@ -106,6 +106,7 @@ describe("weeklyWorkingSets & weekStartKey", () => {
   it("周一为一周起点", () => {
     // 2026-06-17 是周三 → 周起点应为 2026-06-15(周一)
     expect(weekStartKey("2026-06-17")).toBe("2026-06-15");
+    expect(weekStartKey("2026-06-17", 0)).toBe("2026-06-14");
   });
 
   it("仅统计当周、且不含热身组", () => {
@@ -233,5 +234,6 @@ describe("减载周（v2 文档：容量减半、留 4–5 RIR、频率动作不
     expect(isDeloadWeek("2026-07-13", deloadWeeks)).toBe(false); // 下周一不属
     expect(isDeloadWeek("2026-07-22", deloadWeeks)).toBe(true);
     expect(isDeloadWeek("2026-07-08", [])).toBe(false);
+    expect(isDeloadWeek("2026-07-12", ["2026-07-12"], 0)).toBe(true);
   });
 });

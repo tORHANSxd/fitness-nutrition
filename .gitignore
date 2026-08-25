@@ -3,6 +3,10 @@ node_modules/
 out/
 dist/
 coverage/
+.playwright/
+artifacts/playwright-report/
+artifacts/playwright-results/
+test-results/
 .verification/
 .env
 .env*.local
@@ -15,3 +19,4 @@ pnpm-debug.log*
 .DS_Store
 
 .vercel
+supabase/.temp/

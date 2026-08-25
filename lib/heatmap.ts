@@ -1,3 +1,4 @@
+import { hierarchy, treemap, treemapSquarify } from "d3-hierarchy";
 import { daysBetween, isDateKey, monthKey, startOfWeek, toDateKey, toPlainDate } from "@/lib/dateTime";
 import { customFoodsFromMeals } from "@/lib/foods";
 import { calculateFoodKcalPer100g } from "@/lib/nutrition";
@@ -40,6 +41,7 @@ export interface HeatmapTile {
   kind: HeatmapTileKind;
   label: string;
   value: number;
+  share: number;
   details: HeatmapTileDetail[];
 }
 
@@ -48,7 +50,15 @@ export interface HeatmapDataset {
   net: number;
   positiveTotal: number;
   negativeTotal: number;
-  maxMagnitude: number;
+  absoluteTotal: number;
+}
+
+export interface HeatmapTileLayout {
+  tile: HeatmapTile;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 const zeroTotals = (): MacroTotals => ({ kcal: 0, carbs: 0, protein: 0, fat: 0 });
@@ -167,7 +177,7 @@ export function buildHeatmapDays({
 }
 
 export function aggregateHeatmap(days: HeatmapDay[], metric: HeatmapMetric): HeatmapDataset {
-  const buckets = new Map<string, Omit<HeatmapTile, "details"> & { detailsByDate: Map<string, number> }>();
+  const buckets = new Map<string, Omit<HeatmapTile, "details" | "share"> & { detailsByDate: Map<string, number> }>();
   const add = (id: string, kind: HeatmapTileKind, label: string, value: number, date: string) => {
     if (!Number.isFinite(value) || Math.abs(value) < 0.0001) {
       return;
@@ -194,7 +204,7 @@ export function aggregateHeatmap(days: HeatmapDay[], metric: HeatmapMetric): Hea
     }
   });
 
-  const tiles = [...buckets.values()]
+  const aggregatedTiles = [...buckets.values()]
     .map(({ detailsByDate, ...tile }) => ({
       ...tile,
       value: roundValue(tile.value),
@@ -203,6 +213,11 @@ export function aggregateHeatmap(days: HeatmapDay[], metric: HeatmapMetric): Hea
         .map(([date, value]) => ({ date, value: roundValue(value) }))
     }))
     .sort((left, right) => Math.abs(right.value) - Math.abs(left.value) || left.label.localeCompare(right.label, "zh-CN"));
+  const absoluteTotal = aggregatedTiles.reduce((sum, tile) => sum + Math.abs(tile.value), 0);
+  const tiles = aggregatedTiles.map((tile) => ({
+    ...tile,
+    share: absoluteTotal > 0 ? Math.abs(tile.value) / absoluteTotal : 0
+  }));
   const positiveTotal = tiles.reduce((sum, tile) => sum + Math.max(0, tile.value), 0);
   const negativeTotal = tiles.reduce((sum, tile) => sum + Math.min(0, tile.value), 0);
 
@@ -211,8 +226,40 @@ export function aggregateHeatmap(days: HeatmapDay[], metric: HeatmapMetric): Hea
     net: roundValue(positiveTotal + negativeTotal),
     positiveTotal: roundValue(positiveTotal),
     negativeTotal: roundValue(negativeTotal),
-    maxMagnitude: Math.max(0, ...tiles.map((tile) => Math.abs(tile.value)))
+    absoluteTotal: roundValue(absoluteTotal)
   };
+}
+
+interface HeatmapHierarchyDatum {
+  tile?: HeatmapTile;
+  magnitude?: number;
+  children?: HeatmapHierarchyDatum[];
+}
+
+export function layoutHeatmapTiles(tiles: HeatmapTile[], width: number, height: number): HeatmapTileLayout[] {
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0 || tiles.length === 0) {
+    return [];
+  }
+
+  const root = hierarchy<HeatmapHierarchyDatum>({
+    children: tiles.map((tile) => ({ tile, magnitude: Math.abs(tile.value) }))
+  })
+    .sum((datum) => datum.magnitude ?? 0)
+    .sort((left, right) => (right.value ?? 0) - (left.value ?? 0));
+
+  const laidOutRoot = treemap<HeatmapHierarchyDatum>()
+    .tile(treemapSquarify)
+    .size([width, height])
+    .round(false)
+    .paddingInner(0)(root);
+
+  return laidOutRoot.leaves().flatMap((node) => node.data.tile ? [{
+    tile: node.data.tile,
+    x: node.x0,
+    y: node.y0,
+    width: node.x1 - node.x0,
+    height: node.y1 - node.y0
+  }] : []);
 }
 
 export function rangeForPreset(preset: Exclude<HeatmapRangePreset, "custom">, today: string, weekStartsOn: number): HeatmapDateRange {

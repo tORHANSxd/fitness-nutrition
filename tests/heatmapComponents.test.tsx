@@ -149,11 +149,18 @@ describe("HeatmapView", () => {
   it("switches metrics, opens details, persists palette and loads month-to-date", async () => {
     render(<HeatmapView />);
 
-    const appleTile = await screen.findByRole("button", { name: /苹果，盈/ });
+    const appleTile = await screen.findByRole("button", { name: /热力图项目：苹果/ });
+    expect(appleTile).toHaveAccessibleName(/绝对贡献占比/);
+    expect(appleTile).toHaveAttribute("data-share");
+    expect(appleTile.style.getPropertyValue("--tile-width")).toMatch(/%$/);
+    const exerciseIndexItem = screen.getByRole("button", { name: /项目索引：跑步/ });
+    expect(exerciseIndexItem).toHaveAccessibleName(/绝对贡献占比/);
+    fireEvent.click(exerciseIndexItem);
+    expect(screen.getByRole("heading", { name: "跑步" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /蛋白质/ }));
-    expect(await screen.findByRole("button", { name: /目标需求，亏/ })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /热力图项目：目标需求/ })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /苹果，盈/ }));
+    fireEvent.click(screen.getByRole("button", { name: /热力图项目：苹果/ }));
     expect(screen.getByRole("heading", { name: "苹果" })).toBeInTheDocument();
     expect(appleTile).toBeInTheDocument();
 

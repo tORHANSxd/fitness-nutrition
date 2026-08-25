@@ -2,19 +2,21 @@
 
 import { CalendarRange, Droplets, Dumbbell, Flame, RefreshCw, Wheat } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useApp } from "@/components/app/AppProvider";
 import { useZonedToday } from "@/hooks/useZonedToday";
 import { daysBetween, formatDateKey } from "@/lib/dateTime";
 import {
   aggregateHeatmap,
   buildHeatmapDays,
+  layoutHeatmapTiles,
   rangeForPreset,
   validateHeatmapRange,
   type HeatmapDateRange,
   type HeatmapMetric,
   type HeatmapRangePreset,
-  type HeatmapTile
+  type HeatmapTile,
+  type HeatmapTileLayout
 } from "@/lib/heatmap";
 import { displayEnergy } from "@/lib/preferences";
 import {
@@ -49,9 +51,14 @@ const kindLabels = {
 } as const;
 
 type JellyStyle = CSSProperties & {
-  "--jelly-strength": number;
+  "--tile-x": string;
+  "--tile-y": string;
+  "--tile-width": string;
+  "--tile-height": string;
   "--jelly-delay": string;
 };
+
+const defaultTreemapSize = { width: 1600, height: 1000 };
 
 function formatValue(value: number, metric: HeatmapMetric, energyUnit: "kcal" | "kj", signed = true) {
   const displayValue = metric === "kcal" ? displayEnergy(value, energyUnit) : value;
@@ -61,45 +68,183 @@ function formatValue(value: number, metric: HeatmapMetric, energyUnit: "kcal" | 
   return `${prefix}${magnitude.toLocaleString("zh-CN", { maximumFractionDigits: digits })} ${metric === "kcal" ? (energyUnit === "kj" ? "kJ" : "kcal") : "g"}`;
 }
 
+function formatShare(share: number) {
+  return `${(share * 100).toLocaleString("zh-CN", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
+}
+
+function useTreemapSize() {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState(defaultTreemapSize);
+
+  useEffect(() => {
+    const node = containerRef.current;
+    if (!node || typeof ResizeObserver === "undefined") {
+      return;
+    }
+    const observer = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      if (width <= 0 || height <= 0) {
+        return;
+      }
+      setSize((current) => Math.abs(current.width - width) < 0.5 && Math.abs(current.height - height) < 0.5
+        ? current
+        : { width, height });
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  return { containerRef, size };
+}
+
 function JellyTile({
-  tile,
+  layout,
   metric,
   energyUnit,
-  maxMagnitude,
   index,
   selected,
-  onSelect
+  onSelect,
+  canvasWidth,
+  canvasHeight
 }: {
-  tile: HeatmapTile;
+  layout: HeatmapTileLayout;
   metric: HeatmapMetric;
   energyUnit: "kcal" | "kj";
-  maxMagnitude: number;
   index: number;
   selected: boolean;
   onSelect: () => void;
+  canvasWidth: number;
+  canvasHeight: number;
 }) {
-  const strength = maxMagnitude > 0 ? Math.sqrt(Math.abs(tile.value) / maxMagnitude) : 0;
+  const { tile, x, y, width, height } = layout;
+  const labelMode = width >= 124 && height >= 112 ? "is-large" : width >= 74 && height >= 48 ? "is-medium" : "is-small";
   const style: JellyStyle = {
-    "--jelly-strength": strength,
+    "--tile-x": `${x / canvasWidth * 100}%`,
+    "--tile-y": `${y / canvasHeight * 100}%`,
+    "--tile-width": `${width / canvasWidth * 100}%`,
+    "--tile-height": `${height / canvasHeight * 100}%`,
     "--jelly-delay": `${Math.min(index * 42, 420)}ms`
   };
   const direction = tile.value >= 0 ? "盈" : "亏";
+  const tooltip = `${kindLabels[tile.kind]} · ${tile.label} · ${formatValue(tile.value, metric, energyUnit)} · 绝对贡献 ${formatShare(tile.share)}`;
 
   return (
     <button
-      className={`jelly-tile ${tile.value >= 0 ? "is-positive" : "is-negative"} ${selected ? "is-selected" : ""}`}
+      className={`jelly-tile ${labelMode} ${tile.value >= 0 ? "is-positive" : "is-negative"} ${selected ? "is-selected" : ""}`}
       style={style}
       type="button"
+      tabIndex={labelMode === "is-small" ? -1 : 0}
       onClick={onSelect}
       aria-pressed={selected}
-      aria-label={`${tile.label}，${direction}，${formatValue(tile.value, metric, energyUnit)}`}
+      aria-label={`热力图项目：${tile.label}，${direction}，${formatValue(tile.value, metric, energyUnit)}，绝对贡献占比 ${formatShare(tile.share)}`}
+      title={tooltip}
+      data-share={tile.share}
     >
       <span className="jelly-sheen" aria-hidden="true" />
-      <span className="jelly-kind">{kindLabels[tile.kind]}</span>
-      <strong className="jelly-name">{tile.label}</strong>
-      <span className="jelly-value">{formatValue(tile.value, metric, energyUnit)}</span>
-      <span className="jelly-direction">{direction}</span>
+      {labelMode !== "is-small" ? (
+        <span className="jelly-copy">
+          {labelMode === "is-large" ? <span className="jelly-kind">{kindLabels[tile.kind]}</span> : null}
+          <strong className="jelly-name">{tile.label}</strong>
+          <span className="jelly-value">{formatValue(tile.value, metric, energyUnit)}</span>
+        </span>
+      ) : null}
+      {labelMode === "is-large" ? <span className="jelly-direction">{direction}</span> : null}
     </button>
+  );
+}
+
+function JellyTreemap({
+  tiles,
+  metric,
+  metricLabel,
+  energyUnit,
+  selectedTileId,
+  onSelect
+}: {
+  tiles: HeatmapTile[];
+  metric: HeatmapMetric;
+  metricLabel: string;
+  energyUnit: "kcal" | "kj";
+  selectedTileId: string | null;
+  onSelect: (tileId: string) => void;
+}) {
+  const { containerRef, size } = useTreemapSize();
+  const layouts = useMemo(
+    () => layoutHeatmapTiles(tiles, size.width, size.height),
+    [size.height, size.width, tiles]
+  );
+
+  return (
+    <div
+      ref={containerRef}
+      className="heatmap-treemap"
+      role="group"
+      aria-label={`${metricLabel}热力图，共 ${tiles.length} 个项目`}
+    >
+      {layouts.map((layout, index) => (
+        <JellyTile
+          key={layout.tile.id}
+          layout={layout}
+          metric={metric}
+          energyUnit={energyUnit}
+          index={index}
+          selected={selectedTileId === layout.tile.id}
+          onSelect={() => onSelect(layout.tile.id)}
+          canvasWidth={size.width}
+          canvasHeight={size.height}
+        />
+      ))}
+    </div>
+  );
+}
+
+function HeatmapItemIndex({
+  tiles,
+  metric,
+  energyUnit,
+  selectedTileId,
+  onSelect
+}: {
+  tiles: HeatmapTile[];
+  metric: HeatmapMetric;
+  energyUnit: "kcal" | "kj";
+  selectedTileId: string | null;
+  onSelect: (tileId: string) => void;
+}) {
+  return (
+    <section className="heatmap-item-index" aria-labelledby="heatmap-item-index-title">
+      <header className="heatmap-item-index-header">
+        <h3 id="heatmap-item-index-title">全部项目</h3>
+        <span>{tiles.length}</span>
+      </header>
+      <ol className="heatmap-item-index-list">
+        {tiles.map((tile, index) => {
+          const direction = tile.value >= 0 ? "盈" : "亏";
+          return (
+            <li key={tile.id}>
+              <button
+                className={`heatmap-index-item ${selectedTileId === tile.id ? "is-selected" : ""}`}
+                type="button"
+                aria-pressed={selectedTileId === tile.id}
+                aria-label={`项目索引：${tile.label}，${direction}，${formatValue(tile.value, metric, energyUnit)}，绝对贡献占比 ${formatShare(tile.share)}`}
+                onClick={() => onSelect(tile.id)}
+              >
+                <span className="heatmap-index-rank">{index + 1}</span>
+                <i className={`heatmap-index-dot ${tile.value >= 0 ? "is-positive" : "is-negative"}`} aria-hidden="true" />
+                <span className="heatmap-index-name">
+                  <strong>{tile.label}</strong>
+                  <small>{kindLabels[tile.kind]}</small>
+                </span>
+                <span className="heatmap-index-value">
+                  <strong>{formatValue(tile.value, metric, energyUnit)}</strong>
+                  <small>{formatShare(tile.share)}</small>
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+    </section>
   );
 }
 
@@ -182,6 +327,7 @@ export function HeatmapView() {
     [days]
   );
   const dataset = datasets[metric];
+  const metricLabel = metricOptions.find((option) => option.id === metric)?.label ?? "";
   const selectedTile = dataset.tiles.find((tile) => tile.id === selectedTileId) ?? null;
   const totalDays = rangeError ? 0 : daysBetween(range.from, range.to) + 1;
   const completeDays = checkins.filter(
@@ -324,8 +470,8 @@ export function HeatmapView() {
 
       {!rangeError && !error ? (
         loading ? (
-          <div className="heatmap-grid" role="status" aria-live="polite" aria-busy="true" aria-label="正在加载热力图">
-            {Array.from({ length: 8 }, (_, index) => <span key={index} className="jelly-skeleton" />)}
+          <div className="heatmap-treemap is-loading" role="status" aria-live="polite" aria-busy="true" aria-label="正在加载热力图">
+            <span className="jelly-skeleton" />
           </div>
         ) : dataset.tiles.length === 0 ? (
           <div className="panel flex min-h-56 flex-col items-center justify-center gap-3 p-6 text-center">
@@ -334,19 +480,22 @@ export function HeatmapView() {
             <Link className="btn-secondary" href={`/today?date=${today}`}>前往今日计划</Link>
           </div>
         ) : (
-          <div className="heatmap-grid" data-palette={palette} aria-label={`${metricOptions.find((option) => option.id === metric)?.label}热力图`}>
-            {dataset.tiles.map((tile, index) => (
-              <JellyTile
-                key={tile.id}
-                tile={tile}
-                metric={metric}
-                energyUnit={preferences.energyUnit}
-                maxMagnitude={dataset.maxMagnitude}
-                index={index}
-                selected={selectedTileId === tile.id}
-                onSelect={() => setSelectedTileId((current) => current === tile.id ? null : tile.id)}
-              />
-            ))}
+          <div className="space-y-4">
+            <JellyTreemap
+              tiles={dataset.tiles}
+              metric={metric}
+              metricLabel={metricLabel}
+              energyUnit={preferences.energyUnit}
+              selectedTileId={selectedTileId}
+              onSelect={(tileId) => setSelectedTileId((current) => current === tileId ? null : tileId)}
+            />
+            <HeatmapItemIndex
+              tiles={dataset.tiles}
+              metric={metric}
+              energyUnit={preferences.energyUnit}
+              selectedTileId={selectedTileId}
+              onSelect={(tileId) => setSelectedTileId((current) => current === tileId ? null : tileId)}
+            />
           </div>
         )
       ) : null}
@@ -358,7 +507,10 @@ export function HeatmapView() {
               <p className="metric-label">{kindLabels[selectedTile.kind]}</p>
               <h3 className="mt-1 text-xl text-ink">{selectedTile.label}</h3>
             </div>
-            <strong className="metric-number text-2xl text-ink">{formatValue(selectedTile.value, metric, preferences.energyUnit)}</strong>
+            <div className="text-left sm:text-right">
+              <strong className="metric-number text-2xl text-ink">{formatValue(selectedTile.value, metric, preferences.energyUnit)}</strong>
+              <span className="metric-label mt-1 block">{formatShare(selectedTile.share)} 绝对贡献</span>
+            </div>
           </header>
           <div className="divide-y divide-line">
             {selectedTile.details.map((detail) => (

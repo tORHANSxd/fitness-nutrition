@@ -4,6 +4,7 @@ import {
   aggregateHeatmap,
   buildDailyActual,
   buildHeatmapDays,
+  layoutHeatmapTiles,
   rangeForPreset,
   validateHeatmapRange,
   type HeatmapDay
@@ -87,11 +88,42 @@ describe("heatmap ledger", () => {
     expect(calories.tiles.find((tile) => tile.id === "exercise:跑步")).toMatchObject({ value: -400 });
     expect(calories.tiles.find((tile) => tile.id === "basal")).toMatchObject({ value: -3000 });
     expect(calories.net).toBe(-4200);
+    expect(calories.absoluteTotal).toBe(4600);
+    expect(calories.tiles.reduce((sum, tile) => sum + tile.share, 0)).toBeCloseTo(1, 10);
 
     const protein = aggregateHeatmap(days, "protein");
     expect(protein.tiles.find((tile) => tile.id === `food:${food.id}`)).toMatchObject({ value: 20 });
     expect(protein.tiles.find((tile) => tile.id === "target:protein")).toMatchObject({ value: -40 });
     expect(protein.net).toBe(-20);
+  });
+
+  it("allocates treemap area in exact proportion to each absolute contribution", () => {
+    const dataset = aggregateHeatmap([{
+      date: "2026-08-25",
+      completed: true,
+      actual: {
+        version: 1,
+        foods: [
+          { foodId: "large", name: "大项目", grams: 100, totals: { kcal: 600, carbs: 0, protein: 0, fat: 0 } },
+          { foodId: "small", name: "小项目", grams: 100, totals: { kcal: 100, carbs: 0, protein: 0, fat: 0 } }
+        ],
+        exercises: [{ id: "exercise", name: "运动", kcal: 300 }],
+        bmrKcal: 0,
+        activityKcal: 0
+      },
+      target: { kcal: 0, carbs: 0, protein: 0, fat: 0 }
+    }], "kcal");
+    const width = 1600;
+    const height = 1000;
+    const canvasArea = width * height;
+    const layout = layoutHeatmapTiles(dataset.tiles, width, height);
+
+    expect(layout).toHaveLength(3);
+    expect(layout.reduce((sum, item) => sum + item.width * item.height, 0)).toBeCloseTo(canvasArea, 6);
+    layout.forEach((item) => {
+      expect(item.width * item.height / canvasArea).toBeCloseTo(item.tile.share, 6);
+    });
+    expect(layoutHeatmapTiles(dataset.tiles, 0, height)).toEqual([]);
   });
 
   it("keeps today live and excludes incomplete history unless requested", () => {

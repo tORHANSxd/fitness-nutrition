@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { NumericDraftNotice, NumericDraftProvider, NumericInput, useNumericDraftForm } from "@/components/NumericInput";
 import { sortFoods } from "@/lib/foods";
-import { calculateFoodKcalPer100g, round } from "@/lib/nutrition";
+import { calculateFoodKcalPer100g, round, weightBasisLabel } from "@/lib/nutrition";
 import { displayEnergy, type EnergyUnit } from "@/lib/preferences";
 import { foodCategories, type CustomFoodDraft, type FoodItem } from "@/lib/types";
 
@@ -221,7 +221,7 @@ export function FoodPickerDialog({ open, foods, energyUnit = "kcal", currentFood
                       <span className="flex min-w-0 flex-col">
                         <span className="truncate text-sm font-medium text-ink">{food.name}</span>
                         <span className="text-[11px] text-muted">
-                          {food.category} · {food.weightBasis === "raw" ? "生重" : "熟重"}
+                          {food.category} · {weightBasisLabel(food.weightBasis)}
                         </span>
                       </span>
                       <span className="shrink-0 tabular-nums text-xs text-muted">{round(displayEnergy(calculateFoodKcalPer100g(food), energyUnit), 0)} {energyLabel}/100g</span>

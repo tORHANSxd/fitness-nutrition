@@ -1,4 +1,5 @@
 import { DEFAULT_LOCALE, DEFAULT_TIME_ZONE, resolveTimeZone } from "@/lib/dateTime";
+import type { HeatmapPalette } from "@/lib/types";
 
 export type AppLocale = "zh-CN" | "en";
 export type TimeZoneMode = "auto" | "fixed";
@@ -17,6 +18,7 @@ export interface AppPreferences {
   hourCycle: HourCycle;
   theme: ThemePreference;
   reduceMotion: boolean | null;
+  heatmapPalette: HeatmapPalette;
 }
 
 export const preferenceCookieNames = {
@@ -47,7 +49,8 @@ export function defaultPreferences(input: { language?: string | null; timeZone?:
     energyUnit: "kcal",
     hourCycle: "h23",
     theme: "system",
-    reduceMotion: null
+    reduceMotion: null,
+    heatmapPalette: "red-positive"
   };
 }
 
@@ -70,7 +73,8 @@ export function preferencesFromRow(row: Record<string, unknown>, detected = defa
     energyUnit: oneOf(row.energy_unit, ["kcal", "kj"] as const, detected.energyUnit),
     hourCycle: oneOf(row.hour_cycle, ["h12", "h23"] as const, detected.hourCycle),
     theme: oneOf(row.theme, ["system", "light", "dark"] as const, detected.theme),
-    reduceMotion: typeof row.reduce_motion === "boolean" ? row.reduce_motion : null
+    reduceMotion: typeof row.reduce_motion === "boolean" ? row.reduce_motion : null,
+    heatmapPalette: oneOf(row.heatmap_palette, ["red-positive", "green-positive"] as const, detected.heatmapPalette)
   };
 }
 
@@ -84,7 +88,8 @@ export function preferencesToRow(preferences: AppPreferences) {
     energy_unit: preferences.energyUnit,
     hour_cycle: preferences.hourCycle,
     theme: preferences.theme,
-    reduce_motion: preferences.reduceMotion
+    reduce_motion: preferences.reduceMotion,
+    heatmap_palette: preferences.heatmapPalette
   };
 }
 

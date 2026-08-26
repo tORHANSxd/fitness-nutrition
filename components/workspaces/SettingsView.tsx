@@ -133,6 +133,13 @@ export function SettingsView() {
                 <option value="full">完整动态效果</option>
               </select>
             </label>
+            <label>
+              <span className="metric-label mb-1 block">热力图配色</span>
+              <select className="field w-full" value={draft.heatmapPalette} onChange={(event) => update("heatmapPalette", event.target.value as AppPreferences["heatmapPalette"])}>
+                <option value="red-positive">红盈绿亏</option>
+                <option value="green-positive">红亏绿盈</option>
+              </select>
+            </label>
           </div>
         </section>
 

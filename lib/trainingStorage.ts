@@ -4,6 +4,8 @@ import type { User } from "@supabase/supabase-js";
 import { getSupabaseClient, mapWorkoutSessionRow, workoutSessionToRow } from "@/lib/supabase";
 import type { WorkoutSession } from "@/lib/types";
 
+const workoutSessionColumns = "id,session_date,split_label,bodyweight_kg,recovery,note,sets,created_at,updated_at";
+
 /**
  * 训练数据存储层：按用户要求 **仅落 Supabase，不使用 localStorage 回退**。
  * 因此所有操作都要求已登录且 Supabase 已配置，否则抛出明确错误，由 UI 引导登录。
@@ -26,7 +28,7 @@ function requireClient(user: User | null) {
 
 export async function loadWorkoutSessions(user: User | null, fromDate?: string, toDate?: string): Promise<WorkoutSession[]> {
   const supabase = requireClient(user);
-  let query = supabase.from("workout_sessions").select("*").order("session_date", { ascending: false });
+  let query = supabase.from("workout_sessions").select(workoutSessionColumns).order("session_date", { ascending: false });
   if (fromDate) {
     query = query.gte("session_date", fromDate);
   }
@@ -45,7 +47,7 @@ export async function saveWorkoutSession(session: WorkoutSession, user: User | n
   const { data, error } = await supabase
     .from("workout_sessions")
     .upsert(workoutSessionToRow(session, user as User), { onConflict: "user_id,session_date" })
-    .select("*")
+    .select(workoutSessionColumns)
     .single();
   if (error) {
     throw error;

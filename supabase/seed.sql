@@ -1,0 +1,1 @@
+-- Integration tests create isolated users and fixtures at runtime.

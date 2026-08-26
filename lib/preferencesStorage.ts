@@ -4,7 +4,7 @@ import type { User } from "@supabase/supabase-js";
 import { defaultPreferences, preferencesFromRow, preferencesToRow, type AppPreferences } from "@/lib/preferences";
 import { getSupabaseClient } from "@/lib/supabase";
 
-const preferenceColumns = "locale,time_zone,time_zone_mode,week_starts_on,unit_system,energy_unit,hour_cycle,theme,reduce_motion";
+const preferenceColumns = "locale,time_zone,time_zone_mode,week_starts_on,unit_system,energy_unit,hour_cycle,theme,reduce_motion,heatmap_palette";
 
 export async function loadProfilePreferences(user: User): Promise<{ preferences: AppPreferences; needsInitialization: boolean }> {
   const supabase = getSupabaseClient();
@@ -37,7 +37,7 @@ export async function saveProfilePreferences(user: User, preferences: AppPrefere
 
   const { data, error } = await supabase
     .from("profiles")
-    .upsert({ id: user.id, ...preferencesToRow(preferences), updated_at: new Date().toISOString() }, { onConflict: "id" })
+    .upsert({ id: user.id, ...preferencesToRow(preferences) }, { onConflict: "id" })
     .select(preferenceColumns)
     .single();
   if (error) {

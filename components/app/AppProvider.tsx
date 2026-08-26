@@ -8,8 +8,14 @@ import { translate } from "@/lib/i18n";
 import { preferenceCookieValues, preferencesFromRow, type AppPreferences } from "@/lib/preferences";
 import { loadProfilePreferences, saveProfilePreferences } from "@/lib/preferencesStorage";
 import { getSupabaseClient } from "@/lib/supabase";
-import { loadFoods, loadPlannerTemplates, savePlannerTemplates } from "@/lib/storage";
-import type { FoodItem, PlannerTemplates } from "@/lib/types";
+import {
+  createPlannerTemplate,
+  deletePlannerTemplate,
+  loadFoods,
+  loadPlannerTemplates,
+  updatePlannerTemplate
+} from "@/lib/storage";
+import type { DayTemplate, FoodItem, MealTemplate, PlannerTemplates } from "@/lib/types";
 
 export type SyncState = "loading" | "saved" | "schema-required" | "error";
 
@@ -28,6 +34,12 @@ interface AppContextValue {
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
+
+type PlannerTemplate = MealTemplate | DayTemplate;
+
+function flattenTemplates(templates: PlannerTemplates): PlannerTemplate[] {
+  return [...templates.mealTemplates, ...templates.dayTemplates];
+}
 
 function writePreferenceCookies(preferences: AppPreferences) {
   const cookieOptions = "Path=/; Max-Age=31536000; SameSite=Lax";
@@ -139,21 +151,41 @@ export function AppProvider({
   }, [router]);
 
   function persistTemplates(nextTemplates: PlannerTemplates) {
-    const previous = templates;
+    const previousById = new Map(flattenTemplates(templates).map((template) => [template.id, template]));
+    const nextById = new Map(flattenTemplates(nextTemplates).map((template) => [template.id, template]));
+    const mutations: Promise<unknown>[] = [];
+    for (const template of nextById.values()) {
+      const previous = previousById.get(template.id);
+      if (!previous) {
+        mutations.push(createPlannerTemplate(template, user));
+      } else if (JSON.stringify(previous) !== JSON.stringify(template)) {
+        mutations.push(updatePlannerTemplate(template, user));
+      }
+    }
+    for (const templateId of previousById.keys()) {
+      if (!nextById.has(templateId)) {
+        mutations.push(deletePlannerTemplate(templateId, user));
+      }
+    }
+
     setTemplates(nextTemplates);
     setSyncState("loading");
-    savePlannerTemplates(user, nextTemplates)
-      .then((saved) => {
-        setTemplates(saved);
+    Promise.all(mutations)
+      .then(() => {
         setSyncState("saved");
       })
-      .catch(() => {
-        setTemplates(previous);
+      .catch(async () => {
+        try {
+          setTemplates(await loadPlannerTemplates(user));
+        } catch {
+          // 保留乐观状态，避免二次读取失败时把用户刚编辑的模板直接清空。
+        }
         setSyncState("error");
       });
   }
 
   async function updatePreferences(nextPreferences: AppPreferences): Promise<boolean> {
+    const previousPreferences = preferences;
     const detectedTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const normalized = preferencesFromRow({
       locale: nextPreferences.locale,
@@ -177,6 +209,8 @@ export function AppProvider({
       router.refresh();
       return true;
     } catch (error) {
+      setPreferences(previousPreferences);
+      writePreferenceCookies(previousPreferences);
       setSyncState(isMissingPreferenceSchema(error) ? "schema-required" : "error");
       return false;
     }

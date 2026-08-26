@@ -53,6 +53,7 @@ describe("body log row mapping (Supabase body_logs)", () => {
     expect(back.plan_date).toBe("2026-07-09");
     expect(back.weight_kg).toBe(94.5);
     expect(back.hip_cm).toBeNull();
+    expect(back).not.toHaveProperty("updated_at");
   });
 
   it("defines chart series for weight plus all circumference fields", () => {

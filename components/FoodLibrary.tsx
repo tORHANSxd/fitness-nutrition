@@ -1,12 +1,12 @@
 "use client";
 
 import type { User } from "@supabase/supabase-js";
-import { Copy, Download, Pencil, Plus, RotateCcw, Save, Search, Trash2, Upload, X } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { Archive, Copy, Download, Pencil, Plus, RotateCcw, Save, Search, Upload, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { foodCategories, type FoodFormState, type FoodItem } from "@/lib/types";
-import { deleteFood, saveFood } from "@/lib/storage";
+import { deleteFood, importUserFoods, loadArchivedFoods, restoreFood, saveFood } from "@/lib/storage";
 import { sortFoods } from "@/lib/foods";
-import { calculateFoodKcalPer100g, getFoodEnergyMismatch, round } from "@/lib/nutrition";
+import { calculateFoodKcalPer100g, getFoodEnergyMismatch, round, weightBasisLabel } from "@/lib/nutrition";
 import { csvToFoodForms, foodsToCsv, jsonToFoodForms } from "@/lib/dataIO";
 import { displayEnergy, type EnergyUnit } from "@/lib/preferences";
 import { NumericDraftNotice, NumericDraftProvider, NumericInput, useNumericDraftForm } from "@/components/NumericInput";
@@ -59,33 +59,56 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated, energ
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
+  const [archivedFoods, setArchivedFoods] = useState<FoodItem[]>([]);
+  const [archivedLoading, setArchivedLoading] = useState(false);
   const [editingFood, setEditingFood] = useState<FoodItem | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const formKcalPer100g = calculateFoodKcalPer100g(form);
+  const libraryFoods = showArchived ? archivedFoods : foods;
+
+  useEffect(() => {
+    if (!showArchived || !user) return;
+    let cancelled = false;
+    setArchivedLoading(true);
+    loadArchivedFoods(user)
+      .then((items) => {
+        if (!cancelled) setArchivedFoods(items);
+      })
+      .catch((error) => {
+        if (!cancelled) setMessage(error instanceof Error ? error.message : "归档食物加载失败。");
+      })
+      .finally(() => {
+        if (!cancelled) setArchivedLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [showArchived, user]);
 
   // 重复检测：按小写名出现次数。
   const duplicateNames = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const food of foods) {
+    for (const food of libraryFoods) {
       const key = food.name.trim().toLowerCase();
       counts.set(key, (counts.get(key) ?? 0) + 1);
     }
     return new Set(Array.from(counts.entries()).filter(([, n]) => n > 1).map(([name]) => name));
-  }, [foods]);
+  }, [libraryFoods]);
 
   const stats = useMemo(() => {
     let warnings = 0;
-    for (const food of foods) {
+    for (const food of libraryFoods) {
       if (getFoodEnergyMismatch(food).severity !== "ok") {
         warnings += 1;
       }
     }
-    return { total: foods.length, warnings, duplicates: duplicateNames.size };
-  }, [foods, duplicateNames]);
+    return { total: libraryFoods.length, warnings, duplicates: duplicateNames.size };
+  }, [libraryFoods, duplicateNames]);
 
   const visibleFoods = useMemo(() => {
     const term = search.trim().toLowerCase();
-    const filtered = foods.filter((food) => {
+    const filtered = libraryFoods.filter((food) => {
       if (term && !food.name.toLowerCase().includes(term)) {
         return false;
       }
@@ -102,7 +125,7 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated, energ
     });
     // 全站统一排序：始终按「分类 → 拼音名」，不再提供按营养素列排序。
     return sortFoods(filtered);
-  }, [foods, search, activeCategories, sourceFilter]);
+  }, [libraryFoods, search, activeCategories, sourceFilter]);
 
   function toggleCategory(category: FoodItem["category"]) {
     setActiveCategories((prev) => {
@@ -214,7 +237,7 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated, energ
     try {
       await deleteFood(foodId, user);
       await onFoodsChanged();
-      setMessage(foodId.startsWith("public-") ? "公共食物已恢复默认值。" : "食物已删除。");
+      setMessage(foodId.startsWith("public-") ? "公共食物已恢复默认值。" : "食物已归档，可在归档视图中恢复。");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "删除失败。");
     } finally {
@@ -222,8 +245,31 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated, energ
     }
   }
 
+  function selectArchiveMode(archived: boolean) {
+    setShowArchived(archived);
+    setSourceFilter(archived ? "user" : "all");
+    setEditingFood(null);
+    setForm(emptyForm);
+    setMessage("");
+  }
+
+  async function restoreArchivedFood(foodId: string) {
+    setBusy(true);
+    setMessage("");
+    try {
+      await restoreFood(foodId, user);
+      setArchivedFoods((current) => current.filter((food) => food.id !== foodId));
+      await onFoodsChanged();
+      setMessage("食物已恢复到在用列表。");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "恢复失败。");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function exportFoods(format: "csv" | "json") {
-    const exportable = visibleFoods.length > 0 ? visibleFoods : foods;
+    const exportable = visibleFoods.length > 0 ? visibleFoods : libraryFoods;
     if (format === "csv") {
       downloadFile("foods.csv", foodsToCsv(exportable), "text/csv;charset=utf-8");
     } else {
@@ -242,13 +288,9 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated, energ
         setMessage("未解析到可导入的食物（请检查表头：name,category,kcalPer100g,fatPer100g,carbsPer100g,proteinPer100g,weightBasis,cookedRawRatio）。");
         return;
       }
-      let ok = 0;
-      for (const foodForm of parsed.foods) {
-        await saveFood({ id: "", source: "user", ...foodForm }, user);
-        ok += 1;
-      }
+      const result = await importUserFoods(parsed.foods, user, true);
       await onFoodsChanged();
-      setMessage(`导入完成：成功 ${ok} 条${parsed.skipped ? `，跳过 ${parsed.skipped} 条（缺名）` : ""}。`);
+      setMessage(`导入完成：成功 ${result.inserted} 条${parsed.skipped ? `，跳过 ${parsed.skipped} 条（缺名）` : ""}。`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "导入失败。");
     } finally {
@@ -291,6 +333,7 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated, energ
               <select className="field w-full" value={form.weightBasis} onChange={(event) => setForm({ ...form, weightBasis: event.target.value as FoodItem["weightBasis"] })}>
                 <option value="raw">生重</option>
                 <option value="cooked">熟重</option>
+                <option value="none">不适用</option>
               </select>
             </label>
           </div>
@@ -348,7 +391,7 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated, energ
         <div className="flex flex-col gap-3 border-b border-line p-4">
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-gradient">食物库</h2>
+              <h2 className="text-lg font-semibold text-gradient">{showArchived ? "已归档食物" : "食物库"}</h2>
               <p className="text-sm text-muted">
                 共 {stats.total} 条 · <span className={stats.warnings ? "text-warning" : ""}>{stats.warnings} 条能量偏差</span> · <span className={stats.duplicates ? "text-danger" : ""}>{stats.duplicates} 组重名</span>
               </p>
@@ -378,6 +421,15 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated, energ
             </div>
           </div>
           <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+            <div className="grid grid-cols-2 rounded border border-line bg-panel p-1" aria-label="食物状态">
+              <button className={`segmented-option ${!showArchived ? "is-active" : ""}`} type="button" onClick={() => selectArchiveMode(false)}>
+                在用
+              </button>
+              <button className={`segmented-option ${showArchived ? "is-active" : ""}`} type="button" onClick={() => selectArchiveMode(true)}>
+                <Archive size={14} />
+                已归档
+              </button>
+            </div>
             <div className="relative flex-1">
               <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
               <input className="field w-full pl-9" aria-label="搜索食物" placeholder="按名称搜索…" value={search} onChange={(event) => setSearch(event.target.value)} />
@@ -445,31 +497,39 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated, energ
                     <td className="hidden px-3 py-3 tabular-nums xl:table-cell">{food.fatPer100g}</td>
                     <td className="hidden px-3 py-3 tabular-nums xl:table-cell">{food.carbsPer100g}</td>
                     <td className="hidden px-3 py-3 tabular-nums xl:table-cell">{food.proteinPer100g}</td>
-                    <td className="hidden px-3 py-3 text-muted lg:table-cell">{food.weightBasis === "raw" ? "生重" : "熟重"}</td>
+                    <td className="hidden px-3 py-3 text-muted lg:table-cell">{weightBasisLabel(food.weightBasis)}</td>
                     <td className="hidden px-3 py-3 md:table-cell">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-xs text-muted">{food.source === "public" ? (food.isUserOverride ? "公共·已修改" : "公共") : "本人"}</span>
+                        <span className="text-xs text-muted">{showArchived ? "本人·已归档" : food.source === "public" ? (food.isUserOverride ? "公共·已修改" : "公共") : "本人"}</span>
                         {badge ? <span className={`rounded-full border px-1.5 py-0.5 text-[10px] ${badge.cls}`}>{badge.label}</span> : null}
                       </div>
                     </td>
                     <td className="bg-surface px-2 py-3 transition-colors group-hover:bg-panel sm:px-3">
                       <div className="flex flex-wrap justify-end gap-1.5">
-                        <button className="btn-secondary h-11 w-11 p-0" type="button" onClick={() => startEditFood(food)} disabled={busy} aria-label={`编辑${food.name}`} title="编辑">
-                          <Pencil size={14} />
-                        </button>
-                        <button className="btn-secondary h-11 w-11 p-0" type="button" onClick={() => copyFood(food)} disabled={busy} aria-label={`复制${food.name}为自定义食物`} title="复制为自定义">
-                          <Copy size={14} />
-                        </button>
-                        {food.source === "user" ? (
-                          <button className="btn-danger h-11 w-11 p-0" type="button" onClick={() => removeFood(food.id)} disabled={busy} aria-label={`删除${food.name}`} title="删除">
-                            <Trash2 size={14} />
-                          </button>
-                        ) : null}
-                        {food.source === "public" && food.isUserOverride ? (
-                          <button className="btn-secondary h-11 w-11 p-0" type="button" onClick={() => removeFood(food.id)} disabled={busy} aria-label={`重置${food.name}为默认值`} title="重置为默认">
+                        {showArchived ? (
+                          <button className="btn-secondary h-11 w-11 p-0" type="button" onClick={() => restoreArchivedFood(food.id)} disabled={busy} aria-label={`恢复${food.name}`} title="恢复">
                             <RotateCcw size={14} />
                           </button>
-                        ) : null}
+                        ) : (
+                          <>
+                            <button className="btn-secondary h-11 w-11 p-0" type="button" onClick={() => startEditFood(food)} disabled={busy} aria-label={`编辑${food.name}`} title="编辑">
+                              <Pencil size={14} />
+                            </button>
+                            <button className="btn-secondary h-11 w-11 p-0" type="button" onClick={() => copyFood(food)} disabled={busy} aria-label={`复制${food.name}为自定义食物`} title="复制为自定义">
+                              <Copy size={14} />
+                            </button>
+                            {food.source === "user" ? (
+                              <button className="btn-danger h-11 w-11 p-0" type="button" onClick={() => removeFood(food.id)} disabled={busy} aria-label={`归档${food.name}`} title="归档">
+                                <Archive size={14} />
+                              </button>
+                            ) : null}
+                            {food.source === "public" && food.isUserOverride ? (
+                              <button className="btn-secondary h-11 w-11 p-0" type="button" onClick={() => removeFood(food.id)} disabled={busy} aria-label={`重置${food.name}为默认值`} title="重置为默认">
+                                <RotateCcw size={14} />
+                              </button>
+                            ) : null}
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -477,7 +537,7 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated, energ
               })}
               {visibleFoods.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-sm text-muted">没有符合条件的食物。</td>
+                  <td colSpan={9} className="px-4 py-8 text-center text-sm text-muted">{archivedLoading ? "正在读取归档食物…" : "没有符合条件的食物。"}</td>
                 </tr>
               ) : null}
             </tbody>

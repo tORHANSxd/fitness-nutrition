@@ -8,8 +8,19 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:db": "vitest run --config vitest.integration.config.mts",
     "test:e2e": "playwright test",
     "test:e2e:a11y": "playwright test --grep @a11y",
+    "db:verify-history": "node scripts/verify-migration-history.mjs",
+    "db:verify-migrations": "node scripts/verify-migration-history.mjs",
+    "db:audit": "tsx scripts/database/audit-storage.ts",
+    "db:backfill:drafts": "tsx scripts/database/backfill-planner-drafts.ts",
+    "db:backfill:food-snapshots": "tsx scripts/database/backfill-plan-food-snapshots.ts",
+    "db:migrate:checkins-v2": "tsx scripts/database/migrate-daily-checkins-v2.ts",
+    "db:start": "npx supabase start",
+    "db:reset": "npx supabase db reset",
+    "db:lint": "npx supabase db lint --local --level warning",
+    "verify:db": "npm run db:verify-migrations && npm run db:reset && npm run db:lint && npm run test:db",
     "verify": "npm run lint && npm run test && npm run build && npm run test:e2e"
   },
   "dependencies": {
@@ -38,6 +49,7 @@
     "jsdom": "25.0.1",
     "postcss": "8.5.26",
     "tailwindcss": "3.4.17",
+    "tsx": "4.23.12",
     "typescript": "5.7.2",
     "vitest": "^4.1.7"
   },

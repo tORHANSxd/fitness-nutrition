@@ -1,13 +1,13 @@
 "use client";
 
 import type { User } from "@supabase/supabase-js";
-import { CalendarClock, RefreshCw, Trash2 } from "lucide-react";
+import { CalendarClock, ChevronDown, RefreshCw, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { formatDateKey } from "@/lib/dateTime";
 import { round, trainingTimeLabels } from "@/lib/nutrition";
 import { displayEnergy, type AppLocale, type EnergyUnit } from "@/lib/preferences";
-import { deletePlan, loadPlans } from "@/lib/storage";
-import type { SavedPlan } from "@/lib/types";
+import { deletePlan, loadPlanSummaryPage, type PlanCursor } from "@/lib/storage";
+import type { SavedPlanSummary } from "@/lib/types";
 
 interface HistoryViewProps {
   user: User | null;
@@ -16,7 +16,8 @@ interface HistoryViewProps {
 }
 
 export function HistoryView({ user, locale = "zh-CN", energyUnit = "kcal" }: HistoryViewProps) {
-  const [plans, setPlans] = useState<SavedPlan[]>([]);
+  const [plans, setPlans] = useState<SavedPlanSummary[]>([]);
+  const [nextCursor, setNextCursor] = useState<PlanCursor | null>(null);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -29,7 +30,9 @@ export function HistoryView({ user, locale = "zh-CN", energyUnit = "kcal" }: His
     setBusy(true);
     setMessage("");
     try {
-      setPlans(await loadPlans(user));
+      const page = await loadPlanSummaryPage({ user });
+      setPlans(page.items);
+      setNextCursor(page.nextCursor);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "读取历史失败。");
     } finally {
@@ -37,7 +40,22 @@ export function HistoryView({ user, locale = "zh-CN", energyUnit = "kcal" }: His
     }
   }
 
-  async function removePlan(plan: SavedPlan) {
+  async function loadMore() {
+    if (!user || !nextCursor || busy) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      const page = await loadPlanSummaryPage({ user, before: nextCursor });
+      setPlans((current) => [...current, ...page.items]);
+      setNextCursor(page.nextCursor);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "读取更多历史失败。");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function removePlan(plan: SavedPlanSummary) {
     if (!window.confirm(`确定删除 ${plan.planDate} 的计划记录？此操作不可撤销。`)) {
       return;
     }
@@ -68,7 +86,7 @@ export function HistoryView({ user, locale = "zh-CN", energyUnit = "kcal" }: His
           </div>
           <div>
             <h2 className="text-lg font-semibold text-ink">历史记录</h2>
-            <p className="text-sm text-muted">显示最近 30 条已保存计划。</p>
+            <p className="text-sm text-muted">按日期分批读取，每次 30 条。</p>
           </div>
         </div>
         <button className="btn-secondary" type="button" onClick={refresh}>
@@ -110,12 +128,12 @@ export function HistoryView({ user, locale = "zh-CN", energyUnit = "kcal" }: His
                   style={{ animationDelay: `${index * 40}ms` }}
                 >
                   <td className="break-words px-3 py-3 font-medium leading-tight text-ink sm:px-4">{formatDateKey(plan.planDate, locale, { year: "numeric", month: "short", day: "numeric" })}</td>
-                  <td className="hidden px-4 py-3 lg:table-cell">{trainingTimeLabels[plan.profile.trainingTime]}</td>
-                  <td className="hidden whitespace-nowrap px-3 py-3 tabular-nums sm:table-cell sm:px-4">{round(displayEnergy(plan.result.dailyTarget.kcal, energyUnit), 0)} {energyLabel}</td>
-                  <td className="whitespace-nowrap px-3 py-3 tabular-nums sm:px-4">{round(displayEnergy(plan.result.actualTotals.kcal, energyUnit), 0)} {energyLabel}</td>
-                  <td className="hidden px-4 py-3 tabular-nums lg:table-cell">{round(plan.result.actualTotals.carbs)} g</td>
-                  <td className="hidden px-4 py-3 tabular-nums lg:table-cell">{round(plan.result.actualTotals.protein)} g</td>
-                  <td className="hidden px-4 py-3 tabular-nums lg:table-cell">{round(plan.result.actualTotals.fat)} g</td>
+                  <td className="hidden px-4 py-3 lg:table-cell">{trainingTimeLabels[plan.trainingTime]}</td>
+                  <td className="hidden whitespace-nowrap px-3 py-3 tabular-nums sm:table-cell sm:px-4">{round(displayEnergy(plan.dailyTarget.kcal, energyUnit), 0)} {energyLabel}</td>
+                  <td className="whitespace-nowrap px-3 py-3 tabular-nums sm:px-4">{round(displayEnergy(plan.actualTotals.kcal, energyUnit), 0)} {energyLabel}</td>
+                  <td className="hidden px-4 py-3 tabular-nums lg:table-cell">{round(plan.actualTotals.carbs)} g</td>
+                  <td className="hidden px-4 py-3 tabular-nums lg:table-cell">{round(plan.actualTotals.protein)} g</td>
+                  <td className="hidden px-4 py-3 tabular-nums lg:table-cell">{round(plan.actualTotals.fat)} g</td>
                   <td className="px-2 py-3 text-right sm:px-4">
                     <button
                       className="btn-danger h-11 w-11 p-0"
@@ -134,6 +152,14 @@ export function HistoryView({ user, locale = "zh-CN", energyUnit = "kcal" }: His
           </tbody>
         </table>
       </div>
+      {nextCursor ? (
+        <div className="flex justify-center border-t border-line p-4">
+          <button className="btn-secondary" type="button" onClick={loadMore} disabled={busy}>
+            <ChevronDown size={16} className={busy ? "animate-pulse" : ""} />
+            加载更多
+          </button>
+        </div>
+      ) : null}
     </section>
   );
 }

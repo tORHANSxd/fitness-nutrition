@@ -1,6 +1,7 @@
 import { hierarchy, treemap, treemapSquarify } from "d3-hierarchy";
 import { daysBetween, isDateKey, monthKey, startOfWeek, toDateKey, toPlainDate } from "@/lib/dateTime";
 import { customFoodsFromMeals } from "@/lib/foods";
+import { foodFromSnapshot, parseFoodSnapshot } from "@/lib/foodSnapshots";
 import { calculateFoodKcalPer100g, getCalorieDeficit } from "@/lib/nutrition";
 import type {
   DailyCheckin,
@@ -8,10 +9,10 @@ import type {
   DailyFoodSnapshot,
   ExerciseEnergyEntry,
   FoodItem,
+  HeatmapPlanInput,
   MacroTotals,
   MealPlan,
   NutritionResult,
-  SavedPlan,
   UserProfile
 } from "@/lib/types";
 
@@ -67,13 +68,13 @@ const zeroTotals = (): MacroTotals => ({ kcal: 0, carbs: 0, protein: 0, fat: 0 }
 const roundValue = (value: number) => Math.round(value * 1000) / 1000;
 
 export function emptyDailyActual(exercises: ExerciseEnergyEntry[] = []): DailyCheckinActual {
-  return { version: 1, foods: [], exercises, bmrKcal: 0, activityKcal: 0 };
+  return { version: 2, foods: [], exercises, bmrKcal: 0, activityKcal: 0 };
 }
 
 export function buildDailyActual(
   profile: UserProfile,
   meals: MealPlan[],
-  result: NutritionResult,
+  result: Pick<NutritionResult, "bmr">,
   foodsById: ReadonlyMap<string, FoodItem>,
   exercises: ExerciseEnergyEntry[] = []
 ): DailyCheckinActual {
@@ -118,7 +119,7 @@ export function buildDailyActual(
   });
 
   return {
-    version: 1,
+    version: 2,
     foods: [...foods.values()],
     exercises: exercises.map((exercise) => ({ ...exercise })),
     bmrKcal: roundValue(Math.max(0, result.bmr)),
@@ -127,11 +128,15 @@ export function buildDailyActual(
 }
 
 export function buildActualFromSavedPlan(
-  plan: SavedPlan,
+  plan: HeatmapPlanInput,
   foods: FoodItem[],
   exercises: ExerciseEnergyEntry[] = []
 ): DailyCheckinActual {
-  const allFoods = [...foods, ...customFoodsFromMeals(plan.meals)];
+  const snapshotFoods = plan.meals.flatMap((meal) => meal.entries.flatMap((entry) => {
+    const snapshot = parseFoodSnapshot(entry.foodSnapshot);
+    return snapshot ? [foodFromSnapshot(entry.foodId, snapshot)] : [];
+  }));
+  const allFoods = [...foods, ...customFoodsFromMeals(plan.meals), ...snapshotFoods];
   return buildDailyActual(plan.profile, plan.meals, plan.result, new Map(allFoods.map((food) => [food.id, food])), exercises);
 }
 
@@ -142,7 +147,7 @@ export function buildHeatmapDays({
   today,
   includeIncomplete
 }: {
-  plans: SavedPlan[];
+  plans: HeatmapPlanInput[];
   checkins: DailyCheckin[];
   foods: FoodItem[];
   today: string;

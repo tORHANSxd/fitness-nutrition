@@ -76,10 +76,14 @@ export function TodayWorkspace() {
   });
 
   const draftStatus = {
-    idle: { icon: Cloud, label: "等待修改", className: "text-muted" },
+    loading: { icon: LoaderCircle, label: "正在读取云端草稿", className: "text-muted" },
+    ready: { icon: Cloud, label: "云端草稿已载入", className: "text-muted" },
+    empty: { icon: Cloud, label: "等待首次保存", className: "text-muted" },
+    dirty: { icon: Cloud, label: "有修改待同步", className: "text-accent2" },
     saving: { icon: LoaderCircle, label: "正在保存草稿", className: "text-accent2" },
     saved: { icon: Cloud, label: "草稿已同步", className: "text-success" },
-    error: { icon: CloudOff, label: "草稿同步失败，可继续编辑", className: "text-danger" }
+    conflict: { icon: CloudOff, label: "云端草稿有冲突，已停止覆盖", className: "text-danger" },
+    error: { icon: CloudOff, label: "草稿同步失败，已保护云端数据", className: "text-danger" }
   }[controller.draftState];
   const DraftIcon = draftStatus.icon;
 

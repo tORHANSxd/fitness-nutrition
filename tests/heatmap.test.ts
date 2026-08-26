@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildNutritionResult } from "@/lib/nutrition";
 import {
   aggregateHeatmap,
+  buildActualFromSavedPlan,
   buildDailyActual,
   buildHeatmapDays,
   layoutHeatmapTiles,
@@ -9,6 +10,7 @@ import {
   validateHeatmapRange,
   type HeatmapDay
 } from "@/lib/heatmap";
+import { foodSnapshotFromFood } from "@/lib/foodSnapshots";
 import type { DailyCheckin, FoodItem, MealPlan, SavedPlan, UserProfile } from "@/lib/types";
 
 const profile: UserProfile = {
@@ -45,6 +47,17 @@ const meals: MealPlan[] = [{
   ]
 }];
 
+function savedPlanMetadata(date: string) {
+  const timestamp = `${date}T00:00:00.000Z`;
+  return {
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    schemaVersion: 2,
+    algorithmVersion: "nutrition-v2.3",
+    integrityFlags: [],
+  };
+}
+
 function savedPlan(date: string): SavedPlan {
   const datedProfile = { ...profile, planDate: date };
   return {
@@ -53,7 +66,7 @@ function savedPlan(date: string): SavedPlan {
     profile: datedProfile,
     meals,
     result: buildNutritionResult(datedProfile, meals, [food]),
-    createdAt: `${date}T00:00:00.000Z`
+    ...savedPlanMetadata(date),
   };
 }
 
@@ -69,12 +82,25 @@ describe("heatmap ledger", () => {
     expect(actual.activityKcal).toBeCloseTo(result.bmr * 0.25, 2);
   });
 
+  it("uses saved food snapshots instead of changed live nutrition values", () => {
+    const plan = savedPlan("2026-08-24");
+    plan.meals = plan.meals.map((meal) => ({
+      ...meal,
+      entries: meal.entries.map((entry) => ({ ...entry, foodSnapshot: foodSnapshotFromFood(food) }))
+    }));
+    const changedFood = { ...food, name: "已修改苹果", kcalPer100g: 999, carbsPer100g: 99 };
+    const actual = buildActualFromSavedPlan(plan, [changedFood]);
+
+    expect(actual.foods[0]).toMatchObject({ name: "苹果", grams: 150 });
+    expect(actual.foods[0].totals).toMatchObject({ kcal: 247.5, carbs: 30 });
+  });
+
   it("aggregates same foods and exercises across days with correct ledger signs", () => {
     const days: HeatmapDay[] = ["2026-08-24", "2026-08-25"].map((date) => ({
       date,
       completed: true,
       actual: {
-        version: 1,
+        version: 2,
         foods: [{ foodId: food.id, name: food.name, grams: 100, totals: { kcal: 100, carbs: 20, protein: 10, fat: 5 } }],
         exercises: [{ id: `exercise-${date}`, name: "跑步", kcal: 200 }],
         bmrKcal: 1500,
@@ -102,7 +128,7 @@ describe("heatmap ledger", () => {
       date: "2026-08-25",
       completed: true,
       actual: {
-        version: 1,
+        version: 2,
         foods: [
           { foodId: "large", name: "大项目", grams: 100, totals: { kcal: 600, carbs: 0, protein: 0, fat: 0 } },
           { foodId: "small", name: "小项目", grams: 100, totals: { kcal: 100, carbs: 0, protein: 0, fat: 0 } }
@@ -134,7 +160,7 @@ describe("heatmap ledger", () => {
       profile: plannedProfile,
       meals,
       result: buildNutritionResult(plannedProfile, meals, [food]),
-      createdAt: "2026-08-25T00:00:00.000Z"
+      ...savedPlanMetadata("2026-08-25"),
     };
     const [day] = buildHeatmapDays({
       plans: [plan],
@@ -212,7 +238,7 @@ describe("heatmap ledger", () => {
       profile,
       meals: fullDayMeals,
       result,
-      createdAt: "2026-08-25T12:00:00.000Z"
+      ...savedPlanMetadata("2026-08-25"),
     };
     const staleCheckin: DailyCheckin = {
       id: "early-snapshot",
@@ -253,7 +279,7 @@ describe("heatmap ledger", () => {
       profile: plannedProfile,
       meals,
       result,
-      createdAt: "2026-08-25T12:00:00.000Z"
+      ...savedPlanMetadata("2026-08-25"),
     };
     const earlyCheckin: DailyCheckin = {
       id: "early-completion-without-exercise",

@@ -1,7 +1,7 @@
 export const foodCategories = ["主食", "蔬菜", "水果", "肉类", "补剂", "坚果", "食物配料"] as const;
 
 export type FoodCategory = (typeof foodCategories)[number];
-export type WeightBasis = "raw" | "cooked";
+export type WeightBasis = "raw" | "cooked" | "none";
 export type Sex = "male" | "female";
 export type TrainingTime = "morning" | "afternoon" | "evening" | "rest";
 export type NutritionGoal = "cut" | "maintain" | "bulk";
@@ -86,7 +86,20 @@ export interface FoodItem {
   proteinPer100g: number;
   weightBasis: WeightBasis;
   cookedRawRatio?: number | null;
+  archivedAt?: string | null;
   source: "public" | "user";
+}
+
+export interface FoodSnapshotV1 {
+  version: 1;
+  name: string;
+  category: FoodCategory;
+  kcalPer100g: number;
+  carbsPer100g: number;
+  proteinPer100g: number;
+  fatPer100g: number;
+  weightBasis: WeightBasis;
+  cookedRawRatio: number | null;
 }
 
 /** 分餐里临时自定义食物的营养定义（每 100g）：三大营养素自由填，热量由 4/4/9 自动推导。 */
@@ -101,6 +114,7 @@ export interface CustomFoodDraft {
 export interface MealFoodEntry {
   id: string;
   foodId: string;
+  foodSnapshot?: FoodSnapshotV1;
   grams: number;
   locked: boolean;
   minGrams?: number | null;
@@ -151,6 +165,32 @@ export interface SavedPlan {
   meals: MealPlan[];
   result: NutritionResult;
   createdAt: string;
+  updatedAt: string;
+  schemaVersion: number;
+  algorithmVersion: string | null;
+  integrityFlags: string[];
+}
+
+export interface SavedPlanSummary {
+  id: string;
+  planDate: string;
+  trainingTime: TrainingTime;
+  dailyTarget: MacroTotals;
+  actualTotals: MacroTotals;
+  createdAt: string;
+  updatedAt: string;
+  integrityFlags: string[];
+}
+
+export interface HeatmapPlanInput {
+  id: string;
+  planDate: string;
+  profile: UserProfile;
+  meals: MealPlan[];
+  result: Pick<NutritionResult, "bmr" | "dailyTarget">;
+  schemaVersion: number;
+  algorithmVersion: string | null;
+  integrityFlags: string[];
 }
 
 export interface DailyFoodSnapshot {
@@ -167,11 +207,22 @@ export interface ExerciseEnergyEntry {
 }
 
 export interface DailyCheckinActual {
-  version: 1;
+  version: 2;
   foods: DailyFoodSnapshot[];
   exercises: ExerciseEnergyEntry[];
   bmrKcal: number;
   activityKcal: number;
+  totalsSnapshot?: MacroTotals;
+  habits?: {
+    vegetableGrams?: number;
+    waterLiters?: number;
+    steps?: number;
+    postWorkoutCarbs?: number;
+    postWorkoutProtein?: number;
+    sleepHours?: number;
+    hungerLevel?: number;
+    moodLevel?: number;
+  };
 }
 
 export interface DailyCheckin {
@@ -190,11 +241,14 @@ export interface PlannerDraft {
   profile: UserProfile;
   meals: MealPlan[];
   updatedAt: string;
+  revision: number;
+  schemaVersion: number;
 }
 
 /** 模板里的食物引用：只记「哪种食物」，不记克重；临时自定义食物随引用内嵌其营养定义。 */
 export interface TemplateFoodRef {
   foodId: string;
+  foodSnapshot?: FoodSnapshotV1;
   customFood?: CustomFoodDraft;
 }
 
@@ -238,6 +292,11 @@ export interface WorkoutSet {
   rir: number | null;
   /** 热身组不计入有效训练量。 */
   isWarmup: boolean;
+}
+
+export interface WorkoutSetsDocumentV1 {
+  version: 1;
+  sets: WorkoutSet[];
 }
 
 /** 一次训练（一天一条）。逐组数据放在 sets 里以 jsonb 存入 Supabase。 */

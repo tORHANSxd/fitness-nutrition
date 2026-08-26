@@ -8,13 +8,12 @@ import { buildNutritionResult } from "@/lib/nutrition";
 import type { DailyCheckin, FoodItem, MealPlan, UserProfile } from "@/lib/types";
 
 const storageMocks = vi.hoisted(() => ({
+  completeDailyRecord: vi.fn(),
   loadDailyCheckin: vi.fn(),
   loadDailyCheckins: vi.fn(),
-  loadHeatmapPalette: vi.fn(),
   loadPlannerDraft: vi.fn(),
-  loadPlansInRange: vi.fn(),
+  loadHeatmapPlanInputs: vi.fn(),
   saveDailyCheckin: vi.fn(),
-  saveHeatmapPalette: vi.fn()
 }));
 
 const appMock = vi.hoisted(() => ({ value: {} as Record<string, unknown> }));
@@ -70,7 +69,7 @@ function controller(): PlannerController {
     activeMealId: "meal-1",
     message: "",
     saving: false,
-    draftState: "idle",
+    draftState: "ready",
     result,
     foodsById: new Map([[food.id, food]]),
     recommendationsByMeal: new Map(result.mealRecommendations.map((item) => [item.mealId, item])),
@@ -95,7 +94,7 @@ const completedCheckin: DailyCheckin = {
   id: "checkin-1",
   planDate: "2026-08-25",
   actual: {
-    version: 1,
+    version: 2,
     foods: [{ foodId: food.id, name: food.name, grams: 100, totals: { kcal: 52, carbs: 12, protein: 5, fat: 0.2 } }],
     exercises: [{ id: "exercise-1", name: "跑步", kcal: 200 }],
     bmrKcal: 1500,
@@ -115,28 +114,37 @@ beforeEach(() => {
       locale: "zh-CN",
       timeZone: "Asia/Shanghai",
       weekStartsOn: 1,
-      energyUnit: "kcal"
+      energyUnit: "kcal",
+      heatmapPalette: "red-positive"
     },
+    updatePreferences: vi.fn().mockResolvedValue(true),
     user
   };
   storageMocks.loadDailyCheckin.mockResolvedValue(null);
   storageMocks.loadDailyCheckins.mockResolvedValue([completedCheckin]);
-  storageMocks.loadHeatmapPalette.mockResolvedValue("red-positive");
   storageMocks.loadPlannerDraft.mockResolvedValue(null);
-  storageMocks.loadPlansInRange.mockResolvedValue([]);
+  storageMocks.loadHeatmapPlanInputs.mockResolvedValue([]);
   storageMocks.saveDailyCheckin.mockImplementation(async (input) => ({
     id: "checkin-saved",
     ...input,
     createdAt: "",
     updatedAt: ""
   }));
-  storageMocks.saveHeatmapPalette.mockImplementation(async (palette) => palette);
+  storageMocks.completeDailyRecord.mockImplementation(async (_profile, _meals, _result, actual, target) => ({
+    id: "checkin-complete",
+    planDate: "2026-08-25",
+    actual,
+    target,
+    completed: true,
+    createdAt: "",
+    updatedAt: ""
+  }));
 });
 
 afterEach(cleanup);
 
 describe("DailyCheckinPanel", () => {
-  it("saves manual exercise energy and only completes after the plan saves", async () => {
+  it("saves manual exercise energy and completes the plan and check-in atomically", async () => {
     const planner = controller();
     render(<DailyCheckinPanel controller={planner} date="2026-08-25" today="2026-08-25" user={user} energyUnit="kcal" />);
 
@@ -151,8 +159,8 @@ describe("DailyCheckinPanel", () => {
     expect(exerciseWrite.completed).toBe(false);
 
     fireEvent.click(screen.getByRole("button", { name: "完成记录" }));
-    await waitFor(() => expect(planner.persistPlan).toHaveBeenCalledOnce());
-    await waitFor(() => expect(storageMocks.saveDailyCheckin.mock.calls.at(-1)?.[0].completed).toBe(true));
+    await waitFor(() => expect(storageMocks.completeDailyRecord).toHaveBeenCalledOnce());
+    expect(storageMocks.completeDailyRecord.mock.calls[0][3].exercises[0]).toMatchObject({ name: "跑步", kcal: 320 });
   });
 });
 
@@ -171,7 +179,9 @@ describe("HeatmapView", () => {
           entries: [{ id: "dinner-entry", foodId: dinnerFood.id, grams: 180, locked: false }]
         }
       ],
-      updatedAt: "2026-08-25T12:00:00.000Z"
+      updatedAt: "2026-08-25T12:00:00.000Z",
+      revision: 2,
+      schemaVersion: 2
     });
 
     render(<HeatmapView />);
@@ -205,7 +215,7 @@ describe("HeatmapView", () => {
     expect(appleTile).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("switch"));
-    await waitFor(() => expect(storageMocks.saveHeatmapPalette).toHaveBeenCalledWith("green-positive", user));
+    await waitFor(() => expect((appMock.value.updatePreferences as ReturnType<typeof vi.fn>)).toHaveBeenCalled());
 
     fireEvent.click(screen.getByRole("button", { name: "本月至今" }));
     await waitFor(() => expect(storageMocks.loadDailyCheckins).toHaveBeenLastCalledWith(user, "2026-08-01", "2026-08-25"));

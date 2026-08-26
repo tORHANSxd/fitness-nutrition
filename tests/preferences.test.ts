@@ -29,10 +29,16 @@ describe("preferences", () => {
       energyUnit: "kcal",
       hourCycle: "h23",
       theme: "system",
-      reduceMotion: null
+      reduceMotion: null,
+      heatmapPalette: "red-positive"
     });
     expect(detected.timeZone).toBe("America/New_York");
     expect(preferencesFromRow({ ...detected, time_zone_mode: "fixed", time_zone: "Asia/Tokyo" }, detected).timeZone).toBe("Asia/Tokyo");
+  });
+
+  it("reads heatmap palette from its dedicated profile column", () => {
+    expect(preferencesFromRow({ heatmap_palette: "green-positive" }).heatmapPalette).toBe("green-positive");
+    expect(preferencesFromRow({ heatmap_palette: "invalid" }).heatmapPalette).toBe("red-positive");
   });
 
   it("preserves the cookie zone during server rendering and keeps an absent motion preference automatic", () => {

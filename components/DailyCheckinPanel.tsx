@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { PlannerController } from "@/components/usePlanner";
 import { buildDailyActual } from "@/lib/heatmap";
 import { canonicalEnergy, displayEnergy, type EnergyUnit } from "@/lib/preferences";
-import { loadDailyCheckin, saveDailyCheckin } from "@/lib/storage";
+import { completeDailyRecord, loadDailyCheckin, saveDailyCheckin } from "@/lib/storage";
 import type { DailyCheckin, ExerciseEnergyEntry } from "@/lib/types";
 import { NumericDraftNotice, NumericDraftProvider, NumericInput, useNumericDraftForm } from "@/components/NumericInput";
 
@@ -132,19 +132,16 @@ export function DailyCheckinPanel({
     }
     setSaving(true);
     setMessage("");
-    const planSaved = await controller.persistPlan();
-    if (!planSaved) {
-      setMessage("计划保存失败，本日记录未完成。");
-      setSaving(false);
-      return;
-    }
     try {
-      const saved = await saveDailyCheckin({
-        planDate: date,
-        actual: liveActual,
-        target: controller.result.dailyTarget,
-        completed: true
-      }, user);
+      const saved = await completeDailyRecord(
+        controller.profile,
+        controller.meals,
+        controller.result,
+        liveActual,
+        controller.result.dailyTarget,
+        user,
+        Array.from(controller.foodsById.values()),
+      );
       setCheckin(saved);
       setMessage("当日记录已完成。");
     } catch (error) {

@@ -38,15 +38,28 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 
 ## Supabase 初始化与迁移
 
-全新开发项目可按审查后的 [`supabase/schema.sql`](supabase/schema.sql) 初始化。已有项目必须使用 `supabase/migrations`，不要在远程 Dashboard 中手工补列。
+`supabase/migrations` 是唯一迁移真源；[`supabase/schema.sql`](supabase/schema.sql) 只是本地重建后生成的审阅快照。全新和已有项目都必须按 migration 顺序初始化，不要在远程 Dashboard 中手工补结构。
 
-本次新增迁移：
+仓库已恢复线上 5 个真实 migration version，并补充可重建基线与本轮增量迁移：
 
 ```text
-supabase/migrations/20260825075937_global_preferences.sql
+supabase/migrations/20260607120000_legacy_schema_baseline.sql
+supabase/migrations/20260607124646_fitness_system_v2_schema.sql
+supabase/migrations/20260607134724_allow_food_weight_basis_none.sql
+supabase/migrations/20260607141007_add_daily_checkin_dynamic_target.sql
+supabase/migrations/20260724093227_food_ingredient_category.sql
+supabase/migrations/20260825234027_global_preferences.sql
+supabase/migrations/20260826180000_storage_safety_foundation.sql
 ```
 
-它为 `public.profiles` 增加语言、时区模式、周起始日、单位、时间格式、主题和 reduced-motion 偏好列，不降低现有 RLS，也不删除 `preferences` JSONB 中的旧数据。
+本轮 migration 增加食物归档、计划/模板版本、独立草稿与减载周、数据库时间戳触发器、收口后的 RLS 和原子 RPC；没有删除旧业务表或旧 check-in 列。
+
+本地完整验证：
+
+```powershell
+npm run db:start
+npm run verify:db
+```
 
 先在本地或隔离的预览项目验证，再由一名发布负责人执行：
 
@@ -58,6 +71,8 @@ npx supabase db push --linked
 ```
 
 生产执行前必须确认备份、目标 project ref 和发布窗口。不要对生产运行 `supabase db reset --linked`，也不要使用 `--include-seed`。完整步骤见 [`docs/deployment.md`](docs/deployment.md)。
+
+管理员数据审计与回填脚本只读取 `SUPABASE_URL`、`SUPABASE_SERVICE_ROLE_KEY`，默认 dry-run。任何 `--apply` 都强制要求 `--backup` 指向 Git 工作区外的绝对路径；详见 [`docs/database/rollback.md`](docs/database/rollback.md)。
 
 ## 验证
 

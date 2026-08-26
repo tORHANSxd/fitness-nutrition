@@ -1412,7 +1412,8 @@ export function buildNutritionResult(profile: UserProfile, meals: MealPlan[], fo
 }
 
 export function convertWeightLabel(food: FoodItem, grams: number) {
-  const basisLabel = food.weightBasis === "raw" ? "生重" : "熟重";
+  const basisLabel = weightBasisLabel(food.weightBasis);
+  if (food.weightBasis === "none") return `${basisLabel} ${round(grams, 0)}g`;
   if (!food.cookedRawRatio) {
     return `${basisLabel} ${round(grams, 0)}g`;
   }
@@ -1420,6 +1421,12 @@ export function convertWeightLabel(food: FoodItem, grams: number) {
     return `生重 ${round(grams, 0)}g / 熟重 ${round(grams * food.cookedRawRatio, 0)}g`;
   }
   return `熟重 ${round(grams, 0)}g / 生重 ${round(grams / food.cookedRawRatio, 0)}g`;
+}
+
+export function weightBasisLabel(value: FoodItem["weightBasis"]) {
+  if (value === "raw") return "生重";
+  if (value === "cooked") return "熟重";
+  return "不适用";
 }
 
 export function normalizeMealRatios(meals: MealPlan[]) {

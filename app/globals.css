@@ -616,14 +616,18 @@ input[type="date"]::-webkit-date-and-time-value {
 }
 
 .heatmap-range-options {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 4px;
-  overflow-x: auto;
   padding: 4px;
   border: 1px solid rgb(var(--color-line));
   border-radius: 6px;
   background: rgb(var(--color-panel));
-  scrollbar-width: thin;
+}
+
+.heatmap-range-options .segmented-option {
+  min-width: 0;
+  padding-inline: 8px;
 }
 
 .heatmap-check-control {
@@ -1098,6 +1102,18 @@ input[type="date"]::-webkit-date-and-time-value {
 
   .heatmap-treemap {
     aspect-ratio: 1 / 1;
+  }
+
+  .heatmap-range-options {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .heatmap-range-options .segmented-option:nth-child(-n + 3) {
+    grid-column: span 2;
+  }
+
+  .heatmap-range-options .segmented-option:nth-child(n + 4) {
+    grid-column: span 3;
   }
 
   .heatmap-index-item {

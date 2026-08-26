@@ -23,12 +23,11 @@ import { buildNutritionResult } from "@/lib/nutrition";
 import { displayEnergy } from "@/lib/preferences";
 import {
   loadDailyCheckins,
-  loadHeatmapPalette,
+  loadHeatmapPlanInputs,
   loadPlannerDraft,
-  loadPlansInRange,
-  saveHeatmapPalette
 } from "@/lib/storage";
-import type { DailyCheckin, FoodItem, HeatmapPalette, PlannerDraft, SavedPlan } from "@/lib/types";
+import { DAILY_PLAN_SCHEMA_VERSION, NUTRITION_ALGORITHM_VERSION } from "@/lib/storageDocuments";
+import type { DailyCheckin, FoodItem, HeatmapPalette, HeatmapPlanInput, PlannerDraft } from "@/lib/types";
 
 const metricOptions = [
   { id: "kcal", label: "热量", icon: Flame },
@@ -67,15 +66,18 @@ type JellyStyle = CSSProperties & {
 
 const defaultTreemapSize = { width: 1600, height: 1000 };
 
-function planFromDraft(draft: PlannerDraft, foods: FoodItem[]): SavedPlan {
-  const draftFoods = [...foods, ...customFoodsFromMeals(draft.meals)];
+function planFromDraft(draft: PlannerDraft, foods: FoodItem[]): HeatmapPlanInput {
+  const draftFoods = [...customFoodsFromMeals(draft.meals), ...foods];
+  const result = buildNutritionResult(draft.profile, draft.meals, draftFoods);
   return {
     id: `draft:${draft.profile.planDate}`,
     planDate: draft.profile.planDate,
     profile: draft.profile,
     meals: draft.meals,
-    result: buildNutritionResult(draft.profile, draft.meals, draftFoods),
-    createdAt: draft.updatedAt
+    result: { bmr: result.bmr, dailyTarget: result.dailyTarget },
+    schemaVersion: DAILY_PLAN_SCHEMA_VERSION,
+    algorithmVersion: NUTRITION_ALGORITHM_VERSION,
+    integrityFlags: [],
   };
 }
 
@@ -282,16 +284,15 @@ function HeatmapItemIndex({
 }
 
 export function HeatmapView() {
-  const { foods, preferences, user } = useApp();
+  const { foods, preferences, updatePreferences, user } = useApp();
   const today = useZonedToday(preferences.timeZone);
   const [metric, setMetric] = useState<HeatmapMetric>("kcal");
   const [preset, setPreset] = useState<HeatmapRangePreset>("day");
   const [customRange, setCustomRange] = useState<HeatmapDateRange>(() => rangeForPreset("day", today, preferences.weekStartsOn));
   const [includeIncomplete, setIncludeIncomplete] = useState(false);
-  const [plans, setPlans] = useState<SavedPlan[]>([]);
+  const [plans, setPlans] = useState<HeatmapPlanInput[]>([]);
   const [checkins, setCheckins] = useState<DailyCheckin[]>([]);
   const [todayDraft, setTodayDraft] = useState<PlannerDraft | null>(null);
-  const [palette, setPalette] = useState<HeatmapPalette>("red-positive");
   const [paletteSaving, setPaletteSaving] = useState(false);
   const [paletteError, setPaletteError] = useState("");
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
@@ -300,20 +301,6 @@ export function HeatmapView() {
   const [reloadNonce, setReloadNonce] = useState(0);
 
   const range = preset === "custom" ? customRange : rangeForPreset(preset, today, preferences.weekStartsOn);
-
-  useEffect(() => {
-    let cancelled = false;
-    loadHeatmapPalette(user)
-      .then((savedPalette) => {
-        if (!cancelled) {
-          setPalette(savedPalette);
-        }
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [user]);
 
   const rangeError = validateHeatmapRange(range) ?? (range.to > today ? "结束日期不能晚于今天。" : null);
 
@@ -327,7 +314,7 @@ export function HeatmapView() {
     setError("");
     const includesToday = range.from <= today && range.to >= today;
     Promise.all([
-      loadPlansInRange(user, range.from, range.to),
+      loadHeatmapPlanInputs(user, range.from, range.to),
       loadDailyCheckins(user, range.from, range.to),
       includesToday ? loadPlannerDraft(user) : Promise.resolve(null)
     ])
@@ -398,23 +385,16 @@ export function HeatmapView() {
   }
 
   async function togglePalette() {
-    const previous = palette;
-    const next: HeatmapPalette = palette === "red-positive" ? "green-positive" : "red-positive";
-    setPalette(next);
+    const next: HeatmapPalette = preferences.heatmapPalette === "red-positive" ? "green-positive" : "red-positive";
     setPaletteSaving(true);
     setPaletteError("");
-    try {
-      await saveHeatmapPalette(next, user);
-    } catch (saveError) {
-      setPalette(previous);
-      setPaletteError(saveError instanceof Error ? saveError.message : "颜色偏好保存失败。");
-    } finally {
-      setPaletteSaving(false);
-    }
+    const saved = await updatePreferences({ ...preferences, heatmapPalette: next });
+    if (!saved) setPaletteError("颜色偏好保存失败。");
+    setPaletteSaving(false);
   }
 
   return (
-    <section className="heatmap-workspace animate-view space-y-5" data-palette={palette}>
+    <section className="heatmap-workspace animate-view space-y-5" data-palette={preferences.heatmapPalette}>
       <div className="flex flex-col gap-4 border-b border-line pb-5 xl:flex-row xl:items-end xl:justify-between">
         <div>
           <p className="eyebrow">ENERGY LEDGER</p>
@@ -422,19 +402,19 @@ export function HeatmapView() {
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <div className="palette-switch-wrap" aria-label="热力图颜色映射">
-            <span className={palette === "red-positive" ? "is-active" : ""}>红盈</span>
+            <span className={preferences.heatmapPalette === "red-positive" ? "is-active" : ""}>红盈</span>
             <button
               className="palette-switch"
               type="button"
               role="switch"
-              aria-checked={palette === "green-positive"}
-              aria-label={palette === "red-positive" ? "当前红盈绿亏，切换为红亏绿盈" : "当前红亏绿盈，切换为红盈绿亏"}
+              aria-checked={preferences.heatmapPalette === "green-positive"}
+              aria-label={preferences.heatmapPalette === "red-positive" ? "当前红盈绿亏，切换为红亏绿盈" : "当前红亏绿盈，切换为红盈绿亏"}
               onClick={togglePalette}
               disabled={paletteSaving}
             >
               <span aria-hidden="true" />
             </button>
-            <span className={palette === "green-positive" ? "is-active" : ""}>红亏</span>
+            <span className={preferences.heatmapPalette === "green-positive" ? "is-active" : ""}>红亏</span>
           </div>
           <button className="icon-button" type="button" onClick={() => setReloadNonce((value) => value + 1)} aria-label="刷新热力图" title="刷新" disabled={loading}>
             <RefreshCw size={17} className={loading ? "animate-spin" : ""} />

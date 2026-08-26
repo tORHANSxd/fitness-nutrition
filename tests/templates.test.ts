@@ -40,7 +40,7 @@ describe("template naming (v2: foods only, no sequence number)", () => {
 });
 
 describe("materializing template entries (weights are NOT stored)", () => {
-  it("creates entries at category default grams, skipping unknown foods", () => {
+  it("creates defaults and preserves unresolved references as locked placeholders", () => {
     const refs: TemplateFoodRef[] = [
       { foodId: "public-rice-cooked" }, // 主食 默认 180g
       { foodId: "missing-food" },
@@ -48,12 +48,13 @@ describe("materializing template entries (weights are NOT stored)", () => {
     ];
 
     const entries = materializeTemplateEntries(refs, foodsById);
-    expect(entries).toHaveLength(2);
+    expect(entries).toHaveLength(3);
     expect(entries[0].foodId).toBe("public-rice-cooked");
     expect(entries[0].grams).toBe(180);
     expect(entries[0].locked).toBe(false);
-    expect(entries[1].grams).toBe(10);
-    expect(entries[1].maxGrams).toBe(20);
+    expect(entries[1]).toMatchObject({ foodId: "missing-food", grams: 0, locked: true });
+    expect(entries[2].grams).toBe(10);
+    expect(entries[2].maxGrams).toBe(20);
   });
 
   it("re-instantiates embedded custom foods with their macro payload", () => {
@@ -69,48 +70,67 @@ describe("materializing template entries (weights are NOT stored)", () => {
   });
 });
 
-describe("template row parsing (v2 only, legacy rows are dropped)", () => {
-  it("parses a v2 meal template payload", () => {
+describe("template row parsing", () => {
+  it("parses the current v3 meal template payload", () => {
     const template = mealTemplateFromRow({
       id: "row-1",
       template_type: "meal",
       name: "白米饭·鸡胸肉",
-      payload: { foods: [{ foodId: "public-rice-cooked" }, { foodId: "public-chicken-breast-cooked" }], createdAt: "2026-07-09T00:00:00Z" }
+      payload: { version: 3, foods: [{ foodId: "public-rice-cooked" }, { foodId: "public-chicken-breast-cooked" }] },
+      schema_version: 3,
+      created_at: "2026-07-09T00:00:00Z"
     });
 
     expect(template?.name).toBe("白米饭·鸡胸肉");
     expect(template?.foods.map((ref) => ref.foodId)).toEqual(["public-rice-cooked", "public-chicken-breast-cooked"]);
   });
 
-  it("drops legacy gram-based meal/day templates", () => {
-    expect(
-      mealTemplateFromRow({
+  it("keeps legacy v2 payloads readable and rejects unknown versions", () => {
+    expect(mealTemplateFromRow({
+      id: "legacy-v2",
+      template_type: "meal",
+      name: "旧版",
+      payload: { foods: [] },
+      schema_version: 2
+    })).not.toBeNull();
+    expect(mealTemplateFromRow({
+      id: "future",
+      template_type: "meal",
+      name: "未来版",
+      payload: { version: 4, foods: [] },
+      schema_version: 4
+    })).toBeNull();
+  });
+
+  it("migrates legacy gram-based meal/day templates to food references", () => {
+    const meal = mealTemplateFromRow({
         id: "row-legacy",
         template_type: "meal",
         name: "旧模板 3",
         payload: { entries: [{ id: "e", foodId: "public-rice-cooked", grams: 200, locked: false }], mealRatio: 0.3 }
-      })
-    ).toBeNull();
+      });
+    expect(meal?.foods).toEqual([{ foodId: "public-rice-cooked" }]);
 
-    expect(
-      dayTemplateFromRow({
+    const day = dayTemplateFromRow({
         id: "row-legacy-day",
         template_type: "day",
         name: "旧全天 1",
-        payload: { meals: [{ id: "breakfast", name: "早餐", ratio: 0.3, locked: false, entries: [] }] }
-      })
-    ).toBeNull();
+        payload: { meals: [{ id: "breakfast", name: "早餐", ratio: 0.3, locked: false, entries: [{ foodId: "public-rice-cooked", grams: 200 }] }] }
+      });
+    expect(day?.meals[0].foods).toEqual([{ foodId: "public-rice-cooked" }]);
   });
 
-  it("parses a v2 day template payload (meals keep id/name/ratio but only food refs)", () => {
+  it("parses a v3 day template payload (meals keep id/name/ratio but only food refs)", () => {
     const template = dayTemplateFromRow({
       id: "row-2",
       template_type: "day",
       name: "白米饭·鸡胸肉",
       payload: {
+        version: 3,
         meals: [{ id: "lunch", name: "午餐", ratio: 0.5, foods: [{ foodId: "public-rice-cooked" }] }],
         createdAt: "2026-07-09T00:00:00Z"
-      }
+      },
+      schema_version: 3
     });
 
     expect(template?.meals).toHaveLength(1);

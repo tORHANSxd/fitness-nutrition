@@ -5,10 +5,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { loadBodyLogs, mergeLatestBodyMetrics, type BodyLog } from "@/lib/bodyLogs";
 import { createStarterMeals, defaultProfile, emptyProfile } from "@/lib/demoState";
 import { createCustomFood, customFoodsFromMeals } from "@/lib/foods";
+import { foodSnapshotFromFood } from "@/lib/foodSnapshots";
 import { todayKey } from "@/lib/dateTime";
 import { buildNutritionResult, createDefaultMeals, getDefaultMealEntrySettings, normalizeMealRatios, round } from "@/lib/nutrition";
 import { displayEnergy, type EnergyUnit } from "@/lib/preferences";
-import { loadPlannerDraft, savePlan, savePlannerDraft } from "@/lib/storage";
+import { loadPlannerDraft, PlannerDraftConflictError, savePlan, savePlannerDraft } from "@/lib/storage";
 import {
   buildTemplateName,
   materializeDayTemplate,
@@ -24,7 +25,6 @@ import type {
   MealPlan,
   MealTemplate,
   NutritionResult,
-  PlannerDraft,
   PlannerTemplates,
   SavedPlan,
   UserProfile
@@ -50,7 +50,7 @@ export interface PlannerController {
   activeMealId: string;
   message: string;
   saving: boolean;
-  draftState: "idle" | "saving" | "saved" | "error";
+  draftState: PlannerDraftState;
   result: NutritionResult;
   foodsById: Map<string, FoodItem>;
   recommendationsByMeal: Map<string, NutritionResult["mealRecommendations"][number]>;
@@ -72,6 +72,8 @@ export interface PlannerController {
   applyDayTemplate: (templateId: string) => void;
 }
 
+export type PlannerDraftState = "loading" | "ready" | "empty" | "dirty" | "saving" | "saved" | "conflict" | "error";
+
 /**
  * 计划器控制器：把「当天计划」与「分餐计划」两页共享的 profile/meals 状态、云端草稿水合/自动保存、
  * 一键应用/去分餐载入、以及所有编辑动作集中到一个 hook。AppShell 只调用一次，两页读同一份状态。
@@ -83,9 +85,16 @@ export function usePlanner({ foods, templates, user, timeZone, energyUnit = "kca
   const [hydrated, setHydrated] = useState(false);
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
-  const [draftState, setDraftState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [draftState, setDraftState] = useState<PlannerDraftState>("loading");
+  const [autosaveEnabled, setAutosaveEnabled] = useState(false);
+  const autosaveEnabledRef = useRef(false);
+  const draftRevisionRef = useRef<number | null>(null);
+  const draftSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const draftChangeRef = useRef(0);
+  const draftSessionRef = useRef(0);
+  const skipAutosaveRef = useRef(true);
   // 食物解析链 = 食物库 + 当前计划里内嵌的临时自定义食物，求解器与展示共用同一份。
-  const allFoods = useMemo(() => [...foods, ...customFoodsFromMeals(meals)], [foods, meals]);
+  const allFoods = useMemo(() => [...customFoodsFromMeals(meals), ...foods], [foods, meals]);
   const foodsById = useMemo(() => new Map(allFoods.map((food) => [food.id, food])), [allFoods]);
   const result = useMemo(() => buildNutritionResult(profile, meals, allFoods), [allFoods, meals, profile]);
   // 供 openDateRequest 等一次性事件读取"当下档案"而不把 profile 拉进依赖（避免重复触发）。
@@ -100,7 +109,15 @@ export function usePlanner({ foods, templates, user, timeZone, energyUnit = "kca
 
   useEffect(() => {
     let mounted = true;
-    const hydrate = (nextProfile: UserProfile, nextMeals: MealPlan[]) => {
+    const session = draftSessionRef.current + 1;
+    draftSessionRef.current = session;
+    const hydrate = (
+      nextProfile: UserProfile,
+      nextMeals: MealPlan[],
+      nextDraftState: PlannerDraftState,
+      revision: number | null,
+      enableAutosave: boolean,
+    ) => {
       if (!mounted) {
         return;
       }
@@ -109,27 +126,50 @@ export function usePlanner({ foods, templates, user, timeZone, energyUnit = "kca
       // 重新水合时尽量保留用户当前停留的餐次：仅当原餐次已不存在才回到第一餐，
       // 避免（例如登录态刷新触发的）重水合把分餐切回早餐。
       setActiveMealId((current) => (nextMeals.some((meal) => meal.id === current) ? current : nextMeals[0]?.id ?? ""));
+      draftRevisionRef.current = revision;
+      autosaveEnabledRef.current = enableAutosave;
+      skipAutosaveRef.current = true;
+      setAutosaveEnabled(enableAutosave);
       setHydrated(true);
-      setDraftState("idle");
+      setDraftState(nextDraftState);
     };
     const today = todayKey(timeZone);
 
     // 未登录（仅"未配置 Supabase"的演示模式会走到这）：demo 档案 + 示例餐。
     if (!user) {
-      hydrate({ ...defaultProfile, planDate: today }, createStarterMeals(defaultProfile));
+      hydrate({ ...defaultProfile, planDate: today }, createStarterMeals(defaultProfile), "ready", null, false);
       return () => {
         mounted = false;
       };
     }
 
     setHydrated(false);
+    setDraftState("loading");
+    autosaveEnabledRef.current = false;
+    setAutosaveEnabled(false);
     // 草稿与体测并行拉取：草稿为基底（新账号无草稿 → 空白档案，由用户自己填）；
     // 最新体测的体重/体脂覆盖档案对应字段——体测记录是这两项的真源。
-    Promise.all([loadPlannerDraft(user).catch(() => null), loadBodyLogs(user, 60).catch(() => [] as BodyLog[])]).then(
-      ([draft, bodyLogs]) => {
+    Promise.allSettled([loadPlannerDraft(user), loadBodyLogs(user, 60)]).then(
+      ([draftResult, bodyLogsResult]) => {
+        if (!mounted || session !== draftSessionRef.current) return;
+        const bodyLogs = bodyLogsResult.status === "fulfilled" ? bodyLogsResult.value : [] as BodyLog[];
+        if (draftResult.status === "rejected") {
+          const fallbackProfile = mergeLatestBodyMetrics({ ...emptyProfile, planDate: today }, bodyLogs);
+          hydrate(fallbackProfile, createDefaultMeals(fallbackProfile), "error", null, false);
+          setMessage("云端草稿读取失败，已暂停自动保存，避免覆盖原数据。请刷新后重试。");
+          return;
+        }
+
+        const draft = draftResult.value;
         const base = draft?.profile ?? { ...emptyProfile, planDate: today };
         const nextProfile = mergeLatestBodyMetrics(base, bodyLogs);
-        hydrate(nextProfile, draft?.meals ?? createDefaultMeals(nextProfile));
+        hydrate(
+          nextProfile,
+          draft?.meals ?? createDefaultMeals(nextProfile),
+          draft ? "ready" : "empty",
+          draft && draft.revision > 0 ? draft.revision : null,
+          true,
+        );
       }
     );
     return () => {
@@ -138,18 +178,48 @@ export function usePlanner({ foods, templates, user, timeZone, energyUnit = "kca
   }, [timeZone, user]);
 
   useEffect(() => {
-    if (!hydrated || !user) {
+    if (!hydrated || !user || !autosaveEnabled) {
       return;
     }
-    // 自动保存到 Supabase 草稿：防抖 1.2s，避免每次微调克重都打库。
+    if (skipAutosaveRef.current) {
+      skipAutosaveRef.current = false;
+      return;
+    }
+
+    const changeId = draftChangeRef.current + 1;
+    const session = draftSessionRef.current;
+    draftChangeRef.current = changeId;
+    setDraftState("dirty");
+    // 自动保存到 Supabase 草稿：防抖 1.2s，同一标签页内串行写入 revision。
     const handle = window.setTimeout(() => {
-      setDraftState("saving");
-      savePlannerDraft(profile, meals, user)
-        .then(() => setDraftState("saved"))
-        .catch(() => setDraftState("error"));
+      draftSaveQueueRef.current = draftSaveQueueRef.current.then(async () => {
+        if (!autosaveEnabledRef.current || session !== draftSessionRef.current) return;
+        setDraftState("saving");
+        try {
+          const saved = await savePlannerDraft(profile, meals, user, {
+            expectedRevision: draftRevisionRef.current,
+            force: false,
+            foods: allFoods,
+          });
+          draftRevisionRef.current = saved.revision > 0 ? saved.revision : null;
+          if (session === draftSessionRef.current) {
+            setDraftState(changeId === draftChangeRef.current ? "saved" : "dirty");
+          }
+        } catch (error) {
+          if (session !== draftSessionRef.current) return;
+          if (error instanceof PlannerDraftConflictError) {
+            autosaveEnabledRef.current = false;
+            setAutosaveEnabled(false);
+            setDraftState("conflict");
+            setMessage("云端存在较新的草稿，已停止自动保存。请刷新后再继续编辑。");
+          } else {
+            setDraftState("error");
+          }
+        }
+      });
     }, 1200);
     return () => window.clearTimeout(handle);
-  }, [hydrated, meals, profile, user]);
+  }, [allFoods, autosaveEnabled, hydrated, meals, profile, user]);
 
   // 模板页「一键应用」：nonce 变化时把模板餐食载入当前计划。
   useEffect(() => {
@@ -232,7 +302,8 @@ export function usePlanner({ foods, templates, user, timeZone, energyUnit = "kca
           grams: defaults.grams,
           locked: false,
           minGrams: defaults.minGrams,
-          maxGrams: defaults.maxGrams
+          maxGrams: defaults.maxGrams,
+          foodSnapshot: foodSnapshotFromFood(food),
         }
       ]
     }));
@@ -253,6 +324,7 @@ export function usePlanner({ foods, templates, user, timeZone, energyUnit = "kca
           locked: false,
           minGrams: defaults.minGrams,
           maxGrams: defaults.maxGrams,
+          foodSnapshot: foodSnapshotFromFood(food),
           customFood: { ...draft, name: food.name }
         }
       ]
@@ -309,11 +381,32 @@ export function usePlanner({ foods, templates, user, timeZone, energyUnit = "kca
     setSaving(true);
     setMessage("");
     try {
-      await savePlan(profile, meals, result, user);
+      await savePlan(profile, meals, result, user, allFoods);
       // 同步把当前状态立即刷入草稿（不等 1.2s 防抖），确保保存后立刻刷新页面也能恢复，
       // 而不是回落默认。草稿写失败不影响“计划已保存”（daily_plans 已成功）。
-      if (user) {
-        await savePlannerDraft(profile, meals, user).catch(() => {});
+      if (user && autosaveEnabledRef.current) {
+        try {
+          const syncDraft = draftSaveQueueRef.current.then(() => savePlannerDraft(profile, meals, user, {
+              expectedRevision: draftRevisionRef.current,
+              force: false,
+              foods: allFoods,
+            }));
+          draftSaveQueueRef.current = syncDraft.then(() => undefined, () => undefined);
+          const savedDraft = await syncDraft;
+          draftRevisionRef.current = savedDraft.revision > 0 ? savedDraft.revision : null;
+          setDraftState("saved");
+        } catch (error) {
+          if (error instanceof PlannerDraftConflictError) {
+            autosaveEnabledRef.current = false;
+            setAutosaveEnabled(false);
+            setDraftState("conflict");
+            setMessage("计划已保存，但云端存在较新草稿；已停止草稿覆盖，请刷新后处理。");
+            return true;
+          }
+          setDraftState("error");
+          setMessage("计划已保存，但草稿同步失败；当前计划数据未丢失。");
+          return true;
+        }
       }
       setMessage("计划已保存。");
       return true;
@@ -334,7 +427,7 @@ export function usePlanner({ foods, templates, user, timeZone, energyUnit = "kca
       setMessage("请先修正标红的数字，再保存模板。");
       return;
     }
-    const refs = templateRefsFromEntries(meal.entries);
+    const refs = templateRefsFromEntries(meal.entries, foodsById);
     const name = buildTemplateName(refs, foodsById);
     if (templateNameExists(templates.mealTemplates, name)) {
       setMessage(`已存在同名单餐模板「${name}」，未重复创建。`);
@@ -374,7 +467,7 @@ export function usePlanner({ foods, templates, user, timeZone, energyUnit = "kca
       id: meal.id,
       name: meal.name,
       ratio: meal.ratio,
-      foods: templateRefsFromEntries(meal.entries)
+      foods: templateRefsFromEntries(meal.entries, foodsById)
     }));
     const name = buildTemplateName(
       dayMeals.flatMap((meal) => meal.foods),

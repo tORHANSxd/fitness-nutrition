@@ -2,12 +2,12 @@
 
 import type { User } from "@supabase/supabase-js";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { loadDeloadWeeks, saveDeloadWeeks } from "@/lib/storage";
+import { loadDeloadWeeks, setDeloadWeek } from "@/lib/storage";
 import { weekStartKey } from "@/lib/training";
 
 /**
  * 按周的减载标记（训练日历与安排日历共用）：
- * 登录后从 profiles.preferences.deloadWeeks 水合；toggle 乐观更新，保存失败自动回滚。
+ * 登录后从 deload_weeks 水合；toggle 只原子更新一周，保存失败只回滚该周。
  */
 export function useDeloadWeeks(user: User | null, weekStartsOn = 1) {
   const [deloadWeeks, setDeloadWeeks] = useState<string[]>([]);
@@ -25,7 +25,9 @@ export function useDeloadWeeks(user: User | null, weekStartsOn = 1) {
     loadDeloadWeeks(user)
       .then((weeks) => {
         if (mounted) {
-          setDeloadWeeks(Array.from(new Set(weeks.map((week) => weekStartKey(week, weekStartsOn)))).sort());
+          const normalized = Array.from(new Set(weeks.map((week) => weekStartKey(week, weekStartsOn)))).sort();
+          weeksRef.current = normalized;
+          setDeloadWeeks(normalized);
         }
       })
       .catch(() => {});
@@ -42,13 +44,21 @@ export function useDeloadWeeks(user: User | null, weekStartsOn = 1) {
       }
       const week = weekStartKey(dateKey, weekStartsOn);
       const current = weeksRef.current;
-      const next = current.includes(week) ? current.filter((item) => item !== week) : [...current, week].sort();
+      const enabled = !current.includes(week);
+      const next = enabled ? [...current, week].sort() : current.filter((item) => item !== week);
+      weeksRef.current = next;
       setDeloadWeeks(next);
       try {
-        await saveDeloadWeeks(next, user);
+        await setDeloadWeek(week, enabled, user);
         return true;
       } catch {
-        setDeloadWeeks(current);
+        setDeloadWeeks((latest) => {
+          const rolledBack = enabled
+            ? latest.filter((item) => item !== week)
+            : Array.from(new Set([...latest, week])).sort();
+          weeksRef.current = rolledBack;
+          return rolledBack;
+        });
         return false;
       }
     },

@@ -5,7 +5,9 @@
 | 检查 | 命令 | 当前覆盖 |
 |---|---|---|
 | 静态检查 | `npm run lint` | TypeScript/React/Next ESLint 规则 |
+| 类型检查 | `npx tsc --noEmit` | 应用、运行时 JSON parser 与管理员脚本 |
 | 单元与组件 | `npm run test` | 营养、训练、存储、日期时区、偏好转换、关键组件 |
+| Migration 重建 | `npm run verify:db` | 迁移哈希、空库 reset、DB lint、双用户 RLS 与事务 RPC |
 | 生产构建 | `npm run build` | App Router、proxy、SSR/CSR 边界 |
 | 浏览器 E2E | `npm run test:e2e` | 未配置云端认证门禁、深链、移动/平板/桌面、axe |
 

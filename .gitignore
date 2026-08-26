@@ -6,6 +6,7 @@ coverage/
 .playwright/
 artifacts/playwright-report/
 artifacts/playwright-results/
+artifacts/visual-qa/
 test-results/
 .verification/
 .env

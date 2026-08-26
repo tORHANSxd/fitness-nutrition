@@ -28,7 +28,7 @@ function makeController(profileOverrides: Partial<UserProfile> = {}, controllerO
     activeMealId: meals[0]?.id ?? "",
     message: "",
     saving: false,
-    draftState: "idle",
+    draftState: "ready",
     result,
     foodsById,
     recommendationsByMeal,

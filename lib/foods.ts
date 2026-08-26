@@ -1,4 +1,5 @@
 import { foodCategories, type CustomFoodDraft, type FoodItem, type MealPlan } from "@/lib/types";
+import { foodFromSnapshot, parseFoodSnapshot } from "@/lib/foodSnapshots";
 
 // 分类排序权重：按 foodCategories 声明顺序（主食→蔬菜→水果→肉类→补剂→坚果）。
 const categoryOrder = new Map<string, number>(foodCategories.map((category, index) => [category, index]));
@@ -43,7 +44,7 @@ export function createCustomFood(draft: CustomFoodDraft, id?: string): FoodItem 
     carbsPer100g: draft.carbsPer100g,
     proteinPer100g: draft.proteinPer100g,
     fatPer100g: draft.fatPer100g,
-    weightBasis: "cooked",
+    weightBasis: "none",
     cookedRawRatio: null,
     source: "user"
   };
@@ -56,6 +57,9 @@ export function customFoodsFromMeals(meals: MealPlan[]): FoodItem[] {
     for (const entry of meal.entries) {
       if (entry.customFood && !byId.has(entry.foodId)) {
         byId.set(entry.foodId, createCustomFood(entry.customFood, entry.foodId));
+      } else if (!byId.has(entry.foodId)) {
+        const snapshot = parseFoodSnapshot(entry.foodSnapshot);
+        if (snapshot) byId.set(entry.foodId, foodFromSnapshot(entry.foodId, snapshot));
       }
     }
   }

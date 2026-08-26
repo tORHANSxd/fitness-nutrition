@@ -47,7 +47,7 @@ describe("食物 CSV 往返", () => {
   });
 
   it("缺名行被跳过计数", () => {
-    const csv = "name,category,proteinPer100g\r\n,肉类,10\r\n牛肉,肉类,26";
+    const csv = "name,category,proteinPer100g,weightBasis\r\n,肉类,10,cooked\r\n牛肉,肉类,26,cooked";
     const { foods, skipped } = csvToFoodForms(csv);
     expect(skipped).toBe(1);
     expect(foods).toHaveLength(1);
@@ -55,8 +55,14 @@ describe("食物 CSV 往返", () => {
   });
 
   it("未知分类回退为主食", () => {
-    const { foods } = csvToFoodForms("name,category\r\n糙米,谷物");
+    const { foods } = csvToFoodForms("name,category,weightBasis\r\n糙米,谷物,raw");
     expect(foods[0].category).toBe("主食");
+  });
+
+  it("非法重量口径不会被静默改成 cooked", () => {
+    const { foods, skipped } = csvToFoodForms("name,category,weightBasis\r\n糙米,主食,unknown");
+    expect(foods).toHaveLength(0);
+    expect(skipped).toBe(1);
   });
 });
 

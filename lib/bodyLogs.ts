@@ -54,6 +54,7 @@ const rowFieldByKey: Record<BodyMetricKey, string> = {
   thighCm: "thigh_cm",
   calfCm: "calf_cm"
 };
+const bodyLogColumns = "plan_date,weight_kg,body_fat_pct,waist_cm,chest_cm,hip_cm,shoulder_cm,upper_arm_cm,thigh_cm,calf_cm" as const;
 
 function toNumberOrNull(value: unknown): number | null {
   if (value == null || value === "") {
@@ -74,8 +75,7 @@ export function mapBodyLogRow(row: Record<string, unknown>): BodyLog {
 export function bodyLogToRow(userId: string, log: BodyLog) {
   const row: Record<string, unknown> = {
     user_id: userId,
-    plan_date: log.logDate,
-    updated_at: new Date().toISOString()
+    plan_date: log.logDate
   };
   for (const field of bodyMetricFields) {
     row[rowFieldByKey[field.key]] = log[field.key] ?? null;
@@ -127,7 +127,7 @@ export async function loadBodyLogs(user: User | null, limit = 400): Promise<Body
   const { supabase, user: authedUser } = requireClient(user);
   const { data, error } = await supabase
     .from("body_logs")
-    .select("*")
+    .select(bodyLogColumns)
     .eq("user_id", authedUser.id)
     .order("plan_date", { ascending: false })
     .limit(limit);
@@ -142,7 +142,7 @@ export async function saveBodyLog(log: BodyLog, user: User | null): Promise<Body
   const { data, error } = await supabase
     .from("body_logs")
     .upsert(bodyLogToRow(authedUser.id, log), { onConflict: "user_id,plan_date" })
-    .select("*")
+    .select(bodyLogColumns)
     .single();
   if (error) {
     throw error;

@@ -4,24 +4,29 @@ import { builtinFoods } from "@/lib/foods";
 import { buildNutritionResult } from "@/lib/nutrition";
 import {
   StorageAuthError,
+  completeDailyRecord,
+  createPlannerTemplate,
   deleteFood,
+  deletePlannerTemplate,
   deletePlan,
+  importUserFoods,
+  loadArchivedFoods,
   loadDailyCheckin,
   loadDailyCheckins,
   loadFoods,
-  loadHeatmapPalette,
+  loadHeatmapPlanInputs,
   loadPlannerDraft,
   loadPlannerTemplates,
   loadPlans,
+  loadPlanSummaryPage,
   loadPlansInRange,
   saveDailyCheckin,
   saveFood,
-  saveHeatmapPalette,
   savePlan,
   savePlannerDraft,
-  savePlannerTemplates
+  updatePlannerTemplate
 } from "@/lib/storage";
-import type { FoodItem, PlannerTemplates } from "@/lib/types";
+import type { FoodItem, MealTemplate } from "@/lib/types";
 
 // 改造后：全站业务数据一律只落 Supabase 云端，未登录（user=null）时所有存取都必须
 // 抛 StorageAuthError，绝不再读写客户端本地 localStorage。这组用例即守住该不变量。
@@ -40,37 +45,48 @@ describe("storage requires Supabase auth (no local fallback)", () => {
     cookedRawRatio: null,
     source: "user"
   };
-  const templates: PlannerTemplates = { mealTemplates: [], dayTemplates: [] };
+  const template: MealTemplate = { id: "template-id", name: "模板", foods: [], createdAt: "2026-08-26T00:00:00Z" };
 
   it("rejects every read/write when unauthenticated", async () => {
     await expect(loadFoods(null)).rejects.toBeInstanceOf(StorageAuthError);
+    await expect(loadArchivedFoods(null)).rejects.toBeInstanceOf(StorageAuthError);
     await expect(saveFood(sampleFood, null)).rejects.toBeInstanceOf(StorageAuthError);
     await expect(deleteFood("public-rice-cooked", null)).rejects.toBeInstanceOf(StorageAuthError);
     await expect(savePlan(defaultProfile, meals, result, null)).rejects.toBeInstanceOf(StorageAuthError);
     await expect(loadPlans(null)).rejects.toBeInstanceOf(StorageAuthError);
+    await expect(loadPlanSummaryPage({ user: null })).rejects.toBeInstanceOf(StorageAuthError);
     await expect(loadPlansInRange(null, "2026-01-01", "2026-12-31")).rejects.toBeInstanceOf(StorageAuthError);
+    await expect(loadHeatmapPlanInputs(null, "2026-01-01", "2026-12-31")).rejects.toBeInstanceOf(StorageAuthError);
     await expect(deletePlan("any-id", null)).rejects.toBeInstanceOf(StorageAuthError);
     await expect(loadDailyCheckin("2026-08-25", null)).rejects.toBeInstanceOf(StorageAuthError);
     await expect(loadDailyCheckins(null, "2026-08-01", "2026-08-25")).rejects.toBeInstanceOf(StorageAuthError);
     await expect(saveDailyCheckin({
       planDate: "2026-08-25",
-      actual: { version: 1, foods: [], exercises: [], bmrKcal: 0, activityKcal: 0 },
+      actual: { version: 2, foods: [], exercises: [], bmrKcal: 0, activityKcal: 0 },
       target: null,
       completed: false
     }, null)).rejects.toBeInstanceOf(StorageAuthError);
-    await expect(loadHeatmapPalette(null)).rejects.toBeInstanceOf(StorageAuthError);
-    await expect(saveHeatmapPalette("red-positive", null)).rejects.toBeInstanceOf(StorageAuthError);
     await expect(loadPlannerDraft(null)).rejects.toBeInstanceOf(StorageAuthError);
     await expect(savePlannerDraft(defaultProfile, meals, null)).rejects.toBeInstanceOf(StorageAuthError);
     await expect(loadPlannerTemplates(null)).rejects.toBeInstanceOf(StorageAuthError);
-    await expect(savePlannerTemplates(null, templates)).rejects.toBeInstanceOf(StorageAuthError);
+    await expect(createPlannerTemplate(template, null)).rejects.toBeInstanceOf(StorageAuthError);
+    await expect(updatePlannerTemplate(template, null)).rejects.toBeInstanceOf(StorageAuthError);
+    await expect(deletePlannerTemplate(template.id, null)).rejects.toBeInstanceOf(StorageAuthError);
+    await expect(importUserFoods([], null)).rejects.toBeInstanceOf(StorageAuthError);
+    await expect(completeDailyRecord(defaultProfile, meals, result, {
+      version: 2,
+      foods: [],
+      exercises: [],
+      bmrKcal: 0,
+      activityKcal: 0
+    }, result.dailyTarget, null)).rejects.toBeInstanceOf(StorageAuthError);
   });
 
   it("never touches localStorage on a failed unauthenticated write", async () => {
     window.localStorage.clear();
     await expect(savePlannerDraft(defaultProfile, meals, null)).rejects.toBeInstanceOf(StorageAuthError);
     await expect(saveFood(sampleFood, null)).rejects.toBeInstanceOf(StorageAuthError);
-    await expect(savePlannerTemplates(null, templates)).rejects.toBeInstanceOf(StorageAuthError);
+    await expect(createPlannerTemplate(template, null)).rejects.toBeInstanceOf(StorageAuthError);
     expect(window.localStorage.length).toBe(0);
   });
 });

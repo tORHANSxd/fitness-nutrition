@@ -1,4 +1,4 @@
-import { foodCategories, type FoodCategory, type FoodFormState, type FoodItem } from "@/lib/types";
+import { foodCategories, type FoodCategory, type FoodFormState, type FoodItem, type WeightBasis } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
 // 通用 CSV 序列化 / 解析（支持引号包裹、字段内逗号与换行）
@@ -104,6 +104,10 @@ function toNumber(value: string | undefined): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+function normalizeWeightBasis(value: unknown): WeightBasis | null {
+  return value === "raw" || value === "cooked" || value === "none" ? value : null;
+}
+
 export interface ParsedImport {
   foods: FoodFormState[];
   skipped: number;
@@ -142,6 +146,11 @@ export function csvToFoodForms(text: string): ParsedImport {
     }
     const basisRaw = (r[col.basis] ?? "").trim();
     const ratioRaw = (r[col.ratio] ?? "").trim();
+    const weightBasis = normalizeWeightBasis(basisRaw);
+    if (!weightBasis) {
+      skipped += 1;
+      continue;
+    }
     foods.push({
       name,
       category: normalizeCategory(r[col.category] ?? ""),
@@ -149,7 +158,7 @@ export function csvToFoodForms(text: string): ParsedImport {
       fatPer100g: toNumber(r[col.fat]),
       carbsPer100g: toNumber(r[col.carbs]),
       proteinPer100g: toNumber(r[col.protein]),
-      weightBasis: basisRaw === "raw" ? "raw" : "cooked",
+      weightBasis,
       cookedRawRatio: ratioRaw === "" ? null : toNumber(ratioRaw)
     });
   }
@@ -178,6 +187,11 @@ export function jsonToFoodForms(text: string): ParsedImport {
       skipped += 1;
       continue;
     }
+    const weightBasis = normalizeWeightBasis(obj.weightBasis);
+    if (!weightBasis) {
+      skipped += 1;
+      continue;
+    }
     foods.push({
       name,
       category: normalizeCategory(String(obj.category ?? "")),
@@ -185,7 +199,7 @@ export function jsonToFoodForms(text: string): ParsedImport {
       fatPer100g: toNumber(String(obj.fatPer100g ?? "")),
       carbsPer100g: toNumber(String(obj.carbsPer100g ?? "")),
       proteinPer100g: toNumber(String(obj.proteinPer100g ?? "")),
-      weightBasis: String(obj.weightBasis ?? "") === "raw" ? "raw" : "cooked",
+      weightBasis,
       cookedRawRatio: obj.cookedRawRatio == null || obj.cookedRawRatio === "" ? null : toNumber(String(obj.cookedRawRatio))
     });
   }

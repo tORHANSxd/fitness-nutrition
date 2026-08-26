@@ -154,8 +154,11 @@ describe("HeatmapView", () => {
     expect(appleTile).toHaveAttribute("data-share");
     expect(Number(appleTile.getAttribute("data-intensity"))).toBeLessThan(100);
     expect(appleTile.style.getPropertyValue("--tile-width")).toMatch(/%$/);
-    expect(appleTile.style.getPropertyValue("--jelly-fill-alpha")).not.toBe("");
-    expect(await screen.findByRole("button", { name: /热力图项目：基础代谢/ })).toHaveAttribute("data-intensity", "100.0");
+    const appleFillAlpha = Number(appleTile.style.getPropertyValue("--jelly-fill-alpha"));
+    const basalTile = await screen.findByRole("button", { name: /热力图项目：基础代谢/ });
+    const basalFillAlpha = Number(basalTile.style.getPropertyValue("--jelly-fill-alpha"));
+    expect(basalTile).toHaveAttribute("data-intensity", "100.0");
+    expect(basalFillAlpha - appleFillAlpha).toBeGreaterThan(0.5);
     const exerciseIndexItem = screen.getByRole("button", { name: /项目索引：跑步/ });
     expect(exerciseIndexItem).toHaveAccessibleName(/绝对贡献占比/);
     fireEvent.click(exerciseIndexItem);

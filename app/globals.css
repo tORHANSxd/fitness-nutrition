@@ -19,6 +19,8 @@
   --color-warning: 126 82 11;
   --color-danger: 167 45 39;
   --color-success: 18 132 91;
+  --color-heatmap-red: 255 92 78;
+  --color-heatmap-green: 164 222 44;
   --ground: rgb(var(--color-ground));
   --ink: rgb(var(--color-ink));
   --line: rgb(var(--color-line));
@@ -43,6 +45,8 @@
   --color-warning: 233 180 85;
   --color-danger: 242 139 130;
   --color-success: 87 207 154;
+  --color-heatmap-red: 222 72 64;
+  --color-heatmap-green: 82 168 58;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -63,6 +67,8 @@
     --color-warning: 233 180 85;
     --color-danger: 242 139 130;
     --color-success: 87 207 154;
+    --color-heatmap-red: 222 72 64;
+    --color-heatmap-green: 82 168 58;
   }
 }
 
@@ -722,7 +728,7 @@ input[type="date"]::-webkit-date-and-time-value {
 }
 
 .jelly-tile {
-  --jelly-rgb: 216 73 63;
+  --jelly-rgb: var(--color-heatmap-red);
   --jelly-fill-alpha: 0.38;
   --jelly-border-alpha: 0.7;
   --jelly-depth-alpha: 0.12;
@@ -779,25 +785,25 @@ input[type="date"]::-webkit-date-and-time-value {
 [data-palette="red-positive"] .jelly-tile.is-positive,
 [data-palette="red-positive"] .heatmap-index-dot.is-positive,
 [data-palette="red-positive"] .heatmap-legend-dot.is-positive {
-  --jelly-rgb: 216 73 63;
+  --jelly-rgb: var(--color-heatmap-red);
 }
 
 [data-palette="red-positive"] .jelly-tile.is-negative,
 [data-palette="red-positive"] .heatmap-index-dot.is-negative,
 [data-palette="red-positive"] .heatmap-legend-dot.is-negative {
-  --jelly-rgb: 18 142 94;
+  --jelly-rgb: var(--color-heatmap-green);
 }
 
 [data-palette="green-positive"] .jelly-tile.is-positive,
 [data-palette="green-positive"] .heatmap-index-dot.is-positive,
 [data-palette="green-positive"] .heatmap-legend-dot.is-positive {
-  --jelly-rgb: 18 142 94;
+  --jelly-rgb: var(--color-heatmap-green);
 }
 
 [data-palette="green-positive"] .jelly-tile.is-negative,
 [data-palette="green-positive"] .heatmap-index-dot.is-negative,
 [data-palette="green-positive"] .heatmap-legend-dot.is-negative {
-  --jelly-rgb: 216 73 63;
+  --jelly-rgb: var(--color-heatmap-red);
 }
 
 [data-palette="red-positive"] .heatmap-sign.is-positive,

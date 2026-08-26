@@ -132,10 +132,10 @@ function JellyTile({
     "--tile-width": `${width / canvasWidth * 100}%`,
     "--tile-height": `${height / canvasHeight * 100}%`,
     "--jelly-delay": `${Math.min(index * 42, 420)}ms`,
-    "--jelly-fill-alpha": (0.16 + intensity * 0.42).toFixed(3),
-    "--jelly-border-alpha": (0.38 + intensity * 0.48).toFixed(3),
-    "--jelly-depth-alpha": (0.08 + intensity * 0.18).toFixed(3),
-    "--jelly-shadow-alpha": (0.28 + intensity * 0.42).toFixed(3)
+    "--jelly-fill-alpha": (0.08 + intensity * 0.74).toFixed(3),
+    "--jelly-border-alpha": (0.28 + intensity * 0.7).toFixed(3),
+    "--jelly-depth-alpha": (0.05 + intensity * 0.31).toFixed(3),
+    "--jelly-shadow-alpha": (0.15 + intensity * 0.7).toFixed(3)
   };
   const direction = tile.value >= 0 ? "盈" : "亏";
   const tooltip = `${kindLabels[tile.kind]} · ${tile.label} · ${formatValue(tile.value, metric, energyUnit)} · 绝对贡献 ${formatShare(tile.share)}`;

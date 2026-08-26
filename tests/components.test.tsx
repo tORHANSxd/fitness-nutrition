@@ -163,6 +163,11 @@ describe("PlannerProfileView v2 固定目标 / 训练时间", () => {
     expect(metricGrid).toHaveClass("grid-cols-2");
     expect(metricGrid).not.toHaveClass("xl:grid-cols-4");
     expect(metricValue).toHaveClass("whitespace-nowrap");
+
+    const weeklyPlanGrid = screen.getByTestId("weekly-plan-grid");
+    expect(weeklyPlanGrid).toHaveClass("grid", "grid-cols-2", "sm:grid-cols-4");
+    expect(weeklyPlanGrid).not.toHaveClass("overflow-x-auto");
+    expect(weeklyPlanGrid.firstElementChild).not.toHaveClass("shrink-0", "min-w-[76px]");
   });
 
   it("shows formula-derived targets as placeholders (demo profile → 2295/175/61) and no carb-day picker", () => {
@@ -317,6 +322,8 @@ describe("MealSplitView（分餐单独页含应用推荐/保存计划 + 弹出�
     render(<MealSplitView controller={controller} foods={builtinFoods} templates={templates} />);
 
     expect(screen.queryByRole("combobox", { name: "当前餐次" })).not.toBeInTheDocument();
+    expect(screen.getByTestId("meal-entry-list")).not.toHaveClass("md:hidden", "overflow-x-auto");
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /归一比例/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /保存计划/ })).toBeInTheDocument();
 

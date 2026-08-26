@@ -98,7 +98,7 @@ export function MacroBars({ result, meals, energyUnit = "kcal" }: MacroBarsProps
   ];
 
   return (
-    <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+    <div className="grid min-w-0 grid-cols-1 gap-4">
       <section className="panel overflow-hidden">
         <div className="border-b border-line px-4 py-3">
           <h3 className="font-semibold text-ink">当天摄入对比</h3>
@@ -163,26 +163,26 @@ function MacroTable({
 }) {
   const energyLabel = energyUnit === "kj" ? "kJ" : "kcal";
   return (
-    <div className="overflow-x-auto border-t border-line">
-      <table className="w-full min-w-[420px] text-sm">
+    <div className="border-t border-line" data-testid="macro-table-container">
+      <table className="w-full table-fixed text-xs sm:text-sm">
         <caption className="sr-only">{caption}</caption>
         <thead className="bg-panel/45 text-left text-xs text-muted">
           <tr>
-            <th className="px-4 py-2 font-semibold" scope="col">项目</th>
-            {energyUnit ? <th className="px-3 py-2 text-right font-semibold" scope="col">热量 {energyLabel}</th> : null}
-            <th className="px-3 py-2 text-right font-semibold" scope="col">碳水 g</th>
-            <th className="px-3 py-2 text-right font-semibold" scope="col">蛋白 g</th>
-            <th className="px-4 py-2 text-right font-semibold" scope="col">脂肪 g</th>
+            <th className="w-[24%] px-3 py-2 font-semibold" scope="col">项目</th>
+            {energyUnit ? <th className="px-1.5 py-2 text-right font-semibold" scope="col"><span className="block">热量</span><span className="block text-[10px] font-normal">{energyLabel}</span></th> : null}
+            <th className="px-1.5 py-2 text-right font-semibold" scope="col"><span className="block">碳水</span><span className="block text-[10px] font-normal">g</span></th>
+            <th className="px-1.5 py-2 text-right font-semibold" scope="col"><span className="block">蛋白</span><span className="block text-[10px] font-normal">g</span></th>
+            <th className="px-3 py-2 text-right font-semibold" scope="col"><span className="block">脂肪</span><span className="block text-[10px] font-normal">g</span></th>
           </tr>
         </thead>
         <tbody>
           {rows.map((row) => (
             <tr key={row.name} className="border-t border-line">
-              <th className="px-4 py-2 text-left font-medium text-ink" scope="row">{row.name}</th>
-              {energyUnit ? <td className="px-3 py-2 text-right tabular-nums text-muted">{round(displayEnergy(row.kcal ?? 0, energyUnit), 0)}</td> : null}
-              <td className="px-3 py-2 text-right tabular-nums text-muted">{row.carbs}</td>
-              <td className="px-3 py-2 text-right tabular-nums text-muted">{row.protein}</td>
-              <td className="px-4 py-2 text-right tabular-nums text-muted">{row.fat}</td>
+              <th className="break-words px-3 py-2 text-left font-medium leading-tight text-ink" scope="row">{row.name}</th>
+              {energyUnit ? <td className="px-1.5 py-2 text-right tabular-nums text-muted">{round(displayEnergy(row.kcal ?? 0, energyUnit), 0)}</td> : null}
+              <td className="px-1.5 py-2 text-right tabular-nums text-muted">{row.carbs}</td>
+              <td className="px-1.5 py-2 text-right tabular-nums text-muted">{row.protein}</td>
+              <td className="px-3 py-2 text-right tabular-nums text-muted">{row.fat}</td>
             </tr>
           ))}
         </tbody>

@@ -285,17 +285,17 @@ function PlanRulePanel({ ready, target, energyUnit }: { ready: boolean; target: 
             : "每日目标 = TDEE − 赤字，蛋白/脂肪按体重与体脂公式——填好身体档案后自动测算；训练日休息日同一目标。"}
         </p>
       </div>
-      <div className="scrollbar-thin -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
+      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4" data-testid="weekly-plan-grid">
         {weeklyPlan.map(([day, part, focus, isTraining]) => (
           <div
             key={day}
-            className={`min-w-[76px] shrink-0 rounded-lg border px-2 py-2 text-center transition-colors ${
+            className={`min-w-0 rounded-lg border px-2 py-2 text-center transition-colors ${
               isTraining ? "border-accent/40 bg-accent/[0.07]" : "border-line bg-surface/50 hover:border-accent/30"
             }`}
           >
             <div className="text-[11px] font-semibold text-ink">{day}</div>
-            <div className="mt-1 whitespace-nowrap text-xs font-medium text-ink">{part}</div>
-            <div className="whitespace-nowrap text-[10px] text-muted">{focus}</div>
+            <div className="mt-1 text-xs font-medium text-ink">{part}</div>
+            <div className="mt-0.5 min-h-7 text-[10px] leading-tight text-muted">{focus}</div>
             <div className="mt-1.5">
               {isTraining ? (
                 <span className="rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-[10px] font-medium text-accent">训练</span>

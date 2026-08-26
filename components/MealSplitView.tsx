@@ -380,7 +380,7 @@ function MealEditor({
         </>
       ) : null}
 
-      <div className="grid gap-3 p-3 md:hidden">
+      <div className="grid gap-3 p-3" data-testid="meal-entry-list">
         {meal.entries.length === 0 ? (
           <p className="rounded-md border border-dashed border-line bg-panel p-4 text-center text-sm text-muted">
             这一餐还没有食物。点「添加食物」先选分类再选食物。
@@ -456,7 +456,7 @@ function MealEditor({
                     />
                   </label>
                 </div>
-                <div className="mt-3 grid grid-cols-4 gap-2 text-center text-xs">
+                <div className="mt-3 grid grid-cols-2 gap-2 text-center text-xs sm:grid-cols-4">
                   <div className="rounded-md bg-panel p-2"><div className="metric-label">热量 {energyLabel}</div><div>{energyValue(totals.kcal)}</div></div>
                   <div className="rounded-md bg-panel p-2"><div className="metric-label">碳水</div><div>{round(totals.carbs)}</div></div>
                   <div className="rounded-md bg-panel p-2"><div className="metric-label">蛋白</div><div>{round(totals.protein)}</div></div>
@@ -479,123 +479,6 @@ function MealEditor({
             );
           })
         )}
-      </div>
-
-      <div className="scrollbar-thin hidden overflow-x-auto md:block">
-        <table className="w-full min-w-[1080px] text-left text-sm">
-          <thead className="border-b border-line text-[11px] uppercase text-muted-soft">
-            <tr>
-              <th className="px-4 py-2.5 font-semibold">食物</th>
-              <th className="px-4 py-2.5 font-semibold">克重</th>
-              <th className="px-4 py-2.5 font-semibold text-accent">推荐</th>
-              <th className="px-4 py-2.5 font-semibold">最小</th>
-              <th className="px-4 py-2.5 font-semibold">最大</th>
-              <th className="px-4 py-2.5 font-semibold">热量 {energyLabel}</th>
-              <th className="px-4 py-2.5 font-semibold">碳水</th>
-              <th className="px-4 py-2.5 font-semibold">蛋白</th>
-              <th className="px-4 py-2.5 font-semibold">脂肪</th>
-              <th className="px-4 py-2.5 font-semibold">锁定</th>
-              <th className="px-4 py-2.5 font-semibold">操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            {meal.entries.length === 0 ? (
-              <tr>
-                <td className="px-4 py-8 text-center text-muted" colSpan={11}>
-                  这一餐还没有食物。点「添加食物」先选分类再选食物。
-                </td>
-              </tr>
-            ) : (
-              meal.entries.map((entry) => {
-                const food = foodsById.get(entry.foodId);
-                const recommendedGrams = recommendation?.recommendedEntries[entry.id] ?? entry.grams;
-                const defaultBounds = food ? getDefaultMealEntrySettings(food, meal) : null;
-                const totals = food ? calculateFoodTotals(food, entry.grams) : { kcal: 0, carbs: 0, protein: 0, fat: 0 };
-
-                return (
-                  <tr key={entry.id} className="border-t border-line transition-colors hover:bg-panel/40">
-                    <td className="px-4 py-2.5">
-                      <FoodPickerButton food={food} className="w-52" onClick={() => setPickerTarget(entry.id)} />
-                      {food ? <div className="mt-1 text-xs text-muted">{convertWeightLabel(food, entry.grams)}</div> : null}
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <input
-                        className="field h-11 w-24"
-                        type="number"
-                        inputMode="decimal"
-                        min="0"
-                        step="1"
-                        aria-label={`桌面端${food?.name ?? "食物"}克重`}
-                        value={entry.grams}
-                        onChange={(event) => updateEntryGrams(entry.id, event.target.value)}
-                      />
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <div className="flex items-center gap-2 tabular-nums font-semibold text-accent">
-                        <span>{round(recommendedGrams, 1)} g</span>
-                        {!meal.locked && !entry.locked && Math.abs(recommendedGrams - entry.grams) >= 0.05 ? (
-                          <button
-                            className="btn-secondary h-11 w-11 p-0"
-                            type="button"
-                            aria-label={`桌面端采用${food?.name ?? "此食物"}推荐克重`}
-                            title="采用推荐克重并固定"
-                            onClick={() => applyEntryRecommendation(entry, recommendedGrams)}
-                          >
-                            <Check size={14} />
-                          </button>
-                        ) : null}
-                      </div>
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <input
-                        className="field h-11 w-24"
-                        type="number"
-                        inputMode="decimal"
-                        min="0"
-                        step="1"
-                        value={entry.minGrams ?? ""}
-                        aria-label={`桌面端${food?.name ?? "食物"}最小克重`}
-                        onChange={(event) => updateEntryMinimum(entry.id, event.target.value)}
-                      />
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <input
-                        className="field h-11 w-24"
-                        type="number"
-                        inputMode="decimal"
-                        min="0"
-                        step="1"
-                        value={entry.maxGrams ?? ""}
-                        aria-label={`桌面端${food?.name ?? "食物"}最大克重`}
-                        placeholder={defaultBounds ? `${defaultBounds.maxGrams}` : ""}
-                        onChange={(event) => updateEntryMaximum(entry.id, event.target.value)}
-                      />
-                    </td>
-                    <td className="tabular-nums px-4 py-2.5 text-muted">{energyValue(totals.kcal)}</td>
-                    <td className="tabular-nums px-4 py-2.5 text-muted">{round(totals.carbs)}</td>
-                    <td className="tabular-nums px-4 py-2.5 text-muted">{round(totals.protein)}</td>
-                    <td className="tabular-nums px-4 py-2.5 text-muted">{round(totals.fat)}</td>
-                    <td className="px-4 py-2.5">
-                      <button
-                        className={entry.locked ? "btn-primary h-11 w-11 p-0" : "btn-secondary h-11 w-11 p-0"}
-                        type="button"
-                        aria-label={`${entry.locked ? "解锁" : "锁定"}${food?.name ?? "食物"}`}
-                        onClick={() => onUpdateEntry(entry.id, (current) => ({ ...current, locked: !current.locked }))}
-                      >
-                        {entry.locked ? <Lock size={14} /> : <Unlock size={14} />}
-                      </button>
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <button className="btn-danger h-11 w-11 p-0" type="button" aria-label={`删除${food?.name ?? "食物"}`} onClick={() => onRemoveEntry(entry.id)}>
-                        <Trash2 size={14} />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
       </div>
 
       <FoodPickerDialog

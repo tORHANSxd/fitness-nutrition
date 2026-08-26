@@ -259,6 +259,7 @@ export function TrainingLog({ user, onRequireLogin, dateRequest, timeZone, local
   const monthLabel = formatDateKey(monthCursor, locale, { year: "numeric", month: "long" });
   const weekdayHeads = weekdayLabels(locale, weekStartsOn);
   const weightUnit = unitSystem === "imperial" ? "lb" : "kg";
+  const templateDayColumns = template.days.length === 3 ? "lg:grid-cols-3" : template.days.length === 4 ? "lg:grid-cols-4" : "lg:grid-cols-5";
 
   return (
     <div className="flex flex-col gap-5">
@@ -299,18 +300,18 @@ export function TrainingLog({ user, onRequireLogin, dateRequest, timeZone, local
             85–90%，停用全部拉长半程/递减组，间歇有氧换匀速或散步。练完应"意犹未尽"，不是"被掏空"。
           </p>
         ) : null}
-        <div className="scrollbar-thin -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
+        <div className={`grid grid-cols-1 gap-1.5 sm:grid-cols-2 ${templateDayColumns}`} data-testid="training-template-days">
           {template.days.map((day, index) => (
             <button
               key={day.dayLabel}
               type="button"
               onClick={() => applyTemplateDay(index)}
               title="点击套用到当前选中日期"
-              className="min-h-11 min-w-[120px] shrink-0 rounded-lg border border-line bg-surface/40 px-3 py-2.5 text-left transition-colors hover:border-accent/30"
+              className="min-h-11 min-w-0 rounded-lg border border-line bg-surface/40 px-3 py-2.5 text-left transition-colors hover:border-accent/30"
             >
               <div className="text-[11px] font-semibold text-ink">{day.dayLabel}</div>
               <div className="mt-1 text-xs font-medium text-ink">{day.splitLabel}</div>
-              <div className="mt-0.5 truncate text-[10px] text-muted">
+              <div className="mt-0.5 text-[10px] leading-4 text-muted">
                 {day.muscleGroups.map((m) => muscleGroupLabels[m]).join(" · ")}
               </div>
             </button>

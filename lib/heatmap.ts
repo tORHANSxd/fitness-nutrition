@@ -160,20 +160,23 @@ export function buildHeatmapDays({
       return [];
     }
 
-    const actual = completed && checkin
-      ? checkin.actual
-      : plan
-        ? buildActualFromSavedPlan(plan, foods, checkin?.actual.exercises ?? [])
-        : checkin?.actual;
+    const livePlan = date === today ? plan : undefined;
+    const actual = livePlan
+      ? buildActualFromSavedPlan(livePlan, foods, checkin?.actual.exercises ?? [])
+      : completed && checkin
+        ? checkin.actual
+        : plan
+          ? buildActualFromSavedPlan(plan, foods, checkin?.actual.exercises ?? [])
+          : checkin?.actual;
     if (!actual) {
       return [];
     }
 
     return [{
       date,
-      completed,
+      completed: completed && date !== today,
       actual,
-      target: checkin?.target ?? plan?.result.dailyTarget ?? zeroTotals(),
+      target: livePlan ? livePlan.result.dailyTarget : checkin?.target ?? plan?.result.dailyTarget ?? zeroTotals(),
       plannedCalorieDeficitKcal: plan && plan.result.dailyTarget.kcal > 0 ? getCalorieDeficit(plan.profile) : 0,
       plannedExerciseKcal: plan ? Math.max(0, plan.profile.exerciseKcal ?? 0) : 0
     }];

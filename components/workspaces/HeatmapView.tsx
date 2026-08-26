@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import { useApp } from "@/components/app/AppProvider";
 import { useZonedToday } from "@/hooks/useZonedToday";
 import { daysBetween, formatDateKey } from "@/lib/dateTime";
+import { customFoodsFromMeals } from "@/lib/foods";
 import {
   aggregateHeatmap,
   buildHeatmapDays,
@@ -18,14 +19,16 @@ import {
   type HeatmapTile,
   type HeatmapTileLayout
 } from "@/lib/heatmap";
+import { buildNutritionResult } from "@/lib/nutrition";
 import { displayEnergy } from "@/lib/preferences";
 import {
   loadDailyCheckins,
   loadHeatmapPalette,
+  loadPlannerDraft,
   loadPlansInRange,
   saveHeatmapPalette
 } from "@/lib/storage";
-import type { DailyCheckin, HeatmapPalette, SavedPlan } from "@/lib/types";
+import type { DailyCheckin, FoodItem, HeatmapPalette, PlannerDraft, SavedPlan } from "@/lib/types";
 
 const metricOptions = [
   { id: "kcal", label: "热量", icon: Flame },
@@ -63,6 +66,18 @@ type JellyStyle = CSSProperties & {
 };
 
 const defaultTreemapSize = { width: 1600, height: 1000 };
+
+function planFromDraft(draft: PlannerDraft, foods: FoodItem[]): SavedPlan {
+  const draftFoods = [...foods, ...customFoodsFromMeals(draft.meals)];
+  return {
+    id: `draft:${draft.profile.planDate}`,
+    planDate: draft.profile.planDate,
+    profile: draft.profile,
+    meals: draft.meals,
+    result: buildNutritionResult(draft.profile, draft.meals, draftFoods),
+    createdAt: draft.updatedAt
+  };
+}
 
 function formatValue(value: number, metric: HeatmapMetric, energyUnit: "kcal" | "kj", signed = true) {
   const displayValue = metric === "kcal" ? displayEnergy(value, energyUnit) : value;
@@ -275,6 +290,7 @@ export function HeatmapView() {
   const [includeIncomplete, setIncludeIncomplete] = useState(false);
   const [plans, setPlans] = useState<SavedPlan[]>([]);
   const [checkins, setCheckins] = useState<DailyCheckin[]>([]);
+  const [todayDraft, setTodayDraft] = useState<PlannerDraft | null>(null);
   const [palette, setPalette] = useState<HeatmapPalette>("red-positive");
   const [paletteSaving, setPaletteSaving] = useState(false);
   const [paletteError, setPaletteError] = useState("");
@@ -309,20 +325,24 @@ export function HeatmapView() {
     let cancelled = false;
     setLoading(true);
     setError("");
+    const includesToday = range.from <= today && range.to >= today;
     Promise.all([
       loadPlansInRange(user, range.from, range.to),
-      loadDailyCheckins(user, range.from, range.to)
+      loadDailyCheckins(user, range.from, range.to),
+      includesToday ? loadPlannerDraft(user) : Promise.resolve(null)
     ])
-      .then(([nextPlans, nextCheckins]) => {
+      .then(([nextPlans, nextCheckins, nextDraft]) => {
         if (!cancelled) {
           setPlans(nextPlans);
           setCheckins(nextCheckins);
+          setTodayDraft(nextDraft?.profile.planDate === today ? nextDraft : null);
         }
       })
       .catch((loadError) => {
         if (!cancelled) {
           setPlans([]);
           setCheckins([]);
+          setTodayDraft(null);
           setError(loadError instanceof Error ? loadError.message : "热力图数据加载失败。");
         }
       })
@@ -334,11 +354,21 @@ export function HeatmapView() {
     return () => {
       cancelled = true;
     };
-  }, [range.from, range.to, rangeError, reloadNonce, user]);
+  }, [range.from, range.to, rangeError, reloadNonce, today, user]);
+
+  const effectivePlans = useMemo(() => {
+    if (!todayDraft || today < range.from || today > range.to) {
+      return plans;
+    }
+    return [
+      ...plans.filter((plan) => plan.planDate !== today),
+      planFromDraft(todayDraft, foods)
+    ].sort((left, right) => left.planDate.localeCompare(right.planDate));
+  }, [foods, plans, range.from, range.to, today, todayDraft]);
 
   const days = useMemo(
-    () => buildHeatmapDays({ plans, checkins, foods, today, includeIncomplete }),
-    [checkins, foods, includeIncomplete, plans, today]
+    () => buildHeatmapDays({ plans: effectivePlans, checkins, foods, today, includeIncomplete }),
+    [checkins, effectivePlans, foods, includeIncomplete, today]
   );
   const datasets = useMemo(
     () => Object.fromEntries(metricOptions.map((option) => [option.id, aggregateHeatmap(days, option.id)])) as Record<HeatmapMetric, ReturnType<typeof aggregateHeatmap>>,
@@ -351,7 +381,7 @@ export function HeatmapView() {
   const completeDays = checkins.filter(
     (checkin) => checkin.completed && checkin.planDate >= range.from && checkin.planDate <= range.to
   ).length;
-  const recordedDays = new Set([...plans.map((plan) => plan.planDate), ...checkins.map((checkin) => checkin.planDate)]).size;
+  const recordedDays = new Set([...effectivePlans.map((plan) => plan.planDate), ...checkins.map((checkin) => checkin.planDate)]).size;
 
   function choosePreset(nextPreset: HeatmapRangePreset) {
     if (nextPreset === "custom" && preset !== "custom") {

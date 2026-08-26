@@ -11,6 +11,7 @@ const storageMocks = vi.hoisted(() => ({
   loadDailyCheckin: vi.fn(),
   loadDailyCheckins: vi.fn(),
   loadHeatmapPalette: vi.fn(),
+  loadPlannerDraft: vi.fn(),
   loadPlansInRange: vi.fn(),
   saveDailyCheckin: vi.fn(),
   saveHeatmapPalette: vi.fn()
@@ -33,6 +34,15 @@ const food: FoodItem = {
   fatPer100g: 0.2,
   weightBasis: "raw",
   source: "public"
+};
+const dinnerFood: FoodItem = {
+  ...food,
+  id: "food-dinner",
+  name: "晚餐三文鱼",
+  kcalPer100g: 208,
+  carbsPer100g: 0,
+  proteinPer100g: 20,
+  fatPer100g: 13
 };
 const profile: UserProfile = {
   sex: "male",
@@ -112,6 +122,7 @@ beforeEach(() => {
   storageMocks.loadDailyCheckin.mockResolvedValue(null);
   storageMocks.loadDailyCheckins.mockResolvedValue([completedCheckin]);
   storageMocks.loadHeatmapPalette.mockResolvedValue("red-positive");
+  storageMocks.loadPlannerDraft.mockResolvedValue(null);
   storageMocks.loadPlansInRange.mockResolvedValue([]);
   storageMocks.saveDailyCheckin.mockImplementation(async (input) => ({
     id: "checkin-saved",
@@ -146,6 +157,29 @@ describe("DailyCheckinPanel", () => {
 });
 
 describe("HeatmapView", () => {
+  it("loads every meal in today's latest planner draft", async () => {
+    appMock.value = { ...appMock.value, foods: [food, dinnerFood] };
+    storageMocks.loadPlannerDraft.mockResolvedValue({
+      profile,
+      meals: [
+        ...meals,
+        {
+          id: "dinner",
+          name: "晚餐",
+          ratio: 0.3,
+          locked: false,
+          entries: [{ id: "dinner-entry", foodId: dinnerFood.id, grams: 180, locked: false }]
+        }
+      ],
+      updatedAt: "2026-08-25T12:00:00.000Z"
+    });
+
+    render(<HeatmapView />);
+
+    expect(await screen.findByRole("button", { name: /热力图项目：晚餐三文鱼/ })).toBeInTheDocument();
+    expect(storageMocks.loadPlannerDraft).toHaveBeenCalledWith(user);
+  });
+
   it("switches metrics, opens details, persists palette and loads month-to-date", async () => {
     render(<HeatmapView />);
 

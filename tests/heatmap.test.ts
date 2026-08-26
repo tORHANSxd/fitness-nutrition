@@ -185,6 +185,102 @@ describe("heatmap ledger", () => {
     }).map((day) => day.date)).toEqual(["2026-08-24", "2026-08-25"]);
   });
 
+  it("uses today's full plan instead of an earlier completed snapshot", () => {
+    const dinnerFood: FoodItem = {
+      ...food,
+      id: "food-dinner",
+      name: "晚餐三文鱼",
+      kcalPer100g: 208,
+      carbsPer100g: 0,
+      proteinPer100g: 20,
+      fatPer100g: 13
+    };
+    const fullDayMeals: MealPlan[] = [
+      ...meals,
+      {
+        id: "dinner",
+        name: "晚餐",
+        ratio: 0.3,
+        locked: false,
+        entries: [{ id: "dinner-entry", foodId: dinnerFood.id, grams: 180, locked: false }]
+      }
+    ];
+    const result = buildNutritionResult(profile, fullDayMeals, [food, dinnerFood]);
+    const plan: SavedPlan = {
+      id: "today-full-plan",
+      planDate: profile.planDate,
+      profile,
+      meals: fullDayMeals,
+      result,
+      createdAt: "2026-08-25T12:00:00.000Z"
+    };
+    const staleCheckin: DailyCheckin = {
+      id: "early-snapshot",
+      planDate: profile.planDate,
+      actual: {
+        ...buildDailyActual(profile, meals, buildNutritionResult(profile, meals, [food]), new Map([[food.id, food]])),
+        exercises: [{ id: "exercise-1", name: "跑步", kcal: 300 }]
+      },
+      target: { kcal: 1, carbs: 1, protein: 1, fat: 1 },
+      completed: true,
+      createdAt: "",
+      updatedAt: ""
+    };
+
+    const [day] = buildHeatmapDays({
+      plans: [plan],
+      checkins: [staleCheckin],
+      foods: [food, dinnerFood],
+      today: profile.planDate,
+      includeIncomplete: false
+    });
+
+    expect(day.actual.foods.find((item) => item.foodId === dinnerFood.id)).toMatchObject({
+      name: "晚餐三文鱼",
+      grams: 180
+    });
+    expect(day.actual.exercises).toEqual(staleCheckin.actual.exercises);
+    expect(day.target).toEqual(result.dailyTarget);
+    expect(day.completed).toBe(false);
+  });
+
+  it("keeps today's planned exercise visible after an early completion without recorded exercise", () => {
+    const plannedProfile = { ...profile, exerciseKcal: 450 };
+    const result = buildNutritionResult(plannedProfile, meals, [food]);
+    const plan: SavedPlan = {
+      id: "today-with-planned-exercise",
+      planDate: plannedProfile.planDate,
+      profile: plannedProfile,
+      meals,
+      result,
+      createdAt: "2026-08-25T12:00:00.000Z"
+    };
+    const earlyCheckin: DailyCheckin = {
+      id: "early-completion-without-exercise",
+      planDate: plannedProfile.planDate,
+      actual: buildDailyActual(plannedProfile, meals, result, new Map([[food.id, food]])),
+      target: result.dailyTarget,
+      completed: true,
+      createdAt: "",
+      updatedAt: ""
+    };
+
+    const [day] = buildHeatmapDays({
+      plans: [plan],
+      checkins: [earlyCheckin],
+      foods: [food],
+      today: plannedProfile.planDate,
+      includeIncomplete: false
+    });
+    const dataset = aggregateHeatmap([day], "kcal");
+
+    expect(day.completed).toBe(false);
+    expect(dataset.tiles.find((tile) => tile.id === "exercise:planned")).toMatchObject({
+      label: "计划运动消耗",
+      value: -450
+    });
+  });
+
   it("falls back to the saved plan target for completed legacy check-ins", () => {
     const plan = savedPlan("2026-08-24");
     const checkin: DailyCheckin = {

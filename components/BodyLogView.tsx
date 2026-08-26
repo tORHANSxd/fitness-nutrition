@@ -18,6 +18,8 @@ import { useZonedToday } from "@/hooks/useZonedToday";
 import { canonicalLength, canonicalWeight, displayLength, displayWeight, type AppLocale, type UnitSystem } from "@/lib/preferences";
 import { StorageAuthError } from "@/lib/storage";
 import { round } from "@/lib/nutrition";
+import { NumericDraftNotice, NumericDraftProvider, NumericInput, useNumericDraftForm } from "@/components/NumericInput";
+import { roundForStorage } from "@/lib/numericInput";
 
 interface BodyLogViewProps {
   user: User | null;
@@ -74,6 +76,7 @@ function metricUnit(key: BodyMetricKey, unitSystem: UnitSystem): string {
 }
 
 export function BodyLogView({ user, timeZone, locale, unitSystem }: BodyLogViewProps) {
+  const numericDraftForm = useNumericDraftForm();
   const today = useZonedToday(timeZone);
   const [logs, setLogs] = useState<BodyLog[]>([]);
   const [form, setForm] = useState<BodyLog>({ logDate: today });
@@ -130,17 +133,32 @@ export function BodyLogView({ user, timeZone, locale, unitSystem }: BodyLogViewP
     setVisibleKeys(new Set([key]));
   }
 
-  function updateField(key: BodyMetricKey, value: string) {
-    setForm((current) => ({ ...current, [key]: value === "" ? null : canonicalMetricValue(key, Number(value), unitSystem) }));
+  function updateField(key: BodyMetricKey, value: number | null | undefined) {
+    setForm((current) => ({ ...current, [key]: value ?? null }));
   }
 
   async function submit() {
+    if (!numericDraftForm.validateAll()) {
+      setMessage("请先修正标红的数字，再保存体测记录。");
+      return;
+    }
+    const normalizedForm: BodyLog = { ...form };
+    let precisionChanged = false;
+    for (const field of bodyMetricFields) {
+      const value = normalizedForm[field.key];
+      if (value != null) {
+        const rounded = roundForStorage(value, 2);
+        precisionChanged ||= rounded !== value;
+        normalizedForm[field.key] = rounded;
+      }
+    }
     setBusy(true);
     setMessage("");
     try {
-      await saveBodyLog(form, user);
+      await saveBodyLog(normalizedForm, user);
       await refresh();
-      setMessage(`已保存 ${form.logDate} 的体测记录。`);
+      setForm(normalizedForm);
+      setMessage(`已保存 ${form.logDate} 的体测记录${precisionChanged ? "，数值按 2 位小数记录" : ""}。`);
     } catch (error) {
       setMessage(error instanceof StorageAuthError ? error.message : "保存失败。");
     } finally {
@@ -165,6 +183,7 @@ export function BodyLogView({ user, timeZone, locale, unitSystem }: BodyLogViewP
   const recentLogs = useMemo(() => [...logs].sort((a, b) => b.logDate.localeCompare(a.logDate)).slice(0, 14), [logs]);
 
   return (
+    <NumericDraftProvider form={numericDraftForm}>
     <section className="animate-fade-up grid grid-cols-1 gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
       <div className="space-y-4">
         <section className="panel p-4">
@@ -188,18 +207,22 @@ export function BodyLogView({ user, timeZone, locale, unitSystem }: BodyLogViewP
                   <span className="metric-label mb-1 block">
                     {field.label} {metricUnit(field.key, unitSystem)}
                   </span>
-                  <input
+                  <NumericInput
+                    blankValue={null}
                     className="field w-full"
-                    type="number"
-                    inputMode="decimal"
-                    step="0.1"
-                    min="0"
-                    value={form[field.key] == null ? "" : round(displayMetricValue(field.key, form[field.key] as number, unitSystem), 1)}
-                    onChange={(event) => updateField(field.key, event.target.value)}
+                    formatKey={unitSystem}
+                    formatValue={(value) => round(displayMetricValue(field.key, value, unitSystem), 2)}
+                    label={field.label}
+                    min={field.key === "bodyFatPct" ? 3 : 0}
+                    max={field.key === "bodyFatPct" ? 60 : undefined}
+                    toValue={(value) => canonicalMetricValue(field.key, value, unitSystem)}
+                    value={form[field.key]}
+                    onValueChange={(value) => updateField(field.key, value)}
                   />
                 </label>
               ))}
             </div>
+            <NumericDraftNotice />
             <button className="btn-primary h-11" type="button" onClick={submit} disabled={busy}>
               <Save size={16} />
               保存记录
@@ -317,5 +340,6 @@ export function BodyLogView({ user, timeZone, locale, unitSystem }: BodyLogViewP
         ) : null}
       </section>
     </section>
+    </NumericDraftProvider>
   );
 }

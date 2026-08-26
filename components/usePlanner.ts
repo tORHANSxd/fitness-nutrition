@@ -37,6 +37,7 @@ export interface UsePlannerArgs {
   timeZone: string;
   energyUnit?: EnergyUnit;
   onTemplatesChanged: (templates: PlannerTemplates) => void;
+  validateNumericDrafts?: () => boolean;
   /** 从模板页「一键应用」传入的全天餐食；nonce 变化时载入到当前计划。 */
   applyRequest?: { meals: MealPlan[]; nonce: number } | null;
   /** 从安排日历「去分餐」传入指定日期与该日已存计划；nonce 变化时按该日载入。 */
@@ -75,7 +76,7 @@ export interface PlannerController {
  * 计划器控制器：把「当天计划」与「分餐计划」两页共享的 profile/meals 状态、云端草稿水合/自动保存、
  * 一键应用/去分餐载入、以及所有编辑动作集中到一个 hook。AppShell 只调用一次，两页读同一份状态。
  */
-export function usePlanner({ foods, templates, user, timeZone, energyUnit = "kcal", onTemplatesChanged, applyRequest, openDateRequest }: UsePlannerArgs): PlannerController {
+export function usePlanner({ foods, templates, user, timeZone, energyUnit = "kcal", onTemplatesChanged, validateNumericDrafts, applyRequest, openDateRequest }: UsePlannerArgs): PlannerController {
   const [profile, setProfile] = useState<UserProfile>(defaultProfile);
   const [meals, setMeals] = useState<MealPlan[]>(() => createStarterMeals(defaultProfile));
   const [activeMealId, setActiveMealId] = useState(meals[0]?.id ?? "");
@@ -301,6 +302,10 @@ export function usePlanner({ foods, templates, user, timeZone, energyUnit = "kca
   }
 
   async function persistPlan() {
+    if (validateNumericDrafts && !validateNumericDrafts()) {
+      setMessage("请先修正标红的数字，再保存计划。");
+      return false;
+    }
     setSaving(true);
     setMessage("");
     try {
@@ -325,6 +330,10 @@ export function usePlanner({ foods, templates, user, timeZone, energyUnit = "kca
   }
 
   function saveMealTemplate(meal: MealPlan) {
+    if (validateNumericDrafts && !validateNumericDrafts()) {
+      setMessage("请先修正标红的数字，再保存模板。");
+      return;
+    }
     const refs = templateRefsFromEntries(meal.entries);
     const name = buildTemplateName(refs, foodsById);
     if (templateNameExists(templates.mealTemplates, name)) {
@@ -357,6 +366,10 @@ export function usePlanner({ foods, templates, user, timeZone, energyUnit = "kca
   }
 
   function saveDayTemplate() {
+    if (validateNumericDrafts && !validateNumericDrafts()) {
+      setMessage("请先修正标红的数字，再保存模板。");
+      return;
+    }
     const dayMeals = meals.map((meal) => ({
       id: meal.id,
       name: meal.name,

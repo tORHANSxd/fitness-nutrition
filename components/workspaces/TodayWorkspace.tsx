@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { MealSplitView } from "@/components/MealSplitView";
 import { PlannerProfileView } from "@/components/PlannerProfileView";
 import { DailyCheckinPanel } from "@/components/DailyCheckinPanel";
+import { NumericDraftNotice, NumericDraftProvider, useNumericDraftForm } from "@/components/NumericInput";
 import { useApp } from "@/components/app/AppProvider";
 import { usePlanner } from "@/components/usePlanner";
 import { useZonedToday } from "@/hooks/useZonedToday";
@@ -19,6 +20,7 @@ function stableNonce(value: string): number {
 }
 
 export function TodayWorkspace() {
+  const numericDraftForm = useNumericDraftForm();
   const searchParams = useSearchParams();
   const { foods, persistTemplates, preferences, templates, user } = useApp();
   const zonedToday = useZonedToday(preferences.timeZone);
@@ -68,6 +70,7 @@ export function TodayWorkspace() {
     timeZone: preferences.timeZone,
     energyUnit: preferences.energyUnit,
     onTemplatesChanged: persistTemplates,
+    validateNumericDrafts: numericDraftForm.validateAll,
     applyRequest,
     openDateRequest
   });
@@ -81,6 +84,7 @@ export function TodayWorkspace() {
   const DraftIcon = draftStatus.icon;
 
   return (
+    <NumericDraftProvider form={numericDraftForm}>
     <section className="today-workspace space-y-4">
       <div className="flex flex-col gap-3 border-b border-line pb-4 md:flex-row md:items-end md:justify-between">
         <div>
@@ -93,6 +97,7 @@ export function TodayWorkspace() {
           {draftStatus.label}
         </p>
       </div>
+      <NumericDraftNotice />
 
       <div className="grid grid-cols-2 rounded border border-line bg-panel p-1 lg:hidden" aria-label="今日计划分区">
         <a className={`segmented-option ${section === "profile" ? "is-active" : ""}`} href={`?date=${requestedDate}&section=profile`}>目标</a>
@@ -116,5 +121,6 @@ export function TodayWorkspace() {
         energyUnit={preferences.energyUnit}
       />
     </section>
+    </NumericDraftProvider>
   );
 }

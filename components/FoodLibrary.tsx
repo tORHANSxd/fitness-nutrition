@@ -9,6 +9,8 @@ import { sortFoods } from "@/lib/foods";
 import { calculateFoodKcalPer100g, getFoodEnergyMismatch, round } from "@/lib/nutrition";
 import { csvToFoodForms, foodsToCsv, jsonToFoodForms } from "@/lib/dataIO";
 import { displayEnergy, type EnergyUnit } from "@/lib/preferences";
+import { NumericDraftNotice, NumericDraftProvider, NumericInput, useNumericDraftForm } from "@/components/NumericInput";
+import { roundForStorage } from "@/lib/numericInput";
 
 interface FoodLibraryProps {
   foods: FoodItem[];
@@ -48,6 +50,7 @@ function downloadFile(filename: string, content: string, mime: string) {
 }
 
 export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated, energyUnit = "kcal" }: FoodLibraryProps) {
+  const numericDraftForm = useNumericDraftForm();
   const [form, setForm] = useState<FoodFormState>(emptyForm);
   const [search, setSearch] = useState("");
   const [activeCategories, setActiveCategories] = useState<Set<FoodItem["category"]>>(new Set());
@@ -113,10 +116,6 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated, energ
     });
   }
 
-  function updateNumber(key: keyof FoodFormState, value: string) {
-    setForm((current) => ({ ...current, [key]: value === "" ? 0 : Number(value) }));
-  }
-
   function startEditFood(food: FoodItem) {
     setEditingFood(food);
     setForm({
@@ -139,17 +138,31 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated, energ
   }
 
   async function submitFood() {
+    if (!numericDraftForm.validateAll()) {
+      setMessage("请先修正标红的数字，再保存食物。");
+      return;
+    }
     if (!form.name.trim()) {
       setMessage("食物名称不能为空。");
       return;
     }
+    const normalizedForm: FoodFormState = {
+      ...form,
+      fatPer100g: roundForStorage(form.fatPer100g, 2),
+      carbsPer100g: roundForStorage(form.carbsPer100g, 2),
+      proteinPer100g: roundForStorage(form.proteinPer100g, 2),
+      cookedRawRatio: form.cookedRawRatio == null ? null : roundForStorage(form.cookedRawRatio, 3)
+    };
+    const precisionChanged = normalizedForm.fatPer100g !== form.fatPer100g
+      || normalizedForm.carbsPer100g !== form.carbsPer100g
+      || normalizedForm.proteinPer100g !== form.proteinPer100g
+      || normalizedForm.cookedRawRatio !== form.cookedRawRatio;
     const payload: FoodItem = {
       id: editingFood?.id ?? "",
       userId: editingFood?.userId,
-      ...form,
-      kcalPer100g: formKcalPer100g,
+      ...normalizedForm,
+      kcalPer100g: calculateFoodKcalPer100g(normalizedForm),
       name: form.name.trim(),
-      cookedRawRatio: form.cookedRawRatio ? Number(form.cookedRawRatio) : null,
       source: editingFood?.source ?? "user",
       isUserOverride: editingFood?.source === "public" || editingFood?.isUserOverride
     };
@@ -160,7 +173,7 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated, energ
       onFoodsUpdated([...foods.filter((food) => food.id !== savedFood.id), savedFood]);
       setForm(emptyForm);
       setEditingFood(null);
-      setMessage(editingFood ? "食物已更新。" : "食物已保存。");
+      setMessage(`${editingFood ? "食物已更新" : "食物已保存"}${precisionChanged ? "，营养素按 2 位、换算率按 3 位小数记录" : ""}。`);
       await onFoodsChanged();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "保存失败。");
@@ -247,6 +260,7 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated, energ
   }
 
   return (
+    <NumericDraftProvider form={numericDraftForm}>
     <section className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
       {/* 新增/编辑表单：桌面端吸顶跟随页面滚动 */}
       <div className="panel p-4 xl:sticky xl:top-6">
@@ -287,27 +301,30 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated, energ
             </div>
             <label>
               <span className="metric-label mb-1 block">脂肪 g/100g</span>
-              <input className="field w-full" type="number" value={form.fatPer100g} onChange={(event) => updateNumber("fatPer100g", event.target.value)} />
+              <NumericInput className="field w-full" label="脂肪" min={0} required value={form.fatPer100g} onValueChange={(value) => setForm((current) => ({ ...current, fatPer100g: value as number }))} />
             </label>
             <label>
               <span className="metric-label mb-1 block">净碳水 g/100g</span>
-              <input className="field w-full" type="number" value={form.carbsPer100g} onChange={(event) => updateNumber("carbsPer100g", event.target.value)} />
+              <NumericInput className="field w-full" label="净碳水" min={0} required value={form.carbsPer100g} onValueChange={(value) => setForm((current) => ({ ...current, carbsPer100g: value as number }))} />
             </label>
             <label>
               <span className="metric-label mb-1 block">蛋白 g/100g</span>
-              <input className="field w-full" type="number" value={form.proteinPer100g} onChange={(event) => updateNumber("proteinPer100g", event.target.value)} />
+              <NumericInput className="field w-full" label="蛋白" min={0} required value={form.proteinPer100g} onValueChange={(value) => setForm((current) => ({ ...current, proteinPer100g: value as number }))} />
             </label>
           </div>
           <label>
             <span className="metric-label mb-1 block">熟化换算率，可空</span>
-            <input
+            <NumericInput
+              blankValue={null}
               className="field w-full"
-              type="number"
-              value={form.cookedRawRatio ?? ""}
-              onChange={(event) => setForm({ ...form, cookedRawRatio: event.target.value === "" ? null : Number(event.target.value) })}
+              label="熟化换算率"
+              minExclusive={0}
+              value={form.cookedRawRatio}
+              onValueChange={(value) => setForm((current) => ({ ...current, cookedRawRatio: value }))}
               placeholder="例：生米1g对应熟饭2.5g"
             />
           </label>
+          <NumericDraftNotice />
           <div className="flex flex-wrap gap-2">
             <button className="btn-primary" type="button" onClick={submitFood} disabled={busy}>
               {editingFood ? <Save size={16} /> : <Plus size={16} />}
@@ -468,6 +485,7 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated, energ
         </div>
       </div>
     </section>
+    </NumericDraftProvider>
   );
 }
 

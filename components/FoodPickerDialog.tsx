@@ -3,6 +3,7 @@
 import { PenLine, Plus, Search, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { NumericDraftNotice, NumericDraftProvider, NumericInput, useNumericDraftForm } from "@/components/NumericInput";
 import { sortFoods } from "@/lib/foods";
 import { calculateFoodKcalPer100g, round } from "@/lib/nutrition";
 import { displayEnergy, type EnergyUnit } from "@/lib/preferences";
@@ -164,8 +165,8 @@ export function FoodPickerDialog({ open, foods, energyUnit = "kcal", currentFood
             draft={customDraft}
             energyUnit={energyUnit}
             onChange={setCustomDraft}
-            onSubmit={() => {
-              onSelectCustom(customDraft);
+            onSubmit={(nextDraft) => {
+              onSelectCustom(nextDraft);
               onClose();
             }}
           />
@@ -248,17 +249,30 @@ function CustomFoodForm({
   draft: CustomFoodDraft;
   energyUnit: EnergyUnit;
   onChange: (draft: CustomFoodDraft) => void;
-  onSubmit: () => void;
+  onSubmit: (draft: CustomFoodDraft) => void;
 }) {
+  const numericDraftForm = useNumericDraftForm();
   const kcal = draft.carbsPer100g * 4 + draft.proteinPer100g * 4 + draft.fatPer100g * 9;
   const energyLabel = energyUnit === "kj" ? "kJ" : "kcal";
   const canSubmit = kcal > 0;
+  const roundedDraft = {
+    ...draft,
+    carbsPer100g: Math.round(draft.carbsPer100g * 100) / 100,
+    proteinPer100g: Math.round(draft.proteinPer100g * 100) / 100,
+    fatPer100g: Math.round(draft.fatPer100g * 100) / 100
+  };
+  const precisionChanged = roundedDraft.carbsPer100g !== draft.carbsPer100g
+    || roundedDraft.proteinPer100g !== draft.proteinPer100g
+    || roundedDraft.fatPer100g !== draft.fatPer100g;
 
-  function numberField(key: "carbsPer100g" | "proteinPer100g" | "fatPer100g", value: string) {
-    onChange({ ...draft, [key]: value === "" ? 0 : Math.max(Number(value), 0) });
+  function submit() {
+    if (numericDraftForm.validateAll() && canSubmit) {
+      onSubmit(roundedDraft);
+    }
   }
 
   return (
+    <NumericDraftProvider form={numericDraftForm}>
     <div className="flex flex-col gap-3 p-4">
       <p className="text-xs text-muted">临时食物只保存在当前计划里，不进食物库。填写每 100g 的三大营养素，热量自动按 4/4/9 计算。</p>
       <div className="grid grid-cols-2 gap-3">
@@ -289,27 +303,30 @@ function CustomFoodForm({
       <div className="grid grid-cols-3 gap-3">
         <label>
           <span className="metric-label mb-1 block">净碳水 g/100g</span>
-          <input className="field w-full" type="number" inputMode="decimal" min="0" value={draft.carbsPer100g} onChange={(event) => numberField("carbsPer100g", event.target.value)} />
+          <NumericInput className="field w-full" label="净碳水" min={0} required value={draft.carbsPer100g} onValueChange={(value) => onChange({ ...draft, carbsPer100g: value as number })} />
         </label>
         <label>
           <span className="metric-label mb-1 block">蛋白 g/100g</span>
-          <input className="field w-full" type="number" inputMode="decimal" min="0" value={draft.proteinPer100g} onChange={(event) => numberField("proteinPer100g", event.target.value)} />
+          <NumericInput className="field w-full" label="蛋白" min={0} required value={draft.proteinPer100g} onValueChange={(value) => onChange({ ...draft, proteinPer100g: value as number })} />
         </label>
         <label>
           <span className="metric-label mb-1 block">脂肪 g/100g</span>
-          <input className="field w-full" type="number" inputMode="decimal" min="0" value={draft.fatPer100g} onChange={(event) => numberField("fatPer100g", event.target.value)} />
+          <NumericInput className="field w-full" label="脂肪" min={0} required value={draft.fatPer100g} onValueChange={(value) => onChange({ ...draft, fatPer100g: value as number })} />
         </label>
       </div>
       <div className="flex items-center justify-between rounded-lg border border-line bg-surface/60 px-3 py-2.5">
         <span className="text-xs text-muted">热量（自动计算）</span>
         <span className="tabular-nums text-sm font-semibold text-accent-text">{round(displayEnergy(kcal, energyUnit), 1)} {energyLabel}/100g</span>
       </div>
-      <button className="btn-primary h-11" type="button" disabled={!canSubmit} onClick={onSubmit}>
+      <NumericDraftNotice />
+      {precisionChanged ? <p className="text-[11px] text-warning">保存时将按 2 位小数记录营养素。</p> : null}
+      <button className="btn-primary h-11" type="button" disabled={!canSubmit} onClick={submit}>
         <Plus size={16} />
         添加此食物
       </button>
       {!canSubmit ? <p className="text-center text-[11px] text-muted">至少填写一项营养素后才能添加。</p> : null}
     </div>
+    </NumericDraftProvider>
   );
 }
 

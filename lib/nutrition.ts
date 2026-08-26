@@ -409,7 +409,7 @@ export function calculateBmr(profile: Pick<UserProfile, "sex" | "age" | "heightC
 }
 
 export function calculateTdee(profile: UserProfile) {
-  return calculateBmr(profile) * profile.activityFactor + profile.exerciseKcal;
+  return calculateBmr(profile) * profile.activityFactor + (profile.exerciseKcal ?? 0);
 }
 
 function caloriesFromMacros(target: Pick<MacroTotals, "carbs" | "protein" | "fat">) {

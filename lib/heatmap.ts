@@ -175,7 +175,7 @@ export function buildHeatmapDays({
       actual,
       target: checkin?.target ?? plan?.result.dailyTarget ?? zeroTotals(),
       plannedCalorieDeficitKcal: plan && plan.result.dailyTarget.kcal > 0 ? getCalorieDeficit(plan.profile) : 0,
-      plannedExerciseKcal: plan ? Math.max(0, plan.profile.exerciseKcal) : 0
+      plannedExerciseKcal: plan ? Math.max(0, plan.profile.exerciseKcal ?? 0) : 0
     }];
   });
 }

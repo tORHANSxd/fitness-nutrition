@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useZonedToday } from "@/hooks/useZonedToday";
 import { MacroBars } from "@/components/MacroBars";
 import { MetricCard } from "@/components/MetricCard";
+import { NumericInput } from "@/components/NumericInput";
 import type { PlannerController } from "@/components/usePlanner";
 import {
   autoFatTargetG,
@@ -323,23 +324,6 @@ interface ProfilePanelProps {
 function ProfilePanel({ profile, updateProfile, timeZone, unitSystem, energyUnit }: ProfilePanelProps) {
   const activityOptions = [1.1, 1.25, 1.4, 1.55];
   const [customActivity, setCustomActivity] = useState(() => !activityOptions.includes(profile.activityFactor));
-  function numberInput<K extends keyof UserProfile>(key: K, value: string) {
-    const number = Number(value);
-    const canonical = key === "heightCm"
-      ? canonicalLength(number, unitSystem)
-      : key === "weightKg"
-        ? canonicalWeight(number, unitSystem)
-        : key === "exerciseKcal" || key === "calorieDeficit"
-          ? canonicalEnergy(number, energyUnit)
-          : number;
-    updateProfile(key, canonical as UserProfile[K]);
-  }
-
-  // 目标覆盖字段：留空 = 用公式（placeholder 显示公式值），填数字 = 手动覆盖。
-  function overrideInput(key: "targetKcal" | "proteinTargetG" | "fatTargetG", value: string) {
-    const number = value === "" ? undefined : Number(value);
-    updateProfile(key, key === "targetKcal" && number != null ? canonicalEnergy(number, energyUnit) : number);
-  }
 
   const ready = isProfileComplete(profile);
   const lengthUnit = unitSystem === "imperial" ? "in" : "cm";
@@ -377,27 +361,50 @@ function ProfilePanel({ profile, updateProfile, timeZone, unitSystem, energyUnit
           </label>
           <label>
             <span className="metric-label mb-1 block">年龄</span>
-            <input className="field w-full" inputMode="numeric" type="number" value={profile.age || ""} placeholder="必填" onChange={(event) => numberInput("age", event.target.value)} />
+            <NumericInput className="field w-full" inputMode="numeric" integer label="年龄" min={1} required value={profile.age || null} placeholder="必填" onValueChange={(value) => updateProfile("age", value as number)} />
           </label>
           <label>
             <span className="metric-label mb-1 block">身高 {lengthUnit}</span>
-            <input className="field w-full" inputMode="decimal" type="number" value={profile.heightCm ? round(displayLength(profile.heightCm, unitSystem), 1) : ""} placeholder="必填" onChange={(event) => numberInput("heightCm", event.target.value)} />
+            <NumericInput
+              className="field w-full"
+              formatKey={unitSystem}
+              formatValue={(value) => round(displayLength(value, unitSystem), 2)}
+              label={`身高 ${lengthUnit}`}
+              minExclusive={0}
+              required
+              toValue={(value) => canonicalLength(value, unitSystem)}
+              value={profile.heightCm || null}
+              placeholder="必填"
+              onValueChange={(value) => updateProfile("heightCm", value as number)}
+            />
           </label>
           <label>
             <span className="metric-label mb-1 block">体重 {weightUnit}</span>
-            <input className="field w-full" inputMode="decimal" type="number" value={profile.weightKg ? round(displayWeight(profile.weightKg, unitSystem), 1) : ""} placeholder="随体测更新" onChange={(event) => numberInput("weightKg", event.target.value)} />
+            <NumericInput
+              className="field w-full"
+              formatKey={unitSystem}
+              formatValue={(value) => round(displayWeight(value, unitSystem), 2)}
+              label={`体重 ${weightUnit}`}
+              minExclusive={0}
+              required
+              toValue={(value) => canonicalWeight(value, unitSystem)}
+              value={profile.weightKg || null}
+              placeholder="随体测更新"
+              onValueChange={(value) => updateProfile("weightKg", value as number)}
+            />
             <span className="mt-1 block text-[11px] text-muted">随最新体测记录自动更新。</span>
           </label>
           <label>
             <span className="metric-label mb-1 block">体脂率 %</span>
-            <input
+            <NumericInput
               className="field w-full"
-              inputMode="decimal"
-              step="0.5"
-              type="number"
-              value={profile.bodyFatPct ?? ""}
+              blankValue={null}
+              label="体脂率"
+              min={3}
+              max={60}
+              value={profile.bodyFatPct}
               placeholder="未填按 25 估算"
-              onChange={(event) => updateProfile("bodyFatPct", event.target.value === "" ? null : Number(event.target.value))}
+              onValueChange={(value) => updateProfile("bodyFatPct", value)}
             />
             <span className="mt-1 block text-[11px] text-muted">随体测更新；决定去脂体重与蛋白目标。</span>
           </label>
@@ -415,7 +422,7 @@ function ProfilePanel({ profile, updateProfile, timeZone, unitSystem, energyUnit
                   setCustomActivity(true);
                 } else {
                   setCustomActivity(false);
-                  numberInput("activityFactor", event.target.value);
+                  updateProfile("activityFactor", Number(event.target.value));
                 }
               }}
             >
@@ -425,23 +432,38 @@ function ProfilePanel({ profile, updateProfile, timeZone, unitSystem, energyUnit
               <option value="1.55">高活动量</option>
               <option value="custom">自定义</option>
             </select>
-            {customActivity ? <input className="field mt-2 w-full" aria-label="自定义日常活动系数" inputMode="decimal" step="0.01" min="1" max="2.2" type="number" value={profile.activityFactor} onChange={(event) => numberInput("activityFactor", event.target.value)} /> : null}
+            {customActivity ? <NumericInput className="field mt-2 w-full" aria-label="自定义日常活动系数" label="日常活动系数" min={1} max={2.2} required value={profile.activityFactor} onValueChange={(value) => updateProfile("activityFactor", value as number)} /> : null}
           </label>
           <label>
             <span className="metric-label mb-1 block">运动消耗 {energyLabel}</span>
-            <input className="field w-full" inputMode="numeric" type="number" value={profile.exerciseKcal ? round(displayEnergy(profile.exerciseKcal, energyUnit), 0) : ""} placeholder="0" onChange={(event) => numberInput("exerciseKcal", event.target.value)} />
+            <NumericInput
+              blankValue={undefined}
+              className="field w-full"
+              formatKey={energyUnit}
+              formatValue={(value) => round(displayEnergy(value, energyUnit), 2)}
+              inputMode="decimal"
+              label="运动消耗"
+              min={0}
+              toValue={(value) => canonicalEnergy(value, energyUnit)}
+              value={profile.exerciseKcal}
+              placeholder="留空按 0"
+              onValueChange={(value) => updateProfile("exerciseKcal", value ?? undefined)}
+            />
           </label>
           <label className="col-span-2">
             <span className="metric-label mb-1 block">减脂赤字 {energyLabel}/天</span>
-            <input
+            <NumericInput
+              blankValue={undefined}
               className="field w-full"
-              min={round(displayEnergy(200, energyUnit), 0)}
-              max={round(displayEnergy(1000, energyUnit), 0)}
-              step={round(displayEnergy(50, energyUnit), 0)}
-              type="number"
-              inputMode="numeric"
-              value={round(displayEnergy(getCalorieDeficit(profile), energyUnit), 0)}
-              onChange={(event) => numberInput("calorieDeficit", event.target.value)}
+              formatKey={energyUnit}
+              formatValue={(value) => round(displayEnergy(value, energyUnit), 2)}
+              label="减脂赤字"
+              min={round(displayEnergy(200, energyUnit), 2)}
+              max={round(displayEnergy(1000, energyUnit), 2)}
+              toValue={(value) => canonicalEnergy(value, energyUnit)}
+              value={profile.calorieDeficit}
+              placeholder={`默认 ${round(displayEnergy(getCalorieDeficit({}), energyUnit), 0)}`}
+              onValueChange={(value) => updateProfile("calorieDeficit", value ?? undefined)}
             />
             <span className="mt-1 block text-[11px] text-muted">目标热量 = TDEE − 赤字；每 2 周按体重周均降幅校准 ±100~150。</span>
           </label>
@@ -451,46 +473,46 @@ function ProfilePanel({ profile, updateProfile, timeZone, unitSystem, energyUnit
             <div className="grid grid-cols-2 gap-3">
           <label>
             <span className="metric-label mb-1 block">每日目标 {energyLabel}</span>
-            <input
+            <NumericInput
+              blankValue={undefined}
               className="field w-full"
               min={round(displayEnergy(1200, energyUnit), 0)}
               max={round(displayEnergy(6000, energyUnit), 0)}
-              step={round(displayEnergy(50, energyUnit), 0)}
-              type="number"
-              inputMode="numeric"
-              value={profile.targetKcal == null ? "" : round(displayEnergy(profile.targetKcal, energyUnit), 0)}
+              formatKey={energyUnit}
+              formatValue={(value) => round(displayEnergy(value, energyUnit), 2)}
+              label="每日目标热量"
+              toValue={(value) => canonicalEnergy(value, energyUnit)}
+              value={profile.targetKcal}
               placeholder={ready ? `自动 ${round(displayEnergy(autoTargetKcal(profile), energyUnit), 0)}` : "自动"}
-              onChange={(event) => overrideInput("targetKcal", event.target.value)}
+              onValueChange={(value) => updateProfile("targetKcal", value ?? undefined)}
             />
             <span className="mt-1 block text-[11px] text-muted">留空 = TDEE − 赤字自动。</span>
           </label>
           <label>
             <span className="metric-label mb-1 block">蛋白目标 g</span>
-            <input
+            <NumericInput
+              blankValue={undefined}
               className="field w-full"
-              min="80"
-              max="300"
-              step="5"
-              type="number"
-              inputMode="numeric"
-              value={profile.proteinTargetG ?? ""}
+              min={80}
+              max={300}
+              label="蛋白目标"
+              value={profile.proteinTargetG}
               placeholder={ready ? `自动 ${autoProteinTargetG(profile)}` : "自动"}
-              onChange={(event) => overrideInput("proteinTargetG", event.target.value)}
+              onValueChange={(value) => updateProfile("proteinTargetG", value ?? undefined)}
             />
             <span className="mt-1 block text-[11px] text-muted">留空 = 去脂体重×2.5（体脂&lt;20% ×2.8）。</span>
           </label>
           <label>
             <span className="metric-label mb-1 block">脂肪目标 g</span>
-            <input
+            <NumericInput
+              blankValue={undefined}
               className="field w-full"
-              min="30"
-              max="150"
-              step="1"
-              type="number"
-              inputMode="numeric"
-              value={profile.fatTargetG ?? ""}
+              min={30}
+              max={150}
+              label="脂肪目标"
+              value={profile.fatTargetG}
               placeholder={ready ? `自动 ${autoFatTargetG(profile)}` : "自动"}
-              onChange={(event) => overrideInput("fatTargetG", event.target.value)}
+              onValueChange={(value) => updateProfile("fatTargetG", value ?? undefined)}
             />
             <span className="mt-1 block text-[11px] text-muted">留空 = 体重×0.65；碳水吃掉剩余热量。</span>
           </label>
@@ -521,14 +543,13 @@ function ProfilePanel({ profile, updateProfile, timeZone, unitSystem, energyUnit
  * 系统只显示文档触发条件作参考，绝不自动执行任何一步。
  */
 function CarbTaperPanel({ profile, updateProfile, timeZone, energyUnit, unitSystem }: ProfilePanelProps) {
-  const [stepInput, setStepInput] = useState(() => String(round(displayEnergy(100, energyUnit), 0)));
+  const [stepKcal, setStepKcal] = useState(100);
   const today = useZonedToday(timeZone);
   const steps = profile.carbTaperSteps ?? [];
   const stage = steps.length;
   const taperKcal = getCarbTaperKcal(profile);
   const lastStep = stage > 0 ? steps[stage - 1] : null;
   const daysSinceLast = lastStep ? Math.max(daysBetween(lastStep.date, today), 0) : null;
-  const stepKcal = canonicalEnergy(Number(stepInput), energyUnit);
   const stepValid = Number.isFinite(stepKcal) && stepKcal >= 50 && stepKcal <= 300;
   const ready = isProfileComplete(profile);
   // 首周目标 = 渐降基线（残差法：蛋白/脂肪按身体数据锚定后，剩余热量 ÷4），随体测实时重算；
@@ -584,15 +605,17 @@ function CarbTaperPanel({ profile, updateProfile, timeZone, energyUnit, unitSyst
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <label className="flex items-center gap-1.5">
           <span className="metric-label">本步幅度</span>
-          <input
+          <NumericInput
             className="field h-11 w-24 text-xs"
-            inputMode="numeric"
-            type="number"
+            formatKey={energyUnit}
+            formatValue={(value) => round(displayEnergy(value, energyUnit), 2)}
+            label="碳水渐降步幅"
             min={round(displayEnergy(50, energyUnit), 0)}
             max={round(displayEnergy(300, energyUnit), 0)}
-            step={round(displayEnergy(25, energyUnit), 0)}
-            value={stepInput}
-            onChange={(event) => setStepInput(event.target.value)}
+            required
+            toValue={(value) => canonicalEnergy(value, energyUnit)}
+            value={stepKcal}
+            onValueChange={(value) => setStepKcal(value as number)}
           />
           <span className="text-[11px] text-muted">{energyLabel} ≈ 碳水 {stepValid ? round(stepKcal / 4, 1) : "--"}g（等价于每步 100–150 kcal）</span>
         </label>

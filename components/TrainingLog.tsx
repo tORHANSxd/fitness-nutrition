@@ -27,6 +27,8 @@ import {
 } from "@/lib/training";
 import { deleteWorkoutSession, loadWorkoutSessions, saveWorkoutSession, TrainingAuthError } from "@/lib/trainingStorage";
 import type { ExperienceLevel, MuscleGroup, TrainingSplit, WorkoutSession, WorkoutSet } from "@/lib/types";
+import { NumericDraftNotice, NumericDraftProvider, NumericInput, useNumericDraftForm } from "@/components/NumericInput";
+import { roundForStorage } from "@/lib/numericInput";
 
 interface TrainingLogProps {
   user: User | null;
@@ -71,6 +73,7 @@ function newSet(partial?: Partial<WorkoutSet>): WorkoutSet {
 }
 
 export function TrainingLog({ user, onRequireLogin, dateRequest, timeZone, locale, weekStartsOn, unitSystem }: TrainingLogProps) {
+  const numericDraftForm = useNumericDraftForm();
   const today = useZonedToday(timeZone);
   const [monthCursor, setMonthCursor] = useState(() => monthKey(today));
   const [sessions, setSessions] = useState<WorkoutSession[]>([]);
@@ -81,6 +84,8 @@ export function TrainingLog({ user, onRequireLogin, dateRequest, timeZone, local
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState("");
+  const [setErrors, setSetErrors] = useState<Record<string, string>>({});
 
   const monthRange = useMemo(() => {
     return { from: addMonths(monthCursor, -1), to: addDays(addMonths(monthCursor, 2), -1) };
@@ -207,16 +212,44 @@ export function TrainingLog({ user, onRequireLogin, dateRequest, timeZone, local
       setError("请先填写训练内容（套用模板某天或手动添加组）。");
       return;
     }
+    if (!numericDraftForm.validateAll()) {
+      setError("请先修正标红的数字，再保存训练记录。");
+      return;
+    }
+    const normalizedDraft: WorkoutSession = {
+      ...draft,
+      bodyweightKg: draft.bodyweightKg == null ? null : roundForStorage(draft.bodyweightKg, 2),
+      sets: draft.sets.map((set) => ({ ...set, weightKg: roundForStorage(set.weightKg, 2) }))
+    };
+    const precisionChanged = normalizedDraft.bodyweightKg !== draft.bodyweightKg
+      || normalizedDraft.sets.some((set, index) => set.weightKg !== draft.sets[index]?.weightKg);
     setSaving(true);
     setError(null);
+    setNotice("");
     try {
-      await saveWorkoutSession({ ...draft, splitLabel: draft.splitLabel || "自定义训练" }, user);
+      await saveWorkoutSession({ ...normalizedDraft, splitLabel: normalizedDraft.splitLabel || "自定义训练" }, user);
       await refresh();
+      setNotice(`训练记录已保存${precisionChanged ? "，重量按 2 位小数记录" : ""}。`);
     } catch (err) {
       setError(err instanceof TrainingAuthError ? err.message : "保存失败，请重试。");
     } finally {
       setSaving(false);
     }
+  }
+
+  function updateSetError(setId: string, field: string, nextError: string | null) {
+    const key = `${setId}:${field}`;
+    setSetErrors((current) => {
+      if (nextError) {
+        return current[key] === nextError ? current : { ...current, [key]: nextError };
+      }
+      if (!(key in current)) {
+        return current;
+      }
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
   }
 
   async function handleDelete() {
@@ -262,6 +295,7 @@ export function TrainingLog({ user, onRequireLogin, dateRequest, timeZone, local
   const templateDayColumns = template.days.length === 3 ? "lg:grid-cols-3" : template.days.length === 4 ? "lg:grid-cols-4" : "lg:grid-cols-5";
 
   return (
+    <NumericDraftProvider form={numericDraftForm}>
     <div className="flex flex-col gap-5">
       {/* 方案模板选择 + 周排期条带（升级版「五分化」） */}
       <section className="panel p-4">
@@ -435,7 +469,18 @@ export function TrainingLog({ user, onRequireLogin, dateRequest, timeZone, local
             </label>
             <label className="flex flex-col gap-1">
               <span className="metric-label">体重 {weightUnit}</span>
-              <input className="field" type="number" inputMode="decimal" value={draft.bodyweightKg == null ? "" : Math.round(displayWeight(draft.bodyweightKg, unitSystem) * 10) / 10} placeholder="—" onChange={(e) => updateDraft({ bodyweightKg: e.target.value === "" ? null : canonicalWeight(Number(e.target.value), unitSystem) })} />
+              <NumericInput
+                blankValue={null}
+                className="field"
+                formatKey={unitSystem}
+                formatValue={(value) => roundForStorage(displayWeight(value, unitSystem), 2)}
+                label={`体重 ${weightUnit}`}
+                minExclusive={0}
+                toValue={(value) => canonicalWeight(value, unitSystem)}
+                value={draft.bodyweightKg}
+                placeholder="—"
+                onValueChange={(value) => updateDraft({ bodyweightKg: value })}
+              />
             </label>
             <label className="flex flex-col gap-1">
               <span className="metric-label">恢复 1–5</span>
@@ -468,9 +513,50 @@ export function TrainingLog({ user, onRequireLogin, dateRequest, timeZone, local
                       <option key={m} value={m}>{muscleGroupLabels[m]}</option>
                     ))}
                   </select>
-                  <input className="field h-11" type="number" inputMode="decimal" value={set.weightKg ? Math.round(displayWeight(set.weightKg, unitSystem) * 100) / 100 : ""} placeholder="0" aria-label={`重量 ${weightUnit}`} onChange={(e) => updateSet(set.id, { weightKg: canonicalWeight(Number(e.target.value) || 0, unitSystem) })} />
-                  <input className="field h-11" type="number" inputMode="numeric" value={set.reps || ""} placeholder="0" aria-label="次数" onChange={(e) => updateSet(set.id, { reps: Number(e.target.value) || 0 })} />
-                  <input className="field h-11" type="number" inputMode="numeric" value={set.rir ?? ""} placeholder="—" aria-label="剩余次数 RIR" onChange={(e) => updateSet(set.id, { rir: e.target.value === "" ? null : Number(e.target.value) })} />
+                  <NumericInput
+                    className="field h-11"
+                    formatKey={unitSystem}
+                    formatValue={(value) => roundForStorage(displayWeight(value, unitSystem), 2)}
+                    label="训练重量"
+                    min={0}
+                    required
+                    showError={false}
+                    toValue={(value) => canonicalWeight(value, unitSystem)}
+                    value={set.weightKg}
+                    placeholder="0"
+                    aria-label={`重量 ${weightUnit}`}
+                    onErrorChange={(nextError) => updateSetError(set.id, "weight", nextError)}
+                    onValueChange={(value) => updateSet(set.id, { weightKg: value as number })}
+                  />
+                  <NumericInput
+                    className="field h-11"
+                    inputMode="numeric"
+                    integer
+                    label="次数"
+                    min={0}
+                    required
+                    showError={false}
+                    value={set.reps}
+                    placeholder="0"
+                    aria-label="次数"
+                    onErrorChange={(nextError) => updateSetError(set.id, "reps", nextError)}
+                    onValueChange={(value) => updateSet(set.id, { reps: value as number })}
+                  />
+                  <NumericInput
+                    blankValue={null}
+                    className="field h-11"
+                    inputMode="numeric"
+                    integer
+                    label="RIR"
+                    min={0}
+                    max={5}
+                    showError={false}
+                    value={set.rir}
+                    placeholder="—"
+                    aria-label="剩余次数 RIR"
+                    onErrorChange={(nextError) => updateSetError(set.id, "rir", nextError)}
+                    onValueChange={(value) => updateSet(set.id, { rir: value ?? null })}
+                  />
                   <div className="col-span-2 flex items-center justify-between gap-1 md:col-span-1 md:justify-end">
                     <label className="flex items-center gap-1 text-[11px] text-muted">
                       <input type="checkbox" checked={set.isWarmup} onChange={(e) => updateSet(set.id, { isWarmup: e.target.checked })} /> 热身
@@ -479,6 +565,11 @@ export function TrainingLog({ user, onRequireLogin, dateRequest, timeZone, local
                       <Trash2 size={14} />
                     </button>
                   </div>
+                  {Object.entries(setErrors).find(([key]) => key.startsWith(`${set.id}:`))?.[1] ? (
+                    <p className="col-span-2 text-[11px] leading-tight text-danger md:col-span-6" role="alert">
+                      {Object.entries(setErrors).find(([key]) => key.startsWith(`${set.id}:`))?.[1]}
+                    </p>
+                  ) : null}
                 </div>
               ))}
               {draft.sets.length === 0 ? (
@@ -503,6 +594,8 @@ export function TrainingLog({ user, onRequireLogin, dateRequest, timeZone, local
             </div>
           ) : null}
 
+          <NumericDraftNotice className="mt-3" />
+          {notice ? <p className="mt-3 rounded border border-accent/25 bg-accent/10 px-3 py-2 text-xs text-accent-text" role="status">{notice}</p> : null}
           {error ? <p className="mt-3 rounded border border-rose/35 bg-rose/10 px-3 py-2 text-xs text-danger" role="alert">{error}</p> : null}
 
           <div className="mt-4 flex gap-2">
@@ -521,6 +614,7 @@ export function TrainingLog({ user, onRequireLogin, dateRequest, timeZone, local
       {/* 参考：强度区间 + RIR 自动调节 */}
       <ReferencePanel />
     </div>
+    </NumericDraftProvider>
   );
 }
 
@@ -557,11 +651,11 @@ function ReferencePanel() {
           <div className="flex items-end gap-3">
             <label className="flex min-w-0 flex-1 flex-col gap-1">
               <span className="metric-label">目标 RIR</span>
-              <input className="field w-full min-w-0" type="number" value={targetRir} onChange={(e) => setTargetRir(Number(e.target.value) || 0)} />
+              <NumericInput className="field w-full min-w-0" inputMode="numeric" integer label="目标 RIR" min={0} max={5} registerInScope={false} required value={targetRir} onValueChange={(value) => setTargetRir(value as number)} />
             </label>
             <label className="flex min-w-0 flex-1 flex-col gap-1">
               <span className="metric-label">实际 RIR</span>
-              <input className="field w-full min-w-0" type="number" value={actualRir} onChange={(e) => setActualRir(Number(e.target.value) || 0)} />
+              <NumericInput className="field w-full min-w-0" inputMode="numeric" integer label="实际 RIR" min={0} max={5} registerInScope={false} required value={actualRir} onValueChange={(value) => setActualRir(value as number)} />
             </label>
           </div>
           <div className="mt-3 rounded-lg border border-accent/30 bg-accent/[0.07] p-3 text-sm text-ink">

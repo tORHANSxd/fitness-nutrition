@@ -47,7 +47,8 @@ export interface UserProfile {
   heightCm: number;
   weightKg: number;
   activityFactor: number;
-  exerciseKcal: number;
+  /** 预估运动消耗 kcal；留空按 0 参与公式。 */
+  exerciseKcal?: number;
   /** 体脂率 %（来自体测记录或手填）。用于按去脂体重推蛋白目标；缺省按 25% 估算。 */
   bodyFatPct?: number | null;
   /** 手动覆盖：每日目标热量 kcal。缺省(undefined) = 公式 TDEE − calorieDeficit。 */

@@ -176,13 +176,14 @@ describe("PlannerProfileView v2 固定目标 / 训练时间", () => {
     render(<PlannerProfileView controller={makeController({ trainingTime: "afternoon" })} />);
     expect(screen.queryByText("碳循环日")).not.toBeInTheDocument();
     // 覆盖字段默认留空 = 用公式；placeholder 展示公式值（demo 档案 93.2kg/26%）。
-    expect(fieldInput("每日目标 kcal")).toHaveValue(null);
+    expect(fieldInput("每日目标 kcal")).toHaveValue("");
     expect(fieldInput("每日目标 kcal").placeholder).toBe("自动 2295");
     expect(fieldInput("蛋白目标 g").placeholder).toBe("自动 175");
     expect(fieldInput("脂肪目标 g").placeholder).toBe("自动 61");
     // 体脂率与赤字字段就位。
-    expect(fieldInput("体脂率 %")).toHaveValue(26);
-    expect(fieldInput("减脂赤字 kcal/天")).toHaveValue(600);
+    expect(fieldInput("体脂率 %")).toHaveValue("26");
+    expect(fieldInput("减脂赤字 kcal/天")).toHaveValue("");
+    expect(fieldInput("减脂赤字 kcal/天").placeholder).toBe("默认 600");
   });
 
   it("keeps daily macro targets, calorie deficit and exercise expenditure directly visible and editable", () => {
@@ -197,13 +198,13 @@ describe("PlannerProfileView v2 固定目标 / 训练时间", () => {
     expect(screen.getByRole("heading", { name: "每日目标与消耗" })).toBeInTheDocument();
     expect(screen.queryByText("高级目标设置")).not.toBeInTheDocument();
     expect(fieldInput("运动消耗 kcal")).toBeVisible();
-    expect(fieldInput("运动消耗 kcal")).toHaveValue(600);
+    expect(fieldInput("运动消耗 kcal")).toHaveValue("600");
     expect(fieldInput("减脂赤字 kcal/天")).toBeVisible();
-    expect(fieldInput("减脂赤字 kcal/天")).toHaveValue(450);
+    expect(fieldInput("减脂赤字 kcal/天")).toHaveValue("450");
     expect(fieldInput("蛋白目标 g")).toBeVisible();
-    expect(fieldInput("蛋白目标 g")).toHaveValue(135);
+    expect(fieldInput("蛋白目标 g")).toHaveValue("135");
     expect(fieldInput("脂肪目标 g")).toBeVisible();
-    expect(fieldInput("脂肪目标 g")).toHaveValue(60);
+    expect(fieldInput("脂肪目标 g")).toHaveValue("60");
 
     fireEvent.change(fieldInput("蛋白目标 g"), { target: { value: "140" } });
     expect(controller.updateProfile).toHaveBeenCalledWith("proteinTargetG", 140);
@@ -213,7 +214,7 @@ describe("PlannerProfileView v2 固定目标 / 训练时间", () => {
     render(<PlannerProfileView controller={makeController({ age: 0, heightCm: 0, weightKg: 0, bodyFatPct: null })} />);
     expect(screen.getByText(/先填写年龄、身高、体重/)).toBeInTheDocument();
     expect(fieldInput("每日目标 kcal").placeholder).toBe("自动");
-    expect(fieldInput("体重 kg")).toHaveValue(null);
+    expect(fieldInput("体重 kg")).toHaveValue("");
   });
 
   it("treats a rest day like any other day (no carb-day badge or forced low carb)", () => {
@@ -388,17 +389,20 @@ describe("MealSplitView（分餐单独页含应用推荐/保存计划 + 弹出�
     expect(mapper(entry)).toEqual({ ...entry, grams: recommendedGrams, locked: true });
   });
 
-  it("normalizes a negative serving weight to zero before updating the plan", () => {
+  it("keeps a negative serving weight as a visible draft without overwriting the plan", () => {
     const controller = makeController();
     const meal = controller.meals[0];
     const entry = meal.entries.find((item) => item.foodId === "public-oats-raw")!;
 
     render(<MealSplitView controller={controller} foods={builtinFoods} templates={templates} />);
-    fireEvent.change(screen.getByRole("spinbutton", { name: "燕麦片克重" }), { target: { value: "-20" } });
-
-    const [, calledEntryId, mapper] = vi.mocked(controller.updateEntry).mock.calls[0];
-    expect(calledEntryId).toBe(entry.id);
-    expect(mapper(entry)).toEqual({ ...entry, grams: 0, locked: true });
+    const input = screen.getByRole("textbox", { name: "燕麦片克重" });
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "-20" } });
+    expect(controller.updateEntry).not.toHaveBeenCalled();
+    expect(input).toHaveValue("-20");
+    fireEvent.blur(input);
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByText("燕麦片克重不能小于 0")).toBeInTheDocument();
   });
 
   it("lets the user define an ad-hoc custom food with auto-calculated kcal", () => {
@@ -410,10 +414,9 @@ describe("MealSplitView（分餐单独页含应用推荐/保存计划 + 弹出�
     fireEvent.click(within(dialog).getByRole("button", { name: /自定义食物/ }));
 
     // 填三大营养素：碳30/蛋20/脂5 → 热量自动 245 kcal/100g。
-    const inputs = within(dialog).getAllByRole("spinbutton");
-    fireEvent.change(inputs[0], { target: { value: "30" } });
-    fireEvent.change(inputs[1], { target: { value: "20" } });
-    fireEvent.change(inputs[2], { target: { value: "5" } });
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "净碳水 g/100g" }), { target: { value: "30" } });
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "蛋白 g/100g" }), { target: { value: "20" } });
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "脂肪 g/100g" }), { target: { value: "5" } });
     expect(within(dialog).getByText(/245/)).toBeInTheDocument();
 
     fireEvent.change(within(dialog).getByPlaceholderText("自定义食物"), { target: { value: "自制蛋白饼" } });

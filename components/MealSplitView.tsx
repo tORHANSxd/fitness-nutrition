@@ -3,6 +3,7 @@
 import { Check, ChevronDown, Lock, Plus, Save, Trash2, Unlock, Wand2 } from "lucide-react";
 import { useState } from "react";
 import { FoodPickerDialog } from "@/components/FoodPickerDialog";
+import { NumericInput } from "@/components/NumericInput";
 import type { PlannerController } from "@/components/usePlanner";
 import { createCustomFood } from "@/lib/foods";
 import {
@@ -223,6 +224,7 @@ function MealEditor({
   onUpdateEntry
 }: MealEditorProps) {
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  const [entryErrors, setEntryErrors] = useState<Record<string, string>>({});
   // 选食面板目标："add" 表示新增食物，字符串表示替换该 entry 的食物，null 表示关闭。
   const [pickerTarget, setPickerTarget] = useState<"add" | string | null>(null);
   const energyLabel = energyUnit === "kj" ? "kJ" : "kcal";
@@ -270,31 +272,33 @@ function MealEditor({
   const currentPickerFoodId = pickerTarget && pickerTarget !== "add" ? meal.entries.find((entry) => entry.id === pickerTarget)?.foodId : undefined;
 
   function applyEntryRecommendation(entry: MealFoodEntry, recommendedGrams: number) {
-    onUpdateEntry(entry.id, (current) => ({ ...current, grams: nonNegativeNumber(recommendedGrams), locked: true }));
+    onUpdateEntry(entry.id, (current) => ({ ...current, grams: Math.max(recommendedGrams, 0), locked: true }));
   }
 
-  function nonNegativeNumber(value: string | number) {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? Math.max(parsed, 0) : 0;
+  function updateEntryGrams(entryId: string, value: number) {
+    onUpdateEntry(entryId, (current) => ({ ...current, grams: value, locked: true }));
   }
 
-  function updateEntryGrams(entryId: string, value: string) {
-    onUpdateEntry(entryId, (current) => ({ ...current, grams: nonNegativeNumber(value), locked: true }));
+  function updateEntryMinimum(entryId: string, value: number | null | undefined) {
+    onUpdateEntry(entryId, (current) => ({ ...current, minGrams: value ?? null }));
   }
 
-  function updateEntryMinimum(entryId: string, value: string) {
-    onUpdateEntry(entryId, (current) => {
-      const minGrams = value === "" ? null : nonNegativeNumber(value);
-      const maxGrams = minGrams != null && current.maxGrams != null && current.maxGrams < minGrams ? minGrams : current.maxGrams;
-      return { ...current, minGrams, maxGrams };
-    });
+  function updateEntryMaximum(entryId: string, value: number | null | undefined) {
+    onUpdateEntry(entryId, (current) => ({ ...current, maxGrams: value ?? null }));
   }
 
-  function updateEntryMaximum(entryId: string, value: string) {
-    onUpdateEntry(entryId, (current) => {
-      const maxGrams = value === "" ? null : nonNegativeNumber(value);
-      const minGrams = maxGrams != null && current.minGrams != null && current.minGrams > maxGrams ? maxGrams : current.minGrams;
-      return { ...current, minGrams, maxGrams };
+  function updateEntryError(entryId: string, field: string, error: string | null) {
+    const key = `${entryId}:${field}`;
+    setEntryErrors((current) => {
+      if (error) {
+        return current[key] === error ? current : { ...current, [key]: error };
+      }
+      if (!(key in current)) {
+        return current;
+      }
+      const next = { ...current };
+      delete next[key];
+      return next;
     });
   }
 
@@ -310,17 +314,17 @@ function MealEditor({
         <div className="flex flex-wrap items-center gap-2">
           <label className="flex items-center gap-2 text-sm text-muted">
             <span>比例</span>
-            <input
+            <NumericInput
               className="field h-11 w-24"
-              type="number"
               inputMode="numeric"
-              min="0"
-              step="1"
-              value={round(meal.ratio * 100, 0)}
-              onChange={(event) =>
+              label={`${meal.name}比例`}
+              min={0}
+              required
+              value={round(meal.ratio * 100, 2)}
+              onValueChange={(value) =>
                 onUpdateMeal((current) => ({
                   ...current,
-                  ratio: Number(event.target.value) / 100
+                  ratio: (value as number) / 100
                 }))
               }
             />
@@ -391,6 +395,7 @@ function MealEditor({
             const recommendedGrams = recommendation?.recommendedEntries[entry.id] ?? entry.grams;
             const defaultBounds = food ? getDefaultMealEntrySettings(food, meal) : null;
             const totals = food ? calculateFoodTotals(food, entry.grams) : { kcal: 0, carbs: 0, protein: 0, fat: 0 };
+            const rowError = Object.entries(entryErrors).find(([key]) => key.startsWith(`${entry.id}:`))?.[1];
 
             return (
               <div key={entry.id} className="rounded-md border border-line bg-surface/70 p-3 backdrop-blur">
@@ -400,15 +405,16 @@ function MealEditor({
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   <label>
                     <span className="metric-label mb-1 block">克重</span>
-                    <input
+                    <NumericInput
                       className="field w-full"
-                      type="number"
-                      inputMode="decimal"
-                      min="0"
-                      step="1"
+                      label={`${food?.name ?? "食物"}克重`}
+                      min={0}
+                      required
+                      showError={false}
                       aria-label={`${food?.name ?? "食物"}克重`}
                       value={entry.grams}
-                      onChange={(event) => updateEntryGrams(entry.id, event.target.value)}
+                      onErrorChange={(error) => updateEntryError(entry.id, "grams", error)}
+                      onValueChange={(value) => updateEntryGrams(entry.id, value as number)}
                     />
                   </label>
                   <div className="flex items-center justify-between gap-2 rounded-md bg-panel p-2">
@@ -430,31 +436,36 @@ function MealEditor({
                   </div>
                   <label>
                     <span className="metric-label mb-1 block">最小</span>
-                    <input
+                    <NumericInput
+                      blankValue={null}
                       className="field w-full"
-                      type="number"
-                      inputMode="decimal"
-                      min="0"
-                      step="1"
-                      value={entry.minGrams ?? ""}
+                      label={`${food?.name ?? "食物"}最小克重`}
+                      min={0}
+                      showError={false}
+                      value={entry.minGrams}
                       aria-label={`${food?.name ?? "食物"}最小克重`}
-                      onChange={(event) => updateEntryMinimum(entry.id, event.target.value)}
+                      validateValue={(value) => entry.maxGrams != null && value > entry.maxGrams ? "最小克重不能大于最大克重" : null}
+                      onErrorChange={(error) => updateEntryError(entry.id, "min", error)}
+                      onValueChange={(value) => updateEntryMinimum(entry.id, value)}
                     />
                   </label>
                   <label>
                     <span className="metric-label mb-1 block">最大</span>
-                    <input
+                    <NumericInput
+                      blankValue={null}
                       className="field w-full"
-                      type="number"
-                      inputMode="decimal"
-                      min="0"
-                      step="1"
-                      value={entry.maxGrams ?? ""}
+                      label={`${food?.name ?? "食物"}最大克重`}
+                      min={0}
+                      showError={false}
+                      value={entry.maxGrams}
                       aria-label={`${food?.name ?? "食物"}最大克重`}
                       placeholder={defaultBounds ? `${defaultBounds.maxGrams}` : ""}
-                      onChange={(event) => updateEntryMaximum(entry.id, event.target.value)}
+                      validateValue={(value) => entry.minGrams != null && value < entry.minGrams ? "最大克重不能小于最小克重" : null}
+                      onErrorChange={(error) => updateEntryError(entry.id, "max", error)}
+                      onValueChange={(value) => updateEntryMaximum(entry.id, value)}
                     />
                   </label>
+                  {rowError ? <p className="col-span-2 text-[11px] leading-tight text-danger" role="alert">{rowError}</p> : null}
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-2 text-center text-xs sm:grid-cols-4">
                   <div className="rounded-md bg-panel p-2"><div className="metric-label">热量 {energyLabel}</div><div>{energyValue(totals.kcal)}</div></div>

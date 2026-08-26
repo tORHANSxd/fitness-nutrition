@@ -8,6 +8,7 @@ import { buildDailyActual } from "@/lib/heatmap";
 import { canonicalEnergy, displayEnergy, type EnergyUnit } from "@/lib/preferences";
 import { loadDailyCheckin, saveDailyCheckin } from "@/lib/storage";
 import type { DailyCheckin, ExerciseEnergyEntry } from "@/lib/types";
+import { NumericDraftNotice, NumericDraftProvider, NumericInput, useNumericDraftForm } from "@/components/NumericInput";
 
 const noExercises: ExerciseEnergyEntry[] = [];
 
@@ -24,11 +25,12 @@ export function DailyCheckinPanel({
   user: User;
   energyUnit: EnergyUnit;
 }) {
+  const numericDraftForm = useNumericDraftForm();
   const [checkin, setCheckin] = useState<DailyCheckin | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [exerciseName, setExerciseName] = useState("");
-  const [exerciseEnergy, setExerciseEnergy] = useState("");
+  const [exerciseEnergy, setExerciseEnergy] = useState<number | null>(null);
   const [message, setMessage] = useState("");
   const ready = controller.profile.planDate === date;
   const isFuture = date > today;
@@ -80,8 +82,11 @@ export function DailyCheckinPanel({
 
   async function addExercise() {
     const name = exerciseName.trim();
-    const enteredEnergy = Number(exerciseEnergy);
-    const kcal = canonicalEnergy(enteredEnergy, energyUnit);
+    if (!numericDraftForm.validateAll()) {
+      setMessage("请先修正标红的运动消耗。");
+      return;
+    }
+    const kcal = exerciseEnergy == null ? Number.NaN : canonicalEnergy(exerciseEnergy, energyUnit);
     if (!name || !Number.isFinite(kcal) || kcal <= 0 || kcal > 10000) {
       setMessage(`请输入运动名称和有效消耗（最多 ${Math.round(displayEnergy(10000, energyUnit))} ${energyUnit === "kj" ? "kJ" : "kcal"}）。`);
       return;
@@ -95,7 +100,7 @@ export function DailyCheckinPanel({
       ]);
       setCheckin(saved);
       setExerciseName("");
-      setExerciseEnergy("");
+      setExerciseEnergy(null);
       setMessage("运动消耗已保存。");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "运动消耗保存失败。");
@@ -119,6 +124,10 @@ export function DailyCheckinPanel({
 
   async function completeDay() {
     if (!ready || isFuture) {
+      return;
+    }
+    if ((exerciseName.trim() || exerciseEnergy != null) && !numericDraftForm.validateAll()) {
+      setMessage("请先完成或清空正在编辑的运动消耗。");
       return;
     }
     setSaving(true);
@@ -167,6 +176,7 @@ export function DailyCheckinPanel({
   }
 
   return (
+    <NumericDraftProvider form={numericDraftForm}>
     <section className="panel overflow-hidden" aria-labelledby="daily-checkin-title">
       <header className="flex flex-col gap-3 border-b border-line px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
         <div>
@@ -195,14 +205,16 @@ export function DailyCheckinPanel({
             </label>
             <label className="grid gap-1.5 text-xs font-semibold text-muted">
               消耗 {energyUnit === "kj" ? "kJ" : "kcal"}
-              <input
+              <NumericInput
                 className="field"
-                type="number"
-                inputMode="decimal"
-                min="0"
-                step="1"
+                blankValue={null}
+                formatKey={energyUnit}
+                label="运动消耗"
+                minExclusive={0}
+                max={displayEnergy(10000, energyUnit)}
+                required={Boolean(exerciseName.trim() || exerciseEnergy != null)}
                 value={exerciseEnergy}
-                onChange={(event) => setExerciseEnergy(event.target.value)}
+                onValueChange={(value) => setExerciseEnergy(value ?? null)}
                 disabled={loading || saving || isFuture}
               />
             </label>
@@ -211,6 +223,7 @@ export function DailyCheckinPanel({
               添加
             </button>
           </div>
+          <NumericDraftNotice className="mt-3" />
 
           <div className="mt-4 divide-y divide-line border-y border-line">
             {exercises.length === 0 ? (
@@ -266,5 +279,6 @@ export function DailyCheckinPanel({
       {isFuture ? <p className="border-t border-line px-4 py-3 text-xs text-muted sm:px-5">未来日期不能填写实际记录。</p> : null}
       {message ? <p className="border-t border-line px-4 py-3 text-xs text-muted sm:px-5" role="status" aria-live="polite">{message}</p> : null}
     </section>
+    </NumericDraftProvider>
   );
 }

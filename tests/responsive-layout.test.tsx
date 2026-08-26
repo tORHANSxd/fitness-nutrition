@@ -1,5 +1,7 @@
 import type { User } from "@supabase/supabase-js";
 import { cleanup, render, screen } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MacroBars } from "@/components/MacroBars";
@@ -80,5 +82,33 @@ describe("无横向滚动的响应式布局", () => {
     for (const card of Array.from(templateGrid.children)) {
       expect(card).not.toHaveClass("min-w-[120px]", "shrink-0");
     }
+  });
+});
+
+describe("可读的语义颜色", () => {
+  const css = readFileSync(resolve(process.cwd(), "app/globals.css"), "utf8");
+
+  function rgbToken(name: string) {
+    const match = css.match(new RegExp(`--color-${name}:\\s*(\\d+)\\s+(\\d+)\\s+(\\d+);`));
+    if (!match) throw new Error(`Missing color token: ${name}`);
+    return match.slice(1).map(Number) as [number, number, number];
+  }
+
+  function luminance([red, green, blue]: [number, number, number]) {
+    const [r, g, b] = [red, green, blue].map((value) => {
+      const channel = value / 255;
+      return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  }
+
+  function contrast(foreground: [number, number, number], background: [number, number, number]) {
+    const lighter = Math.max(luminance(foreground), luminance(background));
+    const darker = Math.min(luminance(foreground), luminance(background));
+    return (lighter + 0.05) / (darker + 0.05);
+  }
+
+  it.each(["accent-text", "warning", "danger", "muted-soft"])("keeps %s readable on the light surface", (token) => {
+    expect(contrast(rgbToken(token), rgbToken("surface"))).toBeGreaterThanOrEqual(4.5);
   });
 });

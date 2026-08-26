@@ -49,8 +49,8 @@ export function PlannerProfileView({ controller, timeZone = DEFAULT_TIME_ZONE, u
   const energyValue = (value: number) => displayEnergy(value, energyUnit);
 
   return (
-    <section className="animate-fade-up space-y-5">
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[340px_minmax(280px,1fr)]">
+    <section className="planner-profile-view animate-fade-up space-y-5">
+      <div className="planner-profile-layout">
         <div className="order-1 space-y-4 xl:order-2">
           <section className="panel overflow-hidden">
             {/* 指挥台顶栏：标题 + 训练时间/日期摘要（操作按钮已移到「分餐计划」页） */}
@@ -105,7 +105,7 @@ export function PlannerProfileView({ controller, timeZone = DEFAULT_TIME_ZONE, u
               <PlanRulePanel ready={isProfileComplete(profile)} target={result.dailyTarget} energyUnit={energyUnit} />
             </div>
 
-            {message ? <p className="mx-4 mb-3 rounded-lg border border-accent/20 bg-accent/10 px-4 py-2.5 text-sm font-medium text-accent">{message}</p> : null}
+            {message ? <p className="mx-4 mb-3 rounded-lg border border-accent/20 bg-accent/10 px-4 py-2.5 text-sm font-medium text-accent-text">{message}</p> : null}
           </section>
           <MacroBars result={result} meals={meals} energyUnit={energyUnit} />
         </div>
@@ -128,11 +128,11 @@ function DailyBalancePanel({ actual, recommended, target, energyUnit }: DailyBal
   const energyLabel = energyUnit === "kj" ? "kJ" : "kcal";
   return (
     <div className="rounded-lg border border-line bg-panel/60 p-3">
-      <div className="mb-2.5 flex items-baseline justify-between gap-2">
+      <div className="mb-2.5 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <h3 className="text-xs font-semibold text-ink">热量 &amp; 营养素盈亏</h3>
         <span className="text-[10px] text-muted">摄入 / 目标</span>
       </div>
-      <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+      <div className="planner-balance-grid gap-2">
         <DailyBalanceCard actual={displayEnergy(actual.kcal, energyUnit)} label="热量" recommended={displayEnergy(recommended.kcal, energyUnit)} target={displayEnergy(target.kcal, energyUnit)} unit={energyLabel} />
         <DailyBalanceCard actual={actual.carbs} label="碳水" recommended={recommended.carbs} target={target.carbs} unit="g" />
         <DailyBalanceCard actual={actual.protein} label="蛋白" recommended={recommended.protein} target={target.protein} unit="g" />
@@ -156,10 +156,10 @@ function DailyBalanceCard({
   unit: string;
 }) {
   return (
-    <div className="rounded-lg border border-line bg-surface/50 p-2.5">
-      <div className="flex items-center justify-between gap-2">
+    <div className="min-w-0 rounded-lg border border-line bg-surface/50 p-3">
+      <div className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-3">
         <span className="metric-label">{label}</span>
-        <span className="text-[10px] text-muted">目标 {round(target, unit === "kcal" || unit === "kJ" ? 0 : 1)}{unit}</span>
+        <span className="whitespace-nowrap text-right text-[10px] tabular-nums text-muted">目标 {round(target, unit === "kcal" || unit === "kJ" ? 0 : 1)} {unit}</span>
       </div>
       <DailyBalanceBar label="当前" target={target} unit={unit} value={actual} />
       <DailyBalanceBar label="推荐后" target={target} unit={unit} value={recommended} />
@@ -187,12 +187,13 @@ function DailyBalanceBar({
 
   return (
     <div className="mt-3">
-      <div className="mb-1 flex items-center justify-between gap-2 text-xs">
-        <span className="text-muted">
-          {label} {round(value, roundedDigits)}{unit} / {round(ratio, 0)}%
+      <div className="mb-1 grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-3 gap-y-0.5 text-xs">
+        <span className="text-muted">{label}</span>
+        <span className="whitespace-nowrap text-right tabular-nums text-ink">
+          {round(value, roundedDigits)} {unit} · {round(ratio, 0)}%
         </span>
-        <span className={isSurplus ? "font-semibold text-rose" : "font-semibold text-accent"}>
-          {balanceLabel} {round(Math.abs(balance), roundedDigits)}{unit}
+        <span className={`col-start-2 whitespace-nowrap text-right tabular-nums font-semibold ${isSurplus ? "text-danger" : "text-accent-text"}`}>
+          {balanceLabel} {round(Math.abs(balance), roundedDigits)} {unit}
         </span>
       </div>
       <div className="h-2 overflow-hidden rounded-full bg-surface">
@@ -222,7 +223,7 @@ function MacroRatioPanel({ actualRatio, recommendedRatio, targetRatio }: MacroRa
           当前 {actualStatus} · 推荐后 {recommendedStatus}
         </p>
       </div>
-      <div className="grid gap-1.5 grid-cols-3">
+      <div className="planner-ratio-grid gap-2">
         <MacroRatioRow actual={actualRatio.carbs} label="碳水" range={actualCheck.ranges.carbs} recommended={recommendedRatio.carbs} target={targetRatio.carbs} />
         <MacroRatioRow actual={actualRatio.protein} label="蛋白" range={actualCheck.ranges.protein} recommended={recommendedRatio.protein} target={targetRatio.protein} />
         <MacroRatioRow actual={actualRatio.fat} label="脂肪" range={actualCheck.ranges.fat} recommended={recommendedRatio.fat} target={targetRatio.fat} />
@@ -247,14 +248,15 @@ function MacroRatioRow({
   return (
     <div className="rounded-lg border border-line bg-surface/50 p-2.5">
       <div className="metric-label">{label}</div>
-      <div className="mt-1.5 flex items-end gap-1.5">
-        <span className="tabular-nums text-base font-semibold text-accent">{round(target, 0)}%</span>
-        <span className="pb-0.5 text-[10px] text-muted">
-          现 {round(actual, 0)} / 推 {round(recommended, 0)}
-        </span>
+      <div className="mt-1.5 grid grid-cols-2 gap-x-2 text-[10px] text-muted">
+        <span>当前</span>
+        <span>推荐后</span>
+        <span className="tabular-nums text-sm font-semibold text-ink">{round(actual, 0)}%</span>
+        <span className="tabular-nums text-sm font-semibold text-accent-text">{round(recommended, 0)}%</span>
       </div>
-      <p className="mt-0.5 text-[10px] text-muted">
-        {round(range.min, 0)}-{round(range.max, 0)}% 区间
+      <p className="mt-1 flex flex-wrap items-baseline justify-between gap-x-2 text-[10px] text-muted">
+        <span>目标 <strong className="font-semibold text-accent-text">{round(target, 0)}%</strong></span>
+        <span>{round(range.min, 0)}-{round(range.max, 0)}% 区间</span>
       </p>
       <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface">
         <div className="h-full rounded-full bg-accent/70" style={{ width: `${Math.min(Math.max(target, 0), 100)}%` }} />
@@ -285,7 +287,7 @@ function PlanRulePanel({ ready, target, energyUnit }: { ready: boolean; target: 
             : "每日目标 = TDEE − 赤字，蛋白/脂肪按体重与体脂公式——填好身体档案后自动测算；训练日休息日同一目标。"}
         </p>
       </div>
-      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4" data-testid="weekly-plan-grid">
+      <div className="planner-week-grid gap-1.5" data-testid="weekly-plan-grid">
         {weeklyPlan.map(([day, part, focus, isTraining]) => (
           <div
             key={day}
@@ -298,7 +300,7 @@ function PlanRulePanel({ ready, target, energyUnit }: { ready: boolean; target: 
             <div className="mt-0.5 min-h-7 text-[10px] leading-tight text-muted">{focus}</div>
             <div className="mt-1.5">
               {isTraining ? (
-                <span className="rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-[10px] font-medium text-accent">训练</span>
+                <span className="rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-[10px] font-medium text-accent-text">训练</span>
               ) : (
                 <span className="text-[10px] text-muted">休息</span>
               )}
@@ -347,7 +349,7 @@ function ProfilePanel({ profile, updateProfile, timeZone, unitSystem, energyUnit
   return (
     <section className="panel p-4">
       <div className="mb-4 flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-md bg-accent/10 text-accent ring-1 ring-accent/30">
+        <div className="flex h-10 w-10 items-center justify-center rounded-md bg-accent/10 text-accent-text ring-1 ring-accent/30">
           <Utensils size={20} />
         </div>
         <div>
@@ -607,17 +609,17 @@ function CarbTaperPanel({ profile, updateProfile, timeZone, energyUnit, unitSyst
         </button>
       </div>
       {ready && taperedCarbs > 0 && taperedCarbs < 100 ? (
-        <p className="mt-2 text-[11px] font-medium text-rose">
+        <p className="mt-2 text-[11px] font-medium text-danger">
           当前碳水目标仅 {round(taperedCarbs, 1)}g/天，已属极低碳水——会损害训练表现与瘦体重保持（文档以 235–260g 为基线区间）。请核对活动系数/运动消耗/赤字{stage > 0 ? "，或撤销渐降步进" : ""}。
         </p>
       ) : null}
       {ready && taperedCarbs >= 100 && taperedCarbsPerKg < carbsPerKgPerformanceFloor ? (
-        <p className="mt-2 text-[11px] font-medium text-rose">
+        <p className="mt-2 text-[11px] font-medium text-danger">
           当前碳水密度 {round(taperedCarbsPerKg, 1)} g/kg 已低于 2 g/kg——减脂期抗阻训练的表现风险线（文献带约 2–4）。多半是活动系数/运动消耗填低或赤字过大，请核对档案{stage > 0 ? "，或回升一步" : ""}。
         </p>
       ) : null}
       {ready && stage > 0 && taperedCarbs <= 0 ? (
-        <p className="mt-2 text-[11px] font-medium text-rose">渐降已把碳水压到 0：目标热量正卡在蛋白+脂肪底座上，请撤销或回升。</p>
+        <p className="mt-2 text-[11px] font-medium text-danger">渐降已把碳水压到 0：目标热量正卡在蛋白+脂肪底座上，请撤销或回升。</p>
       ) : null}
     </div>
   );

@@ -391,7 +391,7 @@ export function HeatmapView() {
           <button className="icon-button" type="button" onClick={() => setReloadNonce((value) => value + 1)} aria-label="刷新热力图" title="刷新" disabled={loading}>
             <RefreshCw size={17} className={loading ? "animate-spin" : ""} />
           </button>
-          {paletteError ? <span className="text-xs text-rose" role="status">{paletteError}</span> : null}
+          {paletteError ? <span className="text-xs text-danger" role="status">{paletteError}</span> : null}
         </div>
       </div>
 
@@ -465,8 +465,8 @@ export function HeatmapView() {
         </div>
       </div>
 
-      {rangeError ? <div className="panel p-5 text-sm text-rose" role="alert">{rangeError}</div> : null}
-      {error ? <div className="panel p-5 text-sm text-rose" role="alert">{error}</div> : null}
+      {rangeError ? <div className="panel p-5 text-sm text-danger" role="alert">{rangeError}</div> : null}
+      {error ? <div className="panel p-5 text-sm text-danger" role="alert">{error}</div> : null}
 
       {!rangeError && !error ? (
         loading ? (

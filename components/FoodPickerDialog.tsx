@@ -214,7 +214,7 @@ export function FoodPickerDialog({ open, foods, energyUnit = "kcal", currentFood
                         onClose();
                       }}
                       className={`flex min-h-11 w-full items-center justify-between gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors ${
-                        active ? "border-accent bg-accent/10 text-accent" : "border-transparent hover:border-line hover:bg-black/[0.03]"
+                        active ? "border-accent bg-accent/10 text-accent-text" : "border-transparent hover:border-line hover:bg-black/[0.03]"
                       }`}
                     >
                       <span className="flex min-w-0 flex-col">
@@ -302,7 +302,7 @@ function CustomFoodForm({
       </div>
       <div className="flex items-center justify-between rounded-lg border border-line bg-surface/60 px-3 py-2.5">
         <span className="text-xs text-muted">热量（自动计算）</span>
-        <span className="tabular-nums text-sm font-semibold text-accent">{round(displayEnergy(kcal, energyUnit), 1)} {energyLabel}/100g</span>
+        <span className="tabular-nums text-sm font-semibold text-accent-text">{round(displayEnergy(kcal, energyUnit), 1)} {energyLabel}/100g</span>
       </div>
       <button className="btn-primary h-11" type="button" disabled={!canSubmit} onClick={onSubmit}>
         <Plus size={16} />
@@ -319,7 +319,7 @@ function CategoryChip({ label, active, onClick }: { label: string; active: boole
       type="button"
       onClick={onClick}
       className={`min-h-11 rounded-full border px-2.5 py-1 text-xs transition-colors ${
-        active ? "border-accent bg-accent/15 text-accent" : "border-line text-muted hover:text-ink"
+        active ? "border-accent bg-accent/15 text-accent-text" : "border-line text-muted hover:text-ink"
       }`}
     >
       {label}

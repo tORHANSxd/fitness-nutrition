@@ -76,7 +76,7 @@ export function TodayWorkspace() {
     idle: { icon: Cloud, label: "等待修改", className: "text-muted" },
     saving: { icon: LoaderCircle, label: "正在保存草稿", className: "text-accent2" },
     saved: { icon: Cloud, label: "草稿已同步", className: "text-success" },
-    error: { icon: CloudOff, label: "草稿同步失败，可继续编辑", className: "text-rose" }
+    error: { icon: CloudOff, label: "草稿同步失败，可继续编辑", className: "text-danger" }
   }[controller.draftState];
   const DraftIcon = draftStatus.icon;
 
@@ -99,7 +99,7 @@ export function TodayWorkspace() {
         <a className={`segmented-option ${section === "meals" ? "is-active" : ""}`} href={`?date=${requestedDate}&section=meals`}>餐次</a>
       </div>
 
-      <div className="grid min-w-0 gap-5 2xl:grid-cols-[minmax(640px,1.05fr)_minmax(0,1fr)]">
+      <div className="grid min-w-0 gap-5 2xl:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
         <div className={section === "profile" ? "min-w-0" : "hidden min-w-0 lg:block"}>
           <PlannerProfileView controller={controller} timeZone={preferences.timeZone} unitSystem={preferences.unitSystem} energyUnit={preferences.energyUnit} />
         </div>

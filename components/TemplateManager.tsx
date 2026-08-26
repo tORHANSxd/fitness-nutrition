@@ -116,7 +116,7 @@ function FoodChips({ refs, foodsById }: { refs: TemplateFoodRef[]; foodsById: Ma
           <span key={`${ref.foodId}-${index}`} className="rounded border border-line bg-surface/60 px-1.5 py-0.5 text-[11px] text-ink">
             {food?.name ?? "未知食物"}
             <span className="ml-1 text-muted">{food?.category ?? ""}</span>
-            {ref.customFood ? <span className="ml-1 text-accent">自定义</span> : null}
+            {ref.customFood ? <span className="ml-1 text-accent-text">自定义</span> : null}
           </span>
         );
       })}
@@ -131,12 +131,12 @@ function TemplateSection({ children, count, emptyText, icon, title }: { children
     <section className="min-w-0 border-t border-line pt-3">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-accent/10 text-accent ring-1 ring-accent/20">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-accent/10 text-accent-text ring-1 ring-accent/20">
             <Icon size={18} />
           </div>
           <h3 className="text-base font-semibold text-ink">{title}</h3>
         </div>
-        <span className="rounded-md bg-surface px-2 py-1 text-xs font-semibold text-accent ring-1 ring-accent/20">{count} 个</span>
+        <span className="rounded-md bg-surface px-2 py-1 text-xs font-semibold text-accent-text ring-1 ring-accent/20">{count} 个</span>
       </div>
       <div className="grid gap-2">
         {count === 0 ? <p className="rounded-md border border-dashed border-line bg-surface/50 p-3 text-sm text-muted">{emptyText}</p> : children}

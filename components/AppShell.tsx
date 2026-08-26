@@ -96,7 +96,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <BrandMark size={34} />
           <div className="min-w-0 leading-tight">
             <div className="font-display text-[17px] text-white">NUTRITRAIN</div>
-            <div className="mt-1 font-mono text-[9px] text-white/45">TRAIN · FUEL · ADAPT</div>
+            <div className="mt-1 font-mono text-[9px] text-white/60">TRAIN · FUEL · ADAPT</div>
           </div>
         </Link>
 
@@ -123,7 +123,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="mt-auto border-t border-white/15 pt-4">
           <div className="mb-2 px-2.5">
             <p className="truncate text-xs text-white/65">{user.email}</p>
-            <p className={`mt-1 text-[10px] ${syncState === "error" || syncState === "schema-required" ? "text-amber-300" : "text-white/40"}`} aria-live="polite">
+            <p className={`mt-1 text-[10px] ${syncState === "error" || syncState === "schema-required" ? "text-amber-300" : "text-white/55"}`} aria-live="polite">
               {syncLabel}
             </p>
           </div>
@@ -200,7 +200,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   </Link>
                 );
               })}
-              <button className="flex min-h-12 items-center gap-3 rounded px-3 text-left text-sm font-semibold text-rose hover:bg-rose/[0.08]" type="button" onClick={signOut}>
+              <button className="flex min-h-12 items-center gap-3 rounded px-3 text-left text-sm font-semibold text-danger hover:bg-rose/[0.08]" type="button" onClick={signOut}>
                 <LogOut size={18} />
                 {t("actions.signOut")}
               </button>

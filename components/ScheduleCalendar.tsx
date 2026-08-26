@@ -204,7 +204,7 @@ export function ScheduleCalendar({ user, foods, onGoTraining, onGoPlanner, timeZ
   if (!user) {
     return (
       <section className="panel flex min-h-[420px] flex-col items-center justify-center gap-4 px-6 text-center">
-        <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-accent/[0.12] text-accent ring-1 ring-accent/25">
+        <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-accent/[0.12] text-accent-text ring-1 ring-accent/25">
           <CalendarCheck size={26} />
         </div>
         <h2 className="text-lg font-semibold text-ink">安排日历需要登录</h2>
@@ -283,15 +283,15 @@ export function ScheduleCalendar({ user, foods, onGoTraining, onGoPlanner, timeZ
         {/* 训练 */}
         <div className="rounded-lg border border-line bg-panel/40 p-3">
           <div className="mb-2 flex items-center justify-between">
-            <h3 className="flex items-center gap-1.5 text-sm font-semibold text-ink"><Dumbbell size={15} className="text-accent" /> 训练</h3>
+            <h3 className="flex items-center gap-1.5 text-sm font-semibold text-ink"><Dumbbell size={15} className="text-accent-text" /> 训练</h3>
             <div className="flex items-center gap-1">
               {(Object.keys(splitLabels) as TrainingSplit[]).map((key) => (
-                <button key={key} type="button" className={`min-h-11 rounded px-2 py-0.5 text-[11px] ${split === key ? "bg-accent/20 text-accent" : "text-muted hover:text-ink"}`} onClick={() => setSplit(key)}>
+                <button key={key} type="button" className={`min-h-11 rounded px-2 py-0.5 text-[11px] ${split === key ? "bg-accent/20 text-accent-text" : "text-muted hover:text-ink"}`} onClick={() => setSplit(key)}>
                   {key === "fiveDayV2" ? "v2" : key === "pplLumbarSafe" ? "腰突" : key === "upperLower" ? "上下" : "全身"}
                 </button>
               ))}
               <label
-                className={`flex min-h-11 cursor-pointer items-center gap-1 rounded px-2 py-0.5 text-[11px] ${deloadActive ? "bg-accent/20 text-accent" : "text-muted hover:text-ink"}`}
+                className={`flex min-h-11 cursor-pointer items-center gap-1 rounded px-2 py-0.5 text-[11px] ${deloadActive ? "bg-accent/20 text-accent-text" : "text-muted hover:text-ink"}`}
                 title={`标记 ${weekStartKey(selectedDate, weekStartsOn)} 起的一周为减载周`}
               >
                 <input type="checkbox" className="h-3 w-3 accent-[#155D4A]" checked={deloadActive} onChange={handleToggleDeload} />
@@ -333,7 +333,7 @@ export function ScheduleCalendar({ user, foods, onGoTraining, onGoPlanner, timeZ
 
         {/* 饮食 */}
         <div className="rounded-lg border border-line bg-panel/40 p-3">
-          <h3 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-ink"><Utensils size={15} className="text-accent" /> 饮食</h3>
+          <h3 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-ink"><Utensils size={15} className="text-accent-text" /> 饮食</h3>
           {selectedPlan ? (
             <div className="mb-2 rounded-lg bg-accent/[0.08] px-2.5 py-1.5 text-xs text-ink">
               已排目标：{energyValue(selectedPlan.result.dailyTarget.kcal)} {energyLabel} · 碳 {round(selectedPlan.result.dailyTarget.carbs, 0)}g / 蛋 {round(selectedPlan.result.dailyTarget.protein, 0)}g / 脂 {round(selectedPlan.result.dailyTarget.fat, 0)}g
@@ -357,7 +357,7 @@ export function ScheduleCalendar({ user, foods, onGoTraining, onGoPlanner, timeZ
         </div>
 
         {message ? <p className="rounded border border-accent/30 bg-accent/[0.07] px-3 py-2 text-xs text-ink" role="status" aria-live="polite">{message}</p> : null}
-        {error ? <p className="rounded border border-rose/35 bg-rose/10 px-3 py-2 text-xs text-rose" role="alert">{error}</p> : null}
+        {error ? <p className="rounded border border-rose/35 bg-rose/10 px-3 py-2 text-xs text-danger" role="alert">{error}</p> : null}
       </section>
     </div>
   );

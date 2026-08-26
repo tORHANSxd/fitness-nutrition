@@ -169,7 +169,7 @@ export function BodyLogView({ user, timeZone, locale, unitSystem }: BodyLogViewP
       <div className="space-y-4">
         <section className="panel p-4">
           <div className="mb-4 flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-md bg-accent/10 text-accent ring-1 ring-accent/30">
+            <div className="flex h-10 w-10 items-center justify-center rounded-md bg-accent/10 text-accent-text ring-1 ring-accent/30">
               <Ruler size={20} />
             </div>
             <div>
@@ -246,7 +246,7 @@ export function BodyLogView({ user, timeZone, locale, unitSystem }: BodyLogViewP
                   type="button"
                   onClick={() => setRange(option.value)}
                   className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
-                    range === option.value ? "border-accent bg-accent/15 text-accent" : "border-line text-muted hover:text-ink"
+                    range === option.value ? "border-accent bg-accent/15 text-accent-text" : "border-line text-muted hover:text-ink"
                   }`}
                 >
                   {option.label}
@@ -307,11 +307,11 @@ export function BodyLogView({ user, timeZone, locale, unitSystem }: BodyLogViewP
           )}
         </div>
         {chartData.length > 0 ? (
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[360px] border-collapse text-left text-xs">
+          <div className="mt-4 min-w-0">
+            <table className="w-full table-fixed border-collapse text-left text-[10px] sm:text-xs">
               <caption className="sr-only">当前趋势数据表</caption>
-              <thead><tr className="border-b border-line text-muted"><th className="px-2 py-2">日期</th>{activeFields.map((field) => <th key={field.key} className="px-2 py-2">{field.label} ({metricUnit(field.key, unitSystem)})</th>)}</tr></thead>
-              <tbody>{chartData.slice(-14).map((point) => <tr key={String(point.date)} className="border-b border-line/70"><td className="px-2 py-2 text-muted">{point.date}</td>{activeFields.map((field) => <td key={field.key} className="px-2 py-2 font-medium text-ink">{point[field.key] ?? "--"}</td>)}</tr>)}</tbody>
+              <thead><tr className="border-b border-line text-muted"><th className="break-words px-1 py-2 sm:px-2">日期</th>{activeFields.map((field) => <th key={field.key} className="break-words px-1 py-2 leading-tight sm:px-2">{field.label} ({metricUnit(field.key, unitSystem)})</th>)}</tr></thead>
+              <tbody>{chartData.slice(-14).map((point) => <tr key={String(point.date)} className="border-b border-line/70"><td className="break-words px-1 py-2 text-muted sm:px-2">{point.date}</td>{activeFields.map((field) => <td key={field.key} className="break-words px-1 py-2 font-medium tabular-nums text-ink sm:px-2">{point[field.key] ?? "--"}</td>)}</tr>)}</tbody>
             </table>
           </div>
         ) : null}

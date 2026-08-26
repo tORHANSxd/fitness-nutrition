@@ -54,12 +54,12 @@ export function MealSplitView({ controller, foods, templates, energyUnit = "kcal
   const recommendationAssessment = assessNutritionRecommendation(result, meals);
   const recommendationStatus =
     recommendationAssessment.status === "ready"
-      ? { label: "推荐可直接应用", tone: "text-accent", surface: "bg-accent/10" }
+      ? { label: "推荐可直接应用", tone: "text-accent-text", surface: "bg-accent/10" }
       : recommendationAssessment.status === "constrained"
-        ? { label: "推荐受当前约束限制", tone: "text-amber", surface: "bg-amber/10" }
+        ? { label: "推荐受当前约束限制", tone: "text-warning", surface: "bg-amber/10" }
         : recommendationAssessment.blockedReason === "locked"
-          ? { label: "推荐受锁定限制", tone: "text-rose", surface: "bg-rose/10" }
-          : { label: "暂时无法生成推荐", tone: "text-rose", surface: "bg-rose/10" };
+          ? { label: "推荐受锁定限制", tone: "text-danger", surface: "bg-rose/10" }
+          : { label: "暂时无法生成推荐", tone: "text-danger", surface: "bg-rose/10" };
 
   return (
     <section className="animate-fade-up space-y-4">
@@ -132,9 +132,9 @@ export function MealSplitView({ controller, foods, templates, energyUnit = "kcal
           </p>
         </div>
 
-        {message ? <p className="mx-4 mt-3 rounded-lg border border-accent/20 bg-accent/10 px-4 py-2.5 text-sm font-medium text-accent" role="status" aria-live="polite">{message}</p> : null}
+        {message ? <p className="mx-4 mt-3 rounded-lg border border-accent/20 bg-accent/10 px-4 py-2.5 text-sm font-medium text-accent-text" role="status" aria-live="polite">{message}</p> : null}
         {result.conflicts.length > 0 ? (
-          <details className="mx-4 mt-3 rounded-lg border border-rose/20 bg-rose/10 px-4 py-2.5 text-sm text-rose" role="alert">
+          <details className="mx-4 mt-3 rounded-lg border border-rose/20 bg-rose/10 px-4 py-2.5 text-sm text-danger" role="alert">
             <summary className="cursor-pointer font-semibold">需要处理 {result.conflicts.length} 项约束冲突</summary>
             <ul className="mt-2 space-y-1">
               {result.conflicts.map((conflict) => <li key={conflict}>· {conflict}</li>)}
@@ -144,14 +144,14 @@ export function MealSplitView({ controller, foods, templates, energyUnit = "kcal
 
         {/* 餐次 pill-tab 组（claude.ai 设置页 tab 语言：oat 容器内白 pill 激活） */}
         <div className="border-b border-line px-4 py-3">
-          <div className="scrollbar-thin inline-flex max-w-full gap-1 overflow-x-auto rounded-full bg-panel p-1">
+          <div className="flex max-w-full flex-wrap gap-1 rounded bg-panel p-1">
             {meals.map((meal) => {
               const recommendation = recommendationsByMeal.get(meal.id);
               const active = meal.id === activeMeal?.id;
               return (
                 <button
                   key={meal.id}
-                  className={`flex min-h-11 shrink-0 items-baseline gap-2 whitespace-nowrap rounded-full px-4 py-2 text-sm transition-colors ${
+                  className={`flex min-h-11 min-w-0 items-baseline gap-2 rounded px-4 py-2 text-sm transition-colors ${
                     active ? "bg-surface font-medium text-ink shadow-soft" : "text-muted hover:text-ink"
                   }`}
                   type="button"
@@ -414,7 +414,7 @@ function MealEditor({
                   <div className="flex items-center justify-between gap-2 rounded-md bg-panel p-2">
                     <div>
                       <div className="metric-label">推荐</div>
-                      <div className="font-semibold text-accent">{round(recommendedGrams, 1)} g</div>
+                      <div className="font-semibold text-accent-text">{round(recommendedGrams, 1)} g</div>
                     </div>
                     {!meal.locked && !entry.locked && Math.abs(recommendedGrams - entry.grams) >= 0.05 ? (
                       <button
@@ -530,7 +530,7 @@ function LockedMealGapNotice({
   const direction = recommendation.deficit.kcal > 0 ? "仍亏" : "仍盈";
   const energyLabel = energyUnit === "kj" ? "kJ" : "kcal";
   return (
-    <p className="border-b border-line bg-amber/10 px-4 py-2 text-sm font-medium text-amber ring-inset ring-amber/20">
+    <p className="border-b border-line bg-amber/10 px-4 py-2 text-sm font-medium text-warning ring-inset ring-amber/20">
       锁定项使本餐推荐后{direction} {round(displayEnergy(Math.abs(recommendation.deficit.kcal), energyUnit), 0)} {energyLabel}，系统会保留该差额，避免其他餐被过度拉高或压低。
     </p>
   );
@@ -571,7 +571,7 @@ function MacroBalanceCard({
 }) {
   const isSurplus = balance < 0;
   const balanceLabel = isSurplus ? "盈" : "亏";
-  const tone = isSurplus ? "text-rose" : "text-accent";
+  const tone = isSurplus ? "text-danger" : "text-accent-text";
 
   return (
     <div className="rounded-md border border-line bg-surface/70 p-3 backdrop-blur">

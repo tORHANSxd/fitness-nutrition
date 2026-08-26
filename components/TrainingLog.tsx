@@ -239,7 +239,7 @@ export function TrainingLog({ user, onRequireLogin, dateRequest, timeZone, local
   if (!user) {
     return (
       <section className="panel flex min-h-[420px] flex-col items-center justify-center gap-4 px-6 text-center">
-        <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-accent/[0.12] text-accent ring-1 ring-accent/25">
+        <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-accent/[0.12] text-accent-text ring-1 ring-accent/25">
           <CalendarRange size={26} />
         </div>
         <div>
@@ -285,7 +285,7 @@ export function TrainingLog({ user, onRequireLogin, dateRequest, timeZone, local
             ))}
             <label
               className={`flex min-h-11 cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
-                deloadActive ? "border-accent/50 bg-accent/15 text-accent" : "border-line bg-panel text-muted hover:text-ink"
+                deloadActive ? "border-accent/50 bg-accent/15 text-accent-text" : "border-line bg-panel text-muted hover:text-ink"
               }`}
               title={`标记 ${weekStartKey(selectedDate, weekStartsOn)} 起的一周为减载周`}
             >
@@ -377,7 +377,7 @@ export function TrainingLog({ user, onRequireLogin, dateRequest, timeZone, local
                   <button
                     key={lvl}
                     type="button"
-                    className={`rounded px-2 py-0.5 text-[11px] ${experience === lvl ? "bg-accent/20 text-accent" : "text-muted hover:text-ink"}`}
+                    className={`rounded px-2 py-0.5 text-[11px] ${experience === lvl ? "bg-accent/20 text-accent-text" : "text-muted hover:text-ink"}`}
                     onClick={() => setExperience(lvl)}
                   >
                     {experienceLabels[lvl]}
@@ -457,11 +457,11 @@ export function TrainingLog({ user, onRequireLogin, dateRequest, timeZone, local
               </button>
             </div>
             <div className="flex flex-col gap-1.5">
-              <div className="hidden grid-cols-[1.6fr_1fr_0.9fr_0.7fr_0.7fr_auto] gap-1.5 px-1 text-[10px] font-semibold uppercase text-muted sm:grid">
+              <div className="hidden grid-cols-[1.6fr_1fr_0.9fr_0.7fr_0.7fr_auto] gap-1.5 px-1 text-[10px] font-semibold uppercase text-muted md:grid">
                 <span>动作</span><span>部位</span><span>重量{weightUnit}</span><span>次数</span><span>RIR</span><span></span>
               </div>
               {draft.sets.map((set) => (
-                <div key={set.id} className="grid grid-cols-2 gap-1.5 rounded-lg border border-line bg-panel/50 p-1.5 sm:grid-cols-[1.6fr_1fr_0.9fr_0.7fr_0.7fr_auto] sm:border-0 sm:bg-transparent sm:p-0">
+                <div key={set.id} className="grid grid-cols-2 gap-1.5 rounded-lg border border-line bg-panel/50 p-1.5 md:grid-cols-[1.6fr_1fr_0.9fr_0.7fr_0.7fr_auto] md:border-0 md:bg-transparent md:p-0">
                   <input className="field h-11" value={set.exercise} placeholder="动作" aria-label="动作名称" onChange={(e) => updateSet(set.id, { exercise: e.target.value })} />
                   <select className="field h-11" value={set.muscleGroup} aria-label="训练部位" onChange={(e) => updateSet(set.id, { muscleGroup: e.target.value as MuscleGroup })}>
                     {muscleGroupOrder.map((m) => (
@@ -471,7 +471,7 @@ export function TrainingLog({ user, onRequireLogin, dateRequest, timeZone, local
                   <input className="field h-11" type="number" inputMode="decimal" value={set.weightKg ? Math.round(displayWeight(set.weightKg, unitSystem) * 100) / 100 : ""} placeholder="0" aria-label={`重量 ${weightUnit}`} onChange={(e) => updateSet(set.id, { weightKg: canonicalWeight(Number(e.target.value) || 0, unitSystem) })} />
                   <input className="field h-11" type="number" inputMode="numeric" value={set.reps || ""} placeholder="0" aria-label="次数" onChange={(e) => updateSet(set.id, { reps: Number(e.target.value) || 0 })} />
                   <input className="field h-11" type="number" inputMode="numeric" value={set.rir ?? ""} placeholder="—" aria-label="剩余次数 RIR" onChange={(e) => updateSet(set.id, { rir: e.target.value === "" ? null : Number(e.target.value) })} />
-                  <div className="col-span-2 flex items-center justify-between gap-1 sm:col-span-1 sm:justify-end">
+                  <div className="col-span-2 flex items-center justify-between gap-1 md:col-span-1 md:justify-end">
                     <label className="flex items-center gap-1 text-[11px] text-muted">
                       <input type="checkbox" checked={set.isWarmup} onChange={(e) => updateSet(set.id, { isWarmup: e.target.checked })} /> 热身
                     </label>
@@ -503,7 +503,7 @@ export function TrainingLog({ user, onRequireLogin, dateRequest, timeZone, local
             </div>
           ) : null}
 
-          {error ? <p className="mt-3 rounded border border-rose/35 bg-rose/10 px-3 py-2 text-xs text-rose" role="alert">{error}</p> : null}
+          {error ? <p className="mt-3 rounded border border-rose/35 bg-rose/10 px-3 py-2 text-xs text-danger" role="alert">{error}</p> : null}
 
           <div className="mt-4 flex gap-2">
             <button className="btn-primary flex-1" type="button" onClick={handleSave} disabled={saving}>

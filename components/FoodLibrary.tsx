@@ -33,8 +33,8 @@ const emptyForm: FoodFormState = {
 
 const severityBadge: Record<"ok" | "warn" | "error", { label: string; cls: string } | null> = {
   ok: null,
-  warn: { label: "能量偏差", cls: "border-amber/40 bg-amber/10 text-amber" },
-  error: { label: "能量不符", cls: "border-rose/40 bg-rose/10 text-rose" }
+  warn: { label: "能量偏差", cls: "border-amber/40 bg-amber/10 text-warning" },
+  error: { label: "能量不符", cls: "border-rose/40 bg-rose/10 text-danger" }
 };
 
 function downloadFile(filename: string, content: string, mime: string) {
@@ -320,7 +320,7 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated, energ
             ) : null}
           </div>
           {message ? (
-            <p className={`rounded-md border p-3 text-sm ${message.includes("失败") || message.includes("不能") || message.includes("未解析") ? "border-rose/30 bg-rose/10 text-rose" : "border-line bg-surface/80 text-ink"}`}>
+            <p className={`rounded-md border p-3 text-sm ${message.includes("失败") || message.includes("不能") || message.includes("未解析") ? "border-rose/30 bg-rose/10 text-danger" : "border-line bg-surface/80 text-ink"}`}>
               {message}
             </p>
           ) : null}
@@ -333,7 +333,7 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated, energ
             <div>
               <h2 className="text-lg font-semibold text-gradient">食物库</h2>
               <p className="text-sm text-muted">
-                共 {stats.total} 条 · <span className={stats.warnings ? "text-amber-300" : ""}>{stats.warnings} 条能量偏差</span> · <span className={stats.duplicates ? "text-rose" : ""}>{stats.duplicates} 组重名</span>
+                共 {stats.total} 条 · <span className={stats.warnings ? "text-warning" : ""}>{stats.warnings} 条能量偏差</span> · <span className={stats.duplicates ? "text-danger" : ""}>{stats.duplicates} 组重名</span>
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -379,7 +379,7 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated, energ
                   key={category}
                   type="button"
                   onClick={() => toggleCategory(category)}
-                  className={`min-h-11 rounded-full border px-2.5 py-1 text-xs transition-colors ${active ? "border-accent bg-accent/15 text-accent" : "border-line text-muted hover:text-ink"}`}
+                  className={`min-h-11 rounded-full border px-2.5 py-1 text-xs transition-colors ${active ? "border-accent bg-accent/15 text-accent-text" : "border-line text-muted hover:text-ink"}`}
                 >
                   {category}
                 </button>
@@ -392,20 +392,20 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated, energ
             ) : null}
           </div>
         </div>
-        <div className="scrollbar-thin overflow-x-auto">
-          {/* 单位并入表头、单元格全部 nowrap；操作列右侧吸附，窄屏横向滚动时也始终可见。 */}
-          <table className="w-full min-w-[860px] text-left text-sm [&_td]:whitespace-nowrap [&_th]:whitespace-nowrap">
+        <div className="min-w-0">
+          {/* 窄屏保留名称、热量和操作；其余字段按可用宽度逐级展开，页面不再横向滚动。 */}
+          <table className="w-full table-fixed text-left text-sm xl:table-auto">
             <thead className="border-b border-line text-[11px] uppercase text-muted-soft">
               <tr>
-                <th className="px-4 py-3">食物</th>
-                <th className="px-3 py-3">分类</th>
-                <th className="px-3 py-3">热量 {energyLabel}</th>
-                <th className="px-3 py-3">脂肪 g</th>
-                <th className="px-3 py-3">净碳水 g</th>
-                <th className="px-3 py-3">蛋白 g</th>
-                <th className="px-3 py-3">口径</th>
-                <th className="px-3 py-3">来源</th>
-                <th className="sticky right-0 bg-surface px-3 py-3 text-right">操作</th>
+                <th className="w-[42%] px-3 py-3 sm:px-4 xl:w-auto">食物</th>
+                <th className="hidden px-3 py-3 lg:table-cell">分类</th>
+                <th className="w-20 px-2 py-3 sm:px-3 xl:w-auto">热量 {energyLabel}</th>
+                <th className="hidden px-3 py-3 xl:table-cell">脂肪 g</th>
+                <th className="hidden px-3 py-3 xl:table-cell">净碳水 g</th>
+                <th className="hidden px-3 py-3 xl:table-cell">蛋白 g</th>
+                <th className="hidden px-3 py-3 lg:table-cell">口径</th>
+                <th className="hidden px-3 py-3 md:table-cell">来源</th>
+                <th className="w-24 px-2 py-3 text-right sm:w-[148px] sm:px-3 xl:w-auto">操作</th>
               </tr>
             </thead>
             <tbody>
@@ -415,28 +415,28 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated, energ
                 const isDuplicate = duplicateNames.has(food.name.trim().toLowerCase());
                 return (
                   <tr key={food.id} className="group border-t border-line transition-colors hover:bg-panel/40">
-                    <td className="px-4 py-3 font-medium text-ink">
-                      <div className="flex items-center gap-2">
-                        <span>{food.name}</span>
-                        {isDuplicate ? <span className="rounded-full border border-rose/40 bg-rose/10 px-1.5 py-0.5 text-[10px] text-rose">重名</span> : null}
+                    <td className="min-w-0 px-3 py-3 font-medium text-ink sm:px-4">
+                      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                        <span className="min-w-0 break-words">{food.name}</span>
+                        {isDuplicate ? <span className="rounded-full border border-rose/40 bg-rose/10 px-1.5 py-0.5 text-[10px] text-danger">重名</span> : null}
                       </div>
                     </td>
-                    <td className="px-3 py-3 text-muted">{food.category}</td>
-                    <td className="tabular-nums px-3 py-3" title={badge ? `按宏量应为 ${energyValue(mismatch.macroKcalPer100g)} ${energyLabel}` : undefined}>
+                    <td className="hidden px-3 py-3 text-muted lg:table-cell">{food.category}</td>
+                    <td className="whitespace-nowrap px-2 py-3 tabular-nums sm:px-3" title={badge ? `按宏量应为 ${energyValue(mismatch.macroKcalPer100g)} ${energyLabel}` : undefined}>
                       {energyValue(calculateFoodKcalPer100g(food))}
                     </td>
-                    <td className="tabular-nums px-3 py-3">{food.fatPer100g}</td>
-                    <td className="tabular-nums px-3 py-3">{food.carbsPer100g}</td>
-                    <td className="tabular-nums px-3 py-3">{food.proteinPer100g}</td>
-                    <td className="px-3 py-3 text-muted">{food.weightBasis === "raw" ? "生重" : "熟重"}</td>
-                    <td className="px-3 py-3">
+                    <td className="hidden px-3 py-3 tabular-nums xl:table-cell">{food.fatPer100g}</td>
+                    <td className="hidden px-3 py-3 tabular-nums xl:table-cell">{food.carbsPer100g}</td>
+                    <td className="hidden px-3 py-3 tabular-nums xl:table-cell">{food.proteinPer100g}</td>
+                    <td className="hidden px-3 py-3 text-muted lg:table-cell">{food.weightBasis === "raw" ? "生重" : "熟重"}</td>
+                    <td className="hidden px-3 py-3 md:table-cell">
                       <div className="flex items-center gap-1.5">
                         <span className="text-xs text-muted">{food.source === "public" ? (food.isUserOverride ? "公共·已修改" : "公共") : "本人"}</span>
                         {badge ? <span className={`rounded-full border px-1.5 py-0.5 text-[10px] ${badge.cls}`}>{badge.label}</span> : null}
                       </div>
                     </td>
-                    <td className="sticky right-0 bg-surface px-3 py-3 shadow-[-10px_0_10px_-10px_rgba(31,30,29,0.10)] transition-colors group-hover:bg-panel">
-                      <div className="flex justify-end gap-1.5">
+                    <td className="bg-surface px-2 py-3 transition-colors group-hover:bg-panel sm:px-3">
+                      <div className="flex flex-wrap justify-end gap-1.5">
                         <button className="btn-secondary h-11 w-11 p-0" type="button" onClick={() => startEditFood(food)} disabled={busy} aria-label={`编辑${food.name}`} title="编辑">
                           <Pencil size={14} />
                         </button>

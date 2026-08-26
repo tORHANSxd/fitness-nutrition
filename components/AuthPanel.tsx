@@ -131,7 +131,7 @@ export function AuthPanel({ user, onSignedIn }: AuthPanelProps) {
       {message ? (
         <p
           className={`mt-4 rounded-lg border px-4 py-3 text-sm ${
-            isErrorMessage ? "border-rose/25 bg-rose/[0.06] text-rose" : "border-accent/25 bg-accent/[0.07] text-accent2"
+            isErrorMessage ? "border-rose/25 bg-rose/[0.06] text-danger" : "border-accent/25 bg-accent/[0.07] text-accent-text"
           }`}
           role="status"
           aria-live="polite"

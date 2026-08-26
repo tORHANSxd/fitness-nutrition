@@ -81,7 +81,7 @@ export function OverviewDashboard() {
           <p className="mt-2 text-xs text-muted">{todaySession ? `${todaySession.splitLabel || "训练"} · 有效组` : "尚未记录训练"}</p>
         </article>
         <article className="metric-card">
-          <Scale size={19} className="text-rose" />
+          <Scale size={19} className="text-danger" />
           <p className="metric-label mt-4">最近体重</p>
           <p className="metric-number mt-1 text-3xl text-ink">
             {latestBodyLog?.weightKg != null ? displayWeight(latestBodyLog.weightKg, preferences.unitSystem).toFixed(1) : "--"}

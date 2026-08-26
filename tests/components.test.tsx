@@ -155,17 +155,19 @@ describe("PlannerProfileView v2 固定目标 / 训练时间", () => {
 
     const commandHeading = screen.getByRole("heading", { name: "今日指挥台" });
     const profileLayout = commandHeading.closest("section")!.parentElement!.parentElement!;
-    expect(profileLayout).toHaveClass("xl:grid-cols-[340px_minmax(280px,1fr)]");
+    expect(profileLayout).toHaveClass("planner-profile-layout");
+    expect(profileLayout).not.toHaveClass("xl:grid-cols-[340px_minmax(280px,1fr)]");
 
     const bmrLabel = screen.getByText("BMR");
     const metricValue = bmrLabel.nextElementSibling!;
     const metricGrid = bmrLabel.closest(".relative")!.parentElement!.parentElement!;
     expect(metricGrid).toHaveClass("grid-cols-2");
     expect(metricGrid).not.toHaveClass("xl:grid-cols-4");
-    expect(metricValue).toHaveClass("whitespace-nowrap");
+    expect(metricValue).toHaveClass("flex", "flex-wrap");
+    expect(metricValue).not.toHaveClass("whitespace-nowrap");
 
     const weeklyPlanGrid = screen.getByTestId("weekly-plan-grid");
-    expect(weeklyPlanGrid).toHaveClass("grid", "grid-cols-2", "sm:grid-cols-4");
+    expect(weeklyPlanGrid).toHaveClass("planner-week-grid");
     expect(weeklyPlanGrid).not.toHaveClass("overflow-x-auto");
     expect(weeklyPlanGrid.firstElementChild).not.toHaveClass("shrink-0", "min-w-[76px]");
   });

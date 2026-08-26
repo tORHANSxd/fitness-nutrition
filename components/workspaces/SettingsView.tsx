@@ -143,7 +143,7 @@ export function SettingsView() {
           </div>
           <p className="text-sm text-muted">{user.email}</p>
           {syncState === "schema-required" ? (
-            <p className="rounded border border-amber/40 bg-amber/10 px-3 py-2 text-sm text-amber" role="alert">
+            <p className="rounded border border-amber/40 bg-amber/10 px-3 py-2 text-sm text-warning" role="alert">
               当前 Supabase 尚缺少全局偏好列。请执行仓库中的 migration 后再保存这些设置。
             </p>
           ) : null}

@@ -92,17 +92,7 @@ export function MealSplitView({ controller, foods, templates, energyUnit = "kcal
               </button>
             </div>
           </div>
-          <div className="grid gap-2 sm:grid-cols-[minmax(0,200px)_minmax(0,200px)_auto_auto]">
-            <select aria-label="当前餐次" className="field w-full" value={activeMeal?.id ?? ""} onChange={(event) => setActiveMealId(event.target.value)}>
-              {meals.map((meal) => {
-                const recommendation = recommendationsByMeal.get(meal.id);
-                return (
-                  <option key={meal.id} value={meal.id}>
-                    {meal.name} · {energyValue(recommendation?.target.kcal ?? 0)} {energyLabel}
-                  </option>
-                );
-              })}
-            </select>
+          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
             <select aria-label="全天模板" className="field w-full" value={selectedDayTemplateId} onChange={(event) => setSelectedDayTemplateId(event.target.value)}>
               <option value="">选择全天模板</option>
               {templates.dayTemplates.map((template) => (

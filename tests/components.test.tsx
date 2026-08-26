@@ -150,6 +150,21 @@ describe("PlannerProfileView v2 固定目标 / 训练时间", () => {
     return screen.getByText("训练时间").closest("label")!.querySelector("select") as HTMLSelectElement;
   }
 
+  it("keeps the command center metrics legible in the desktop split layout", () => {
+    render(<PlannerProfileView controller={makeController()} />);
+
+    const commandHeading = screen.getByRole("heading", { name: "今日指挥台" });
+    const profileLayout = commandHeading.closest("section")!.parentElement!.parentElement!;
+    expect(profileLayout).toHaveClass("xl:grid-cols-[340px_minmax(280px,1fr)]");
+
+    const bmrLabel = screen.getByText("BMR");
+    const metricValue = bmrLabel.nextElementSibling!;
+    const metricGrid = bmrLabel.closest(".relative")!.parentElement!.parentElement!;
+    expect(metricGrid).toHaveClass("grid-cols-2");
+    expect(metricGrid).not.toHaveClass("xl:grid-cols-4");
+    expect(metricValue).toHaveClass("whitespace-nowrap");
+  });
+
   it("shows formula-derived targets as placeholders (demo profile → 2295/175/61) and no carb-day picker", () => {
     render(<PlannerProfileView controller={makeController({ trainingTime: "afternoon" })} />);
     expect(screen.queryByText("碳循环日")).not.toBeInTheDocument();
@@ -301,8 +316,13 @@ describe("MealSplitView（分餐单独页含应用推荐/保存计划 + 弹出�
     const controller = makeController();
     render(<MealSplitView controller={controller} foods={builtinFoods} templates={templates} />);
 
+    expect(screen.queryByRole("combobox", { name: "当前餐次" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /归一比例/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /保存计划/ })).toBeInTheDocument();
+
+    const nextMeal = controller.meals[1];
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(`^${nextMeal.name}`) }));
+    expect(controller.setActiveMealId).toHaveBeenCalledWith(nextMeal.id);
 
     fireEvent.click(screen.getByRole("button", { name: /应用推荐/ }));
     expect(controller.applyRecommendations).toHaveBeenCalledTimes(1);

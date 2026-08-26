@@ -50,7 +50,7 @@ export function PlannerProfileView({ controller, timeZone = DEFAULT_TIME_ZONE, u
 
   return (
     <section className="animate-fade-up space-y-5">
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[340px_minmax(280px,1fr)]">
         <div className="order-1 space-y-4 xl:order-2">
           <section className="panel overflow-hidden">
             {/* 指挥台顶栏：标题 + 训练时间/日期摘要（操作按钮已移到「分餐计划」页） */}
@@ -64,7 +64,7 @@ export function PlannerProfileView({ controller, timeZone = DEFAULT_TIME_ZONE, u
             </div>
 
             {/* stat 网格：6 指标。当日目标 = 维持热量(TDEE) − 减脂赤字；档案不完整时全部归 0 并由表单横幅引导。 */}
-            <div className="grid grid-cols-2 border-l border-t border-line sm:grid-cols-3 xl:grid-cols-4">
+            <div className="grid grid-cols-2 border-l border-t border-line">
               <div className="border-b border-r border-line px-4 py-3">
                 <MetricCard label="BMR" value={energyValue(isProfileComplete(profile) ? result.bmr : 0)} unit={energyLabel} />
               </div>

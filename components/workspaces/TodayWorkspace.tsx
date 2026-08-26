@@ -99,7 +99,7 @@ export function TodayWorkspace() {
         <a className={`segmented-option ${section === "meals" ? "is-active" : ""}`} href={`?date=${requestedDate}&section=meals`}>餐次</a>
       </div>
 
-      <div className="grid min-w-0 gap-5 2xl:grid-cols-[minmax(320px,0.78fr)_minmax(0,1.55fr)]">
+      <div className="grid min-w-0 gap-5 2xl:grid-cols-[minmax(640px,1.05fr)_minmax(0,1fr)]">
         <div className={section === "profile" ? "min-w-0" : "hidden min-w-0 lg:block"}>
           <PlannerProfileView controller={controller} timeZone={preferences.timeZone} unitSystem={preferences.unitSystem} energyUnit={preferences.energyUnit} />
         </div>

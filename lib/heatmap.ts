@@ -1,7 +1,7 @@
 import { hierarchy, treemap, treemapSquarify } from "d3-hierarchy";
 import { daysBetween, isDateKey, monthKey, startOfWeek, toDateKey, toPlainDate } from "@/lib/dateTime";
 import { customFoodsFromMeals } from "@/lib/foods";
-import { calculateFoodKcalPer100g } from "@/lib/nutrition";
+import { calculateFoodKcalPer100g, getCalorieDeficit } from "@/lib/nutrition";
 import type {
   DailyCheckin,
   DailyCheckinActual,
@@ -29,6 +29,8 @@ export interface HeatmapDay {
   completed: boolean;
   actual: DailyCheckinActual;
   target: MacroTotals;
+  plannedCalorieDeficitKcal?: number;
+  plannedExerciseKcal?: number;
 }
 
 export interface HeatmapTileDetail {
@@ -171,7 +173,9 @@ export function buildHeatmapDays({
       date,
       completed,
       actual,
-      target: checkin?.target ?? plan?.result.dailyTarget ?? zeroTotals()
+      target: checkin?.target ?? plan?.result.dailyTarget ?? zeroTotals(),
+      plannedCalorieDeficitKcal: plan && plan.result.dailyTarget.kcal > 0 ? getCalorieDeficit(plan.profile) : 0,
+      plannedExerciseKcal: plan ? Math.max(0, plan.profile.exerciseKcal) : 0
     }];
   });
 }
@@ -191,14 +195,20 @@ export function aggregateHeatmap(days: HeatmapDay[], metric: HeatmapMetric): Hea
   days.forEach((day) => {
     day.actual.foods.forEach((food) => add(`food:${food.foodId}`, "food", food.name, food.totals[metric], day.date));
     if (metric === "kcal") {
+      let hasRecordedExercise = false;
       day.actual.exercises.forEach((exercise) => {
         const normalizedName = exercise.name.trim().toLocaleLowerCase("zh-CN");
         if (normalizedName) {
+          hasRecordedExercise = hasRecordedExercise || Math.abs(exercise.kcal) >= 0.0001;
           add(`exercise:${normalizedName}`, "exercise", exercise.name.trim(), -Math.abs(exercise.kcal), day.date);
         }
       });
+      if (!day.completed && !hasRecordedExercise) {
+        add("exercise:planned", "exercise", "计划运动消耗", -Math.abs(day.plannedExerciseKcal ?? 0), day.date);
+      }
       add("basal", "basal", "基础代谢", -Math.abs(day.actual.bmrKcal), day.date);
       add("activity", "activity", "日常活动", -Math.abs(day.actual.activityKcal), day.date);
+      add("target:calorie-deficit", "target", "计划热量缺口", -Math.abs(day.plannedCalorieDeficitKcal ?? 0), day.date);
     } else {
       add(`target:${metric}`, "target", "目标需求", -Math.abs(day.target[metric]), day.date);
     }

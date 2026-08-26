@@ -56,6 +56,10 @@ type JellyStyle = CSSProperties & {
   "--tile-width": string;
   "--tile-height": string;
   "--jelly-delay": string;
+  "--jelly-fill-alpha": string;
+  "--jelly-border-alpha": string;
+  "--jelly-depth-alpha": string;
+  "--jelly-shadow-alpha": string;
 };
 
 const defaultTreemapSize = { width: 1600, height: 1000 };
@@ -105,7 +109,8 @@ function JellyTile({
   selected,
   onSelect,
   canvasWidth,
-  canvasHeight
+  canvasHeight,
+  maxMagnitude
 }: {
   layout: HeatmapTileLayout;
   metric: HeatmapMetric;
@@ -115,15 +120,22 @@ function JellyTile({
   onSelect: () => void;
   canvasWidth: number;
   canvasHeight: number;
+  maxMagnitude: number;
 }) {
   const { tile, x, y, width, height } = layout;
   const labelMode = width >= 124 && height >= 112 ? "is-large" : width >= 74 && height >= 48 ? "is-medium" : "is-small";
+  const magnitudeRatio = maxMagnitude > 0 ? Math.min(Math.abs(tile.value) / maxMagnitude, 1) : 0;
+  const intensity = Math.sqrt(magnitudeRatio);
   const style: JellyStyle = {
     "--tile-x": `${x / canvasWidth * 100}%`,
     "--tile-y": `${y / canvasHeight * 100}%`,
     "--tile-width": `${width / canvasWidth * 100}%`,
     "--tile-height": `${height / canvasHeight * 100}%`,
-    "--jelly-delay": `${Math.min(index * 42, 420)}ms`
+    "--jelly-delay": `${Math.min(index * 42, 420)}ms`,
+    "--jelly-fill-alpha": (0.16 + intensity * 0.42).toFixed(3),
+    "--jelly-border-alpha": (0.38 + intensity * 0.48).toFixed(3),
+    "--jelly-depth-alpha": (0.08 + intensity * 0.18).toFixed(3),
+    "--jelly-shadow-alpha": (0.28 + intensity * 0.42).toFixed(3)
   };
   const direction = tile.value >= 0 ? "盈" : "亏";
   const tooltip = `${kindLabels[tile.kind]} · ${tile.label} · ${formatValue(tile.value, metric, energyUnit)} · 绝对贡献 ${formatShare(tile.share)}`;
@@ -139,6 +151,7 @@ function JellyTile({
       aria-label={`热力图项目：${tile.label}，${direction}，${formatValue(tile.value, metric, energyUnit)}，绝对贡献占比 ${formatShare(tile.share)}`}
       title={tooltip}
       data-share={tile.share}
+      data-intensity={(intensity * 100).toFixed(1)}
     >
       <span className="jelly-sheen" aria-hidden="true" />
       {labelMode !== "is-small" ? (
@@ -173,6 +186,10 @@ function JellyTreemap({
     () => layoutHeatmapTiles(tiles, size.width, size.height),
     [size.height, size.width, tiles]
   );
+  const maxMagnitude = useMemo(
+    () => tiles.reduce((maximum, tile) => Math.max(maximum, Math.abs(tile.value)), 0),
+    [tiles]
+  );
 
   return (
     <div
@@ -192,6 +209,7 @@ function JellyTreemap({
           onSelect={() => onSelect(layout.tile.id)}
           canvasWidth={size.width}
           canvasHeight={size.height}
+          maxMagnitude={maxMagnitude}
         />
       ))}
     </div>
@@ -459,9 +477,10 @@ export function HeatmapView() {
           <p className="metric-label">数据覆盖</p>
           <p className="mt-1 text-sm font-semibold text-ink">{completeDays}/{totalDays} 天完成 · {recordedDays} 天有记录</p>
         </div>
-        <div className="flex items-center gap-4 text-xs font-semibold text-muted">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-semibold text-muted">
           <span className="flex items-center gap-1.5"><i className="heatmap-legend-dot is-positive" />正值 · 盈</span>
           <span className="flex items-center gap-1.5"><i className="heatmap-legend-dot is-negative" />负值 · 亏</span>
+          <span>颜色越深 · 绝对值越大</span>
         </div>
       </div>
 

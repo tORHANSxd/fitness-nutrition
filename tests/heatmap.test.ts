@@ -126,6 +126,35 @@ describe("heatmap ledger", () => {
     expect(layoutHeatmapTiles(dataset.tiles, 0, height)).toEqual([]);
   });
 
+  it("adds the planned calorie deficit and falls back to planned exercise before completion", () => {
+    const plannedProfile = { ...profile, exerciseKcal: 450, calorieDeficit: 600 };
+    const plan: SavedPlan = {
+      id: "plan-with-energy-targets",
+      planDate: plannedProfile.planDate,
+      profile: plannedProfile,
+      meals,
+      result: buildNutritionResult(plannedProfile, meals, [food]),
+      createdAt: "2026-08-25T00:00:00.000Z"
+    };
+    const [day] = buildHeatmapDays({
+      plans: [plan],
+      checkins: [],
+      foods: [food],
+      today: "2026-08-25",
+      includeIncomplete: false
+    });
+    const dataset = aggregateHeatmap([day], "kcal");
+
+    expect(dataset.tiles.find((tile) => tile.id === "target:calorie-deficit")).toMatchObject({
+      label: "计划热量缺口",
+      value: -600
+    });
+    expect(dataset.tiles.find((tile) => tile.id === "exercise:planned")).toMatchObject({
+      label: "计划运动消耗",
+      value: -450
+    });
+  });
+
   it("keeps today live and excludes incomplete history unless requested", () => {
     const yesterdayPlan = savedPlan("2026-08-24");
     const todayPlan = savedPlan("2026-08-25");

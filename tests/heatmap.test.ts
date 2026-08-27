@@ -173,13 +173,41 @@ describe("heatmap ledger", () => {
     (Object.keys(expected) as Array<keyof typeof expected>).forEach((metric) => {
       const foodTiles = aggregateHeatmap(days, metric).tiles.filter((tile) => tile.kind === "food");
       expect(foodTiles).toHaveLength(1);
-      expect(foodTiles[0]).toMatchObject({ label: "自制蛋白饼", value: expected[metric] });
+      expect(foodTiles[0]).toMatchObject({ label: "自制蛋白饼", value: expected[metric], weightGrams: 225 });
     });
 
     expect(aggregateHeatmap(days, "kcal").tiles[0].details).toEqual([
-      { date: "2026-08-25", value: 75 },
-      { date: "2026-08-24", value: 150 }
+      { date: "2026-08-25", value: 75, weightGrams: 75 },
+      { date: "2026-08-24", value: 150, weightGrams: 150 }
     ]);
+  });
+
+  it("keeps the planned calorie deficit as a reference without counting it twice", () => {
+    const dataset = aggregateHeatmap([{
+      date: "2026-08-27",
+      completed: false,
+      actual: {
+        version: 2,
+        foods: [{
+          foodId: "planned-intake",
+          name: "计划饮食",
+          grams: 1000,
+          totals: { kcal: 1987, carbs: 0, protein: 0, fat: 0 }
+        }],
+        exercises: [],
+        bmrKcal: 1898,
+        activityKcal: 189
+      },
+      target: { kcal: 1987, carbs: 0, protein: 0, fat: 0 },
+      plannedCalorieDeficitKcal: 400,
+      plannedExerciseKcal: 300
+    }], "kcal");
+
+    expect(dataset.tiles.find((tile) => tile.id === "target:calorie-deficit")).toMatchObject({ value: -400 });
+    expect(dataset.positiveTotal).toBe(1987);
+    expect(dataset.negativeTotal).toBe(-2387);
+    expect(dataset.net).toBe(-400);
+    expect(dataset.absoluteTotal).toBe(4774);
   });
 
   it("allocates treemap area in exact proportion to each absolute contribution", () => {

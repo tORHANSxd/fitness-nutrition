@@ -37,6 +37,7 @@ export interface HeatmapDay {
 export interface HeatmapTileDetail {
   date: string;
   value: number;
+  weightGrams?: number;
 }
 
 export interface HeatmapTile {
@@ -44,6 +45,7 @@ export interface HeatmapTile {
   kind: HeatmapTileKind;
   label: string;
   value: number;
+  weightGrams?: number;
   share: number;
   details: HeatmapTileDetail[];
 }
@@ -190,15 +192,30 @@ export function buildHeatmapDays({
 }
 
 export function aggregateHeatmap(days: HeatmapDay[], metric: HeatmapMetric): HeatmapDataset {
-  const buckets = new Map<string, Omit<HeatmapTile, "details" | "share"> & { detailsByDate: Map<string, number> }>();
+  const buckets = new Map<string, Omit<HeatmapTile, "details" | "share"> & {
+    detailsByDate: Map<string, number>;
+    weightsByDate: Map<string, number>;
+  }>();
   const foodBucketIdsByName = new Map<string, string>();
-  const add = (id: string, kind: HeatmapTileKind, label: string, value: number, date: string) => {
+  const add = (id: string, kind: HeatmapTileKind, label: string, value: number, date: string, weightGrams?: number) => {
     if (!Number.isFinite(value) || Math.abs(value) < 0.0001) {
       return;
     }
-    const current = buckets.get(id) ?? { id, kind, label, value: 0, detailsByDate: new Map<string, number>() };
+    const current = buckets.get(id) ?? {
+      id,
+      kind,
+      label,
+      value: 0,
+      detailsByDate: new Map<string, number>(),
+      weightsByDate: new Map<string, number>()
+    };
     current.value += value;
     current.detailsByDate.set(date, (current.detailsByDate.get(date) ?? 0) + value);
+    if (weightGrams !== undefined && Number.isFinite(weightGrams)) {
+      const safeWeight = Math.max(0, weightGrams);
+      current.weightGrams = (current.weightGrams ?? 0) + safeWeight;
+      current.weightsByDate.set(date, (current.weightsByDate.get(date) ?? 0) + safeWeight);
+    }
     buckets.set(id, current);
   };
 
@@ -212,7 +229,7 @@ export function aggregateHeatmap(days: HeatmapDay[], metric: HeatmapMetric): Hea
       if (normalizedName) {
         foodBucketIdsByName.set(normalizedName, bucketId);
       }
-      add(bucketId, "food", label || food.name, food.totals[metric], day.date);
+      add(bucketId, "food", label || food.name, food.totals[metric], day.date, food.grams);
     });
     if (metric === "kcal") {
       let hasRecordedExercise = false;
@@ -235,12 +252,20 @@ export function aggregateHeatmap(days: HeatmapDay[], metric: HeatmapMetric): Hea
   });
 
   const aggregatedTiles = [...buckets.values()]
-    .map(({ detailsByDate, ...tile }) => ({
+    .map(({ detailsByDate, weightsByDate, weightGrams, ...tile }) => ({
       ...tile,
       value: roundValue(tile.value),
+      ...(weightGrams === undefined ? {} : { weightGrams: roundValue(weightGrams) }),
       details: [...detailsByDate.entries()]
         .sort(([left], [right]) => right.localeCompare(left))
-        .map(([date, value]) => ({ date, value: roundValue(value) }))
+        .map(([date, value]) => {
+          const detailWeight = weightsByDate.get(date);
+          return {
+            date,
+            value: roundValue(value),
+            ...(detailWeight === undefined ? {} : { weightGrams: roundValue(detailWeight) })
+          };
+        })
     }))
     .sort((left, right) => Math.abs(right.value) - Math.abs(left.value) || left.label.localeCompare(right.label, "zh-CN"));
   const absoluteTotal = aggregatedTiles.reduce((sum, tile) => sum + Math.abs(tile.value), 0);
@@ -248,8 +273,10 @@ export function aggregateHeatmap(days: HeatmapDay[], metric: HeatmapMetric): Hea
     ...tile,
     share: absoluteTotal > 0 ? Math.abs(tile.value) / absoluteTotal : 0
   }));
-  const positiveTotal = tiles.reduce((sum, tile) => sum + Math.max(0, tile.value), 0);
-  const negativeTotal = tiles.reduce((sum, tile) => sum + Math.min(0, tile.value), 0);
+  // The planned deficit is already encoded in target intake, so it remains a visual reference instead of another energy outflow.
+  const netTiles = metric === "kcal" ? tiles.filter((tile) => tile.id !== "target:calorie-deficit") : tiles;
+  const positiveTotal = netTiles.reduce((sum, tile) => sum + Math.max(0, tile.value), 0);
+  const negativeTotal = netTiles.reduce((sum, tile) => sum + Math.min(0, tile.value), 0);
 
   return {
     tiles,

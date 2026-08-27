@@ -93,6 +93,12 @@ function formatShare(share: number) {
   return `${(share * 100).toLocaleString("zh-CN", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
 }
 
+function formatWeight(weightGrams: number | undefined) {
+  return weightGrams === undefined
+    ? null
+    : `${weightGrams.toLocaleString("zh-CN", { maximumFractionDigits: 1 })} g`;
+}
+
 function useTreemapSize() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState(defaultTreemapSize);
@@ -155,7 +161,8 @@ function JellyTile({
     "--jelly-shadow-alpha": (0.15 + intensity * 0.7).toFixed(3)
   };
   const direction = tile.value >= 0 ? "盈" : "亏";
-  const tooltip = `${kindLabels[tile.kind]} · ${tile.label} · ${formatValue(tile.value, metric, energyUnit)} · 绝对贡献 ${formatShare(tile.share)}`;
+  const weight = formatWeight(tile.weightGrams);
+  const tooltip = `${kindLabels[tile.kind]} · ${tile.label}${weight ? ` · 重量 ${weight}` : ""} · ${formatValue(tile.value, metric, energyUnit)} · 绝对贡献 ${formatShare(tile.share)}`;
 
   return (
     <button
@@ -165,7 +172,7 @@ function JellyTile({
       tabIndex={labelMode === "is-small" ? -1 : 0}
       onClick={onSelect}
       aria-pressed={selected}
-      aria-label={`热力图项目：${tile.label}，${direction}，${formatValue(tile.value, metric, energyUnit)}，绝对贡献占比 ${formatShare(tile.share)}`}
+      aria-label={`热力图项目：${tile.label}，${direction}${weight ? `，重量 ${weight}` : ""}，${formatValue(tile.value, metric, energyUnit)}，绝对贡献占比 ${formatShare(tile.share)}`}
       title={tooltip}
       data-share={tile.share}
       data-intensity={(intensity * 100).toFixed(1)}
@@ -175,7 +182,7 @@ function JellyTile({
         <span className="jelly-copy">
           {labelMode === "is-large" ? <span className="jelly-kind">{kindLabels[tile.kind]}</span> : null}
           <strong className="jelly-name">{tile.label}</strong>
-          <span className="jelly-value">{formatValue(tile.value, metric, energyUnit)}</span>
+          <span className="jelly-value">{weight ? `${weight} · ` : ""}{formatValue(tile.value, metric, energyUnit)}</span>
         </span>
       ) : null}
       {labelMode === "is-large" ? <span className="jelly-direction">{direction}</span> : null}
@@ -255,13 +262,14 @@ function HeatmapItemIndex({
       <ol className="heatmap-item-index-list">
         {tiles.map((tile, index) => {
           const direction = tile.value >= 0 ? "盈" : "亏";
+          const weight = formatWeight(tile.weightGrams);
           return (
             <li key={tile.id}>
               <button
                 className={`heatmap-index-item ${selectedTileId === tile.id ? "is-selected" : ""}`}
                 type="button"
                 aria-pressed={selectedTileId === tile.id}
-                aria-label={`项目索引：${tile.label}，${direction}，${formatValue(tile.value, metric, energyUnit)}，绝对贡献占比 ${formatShare(tile.share)}`}
+                aria-label={`项目索引：${tile.label}，${direction}${weight ? `，重量 ${weight}` : ""}，${formatValue(tile.value, metric, energyUnit)}，绝对贡献占比 ${formatShare(tile.share)}`}
                 onClick={() => onSelect(tile.id)}
               >
                 <span className="heatmap-index-rank">{index + 1}</span>
@@ -272,7 +280,7 @@ function HeatmapItemIndex({
                 </span>
                 <span className="heatmap-index-value">
                   <strong>{formatValue(tile.value, metric, energyUnit)}</strong>
-                  <small>{formatShare(tile.share)}</small>
+                  <small>{weight ? `${weight} · ` : ""}{formatShare(tile.share)}</small>
                 </span>
               </button>
             </li>
@@ -538,14 +546,18 @@ export function HeatmapView() {
             </div>
             <div className="text-left sm:text-right">
               <strong className="metric-number text-2xl text-ink">{formatValue(selectedTile.value, metric, preferences.energyUnit)}</strong>
-              <span className="metric-label mt-1 block">{formatShare(selectedTile.share)} 绝对贡献</span>
+              <span className="metric-label mt-1 block">
+                {formatWeight(selectedTile.weightGrams) ? `${formatWeight(selectedTile.weightGrams)} · ` : ""}{formatShare(selectedTile.share)} 绝对贡献
+              </span>
             </div>
           </header>
           <div className="divide-y divide-line">
             {selectedTile.details.map((detail) => (
               <div key={detail.date} className="flex min-h-11 items-center justify-between gap-4 py-2 text-sm">
                 <span className="text-muted">{formatDateKey(detail.date, preferences.locale, { year: "numeric", month: "short", day: "numeric" })}</span>
-                <span className="font-mono font-semibold tabular-nums text-ink">{formatValue(detail.value, metric, preferences.energyUnit)}</span>
+                <span className="font-mono font-semibold tabular-nums text-ink">
+                  {formatWeight(detail.weightGrams) ? `${formatWeight(detail.weightGrams)} · ` : ""}{formatValue(detail.value, metric, preferences.energyUnit)}
+                </span>
               </div>
             ))}
           </div>

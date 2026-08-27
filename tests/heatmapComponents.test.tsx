@@ -186,7 +186,7 @@ describe("HeatmapView", () => {
 
     render(<HeatmapView />);
 
-    expect(await screen.findByRole("button", { name: /热力图项目：晚餐三文鱼/ })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /热力图项目：晚餐三文鱼.*重量 180 g/ })).toBeInTheDocument();
     expect(storageMocks.loadPlannerDraft).toHaveBeenCalledWith(user);
   });
 
@@ -195,6 +195,7 @@ describe("HeatmapView", () => {
 
     const appleTile = await screen.findByRole("button", { name: /热力图项目：苹果/ });
     expect(appleTile).toHaveAccessibleName(/绝对贡献占比/);
+    expect(appleTile).toHaveAccessibleName(/重量 100 g/);
     expect(appleTile).toHaveAttribute("data-share");
     expect(Number(appleTile.getAttribute("data-intensity"))).toBeLessThan(100);
     expect(appleTile.style.getPropertyValue("--tile-width")).toMatch(/%$/);
@@ -205,6 +206,7 @@ describe("HeatmapView", () => {
     expect(basalFillAlpha - appleFillAlpha).toBeGreaterThan(0.5);
     const exerciseIndexItem = screen.getByRole("button", { name: /项目索引：跑步/ });
     expect(exerciseIndexItem).toHaveAccessibleName(/绝对贡献占比/);
+    expect(screen.getByRole("button", { name: /项目索引：苹果/ })).toHaveAccessibleName(/重量 100 g/);
     fireEvent.click(exerciseIndexItem);
     expect(screen.getByRole("heading", { name: "跑步" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /蛋白质/ }));

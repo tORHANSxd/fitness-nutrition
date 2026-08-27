@@ -66,6 +66,7 @@ export interface HeatmapTileLayout {
 
 const zeroTotals = (): MacroTotals => ({ kcal: 0, carbs: 0, protein: 0, fat: 0 });
 const roundValue = (value: number) => Math.round(value * 1000) / 1000;
+const normalizeFoodLabel = (name: string) => name.normalize("NFKC").trim().replace(/\s+/g, " ");
 
 export function emptyDailyActual(exercises: ExerciseEnergyEntry[] = []): DailyCheckinActual {
   return { version: 2, foods: [], exercises, bmrKcal: 0, activityKcal: 0 };
@@ -190,6 +191,7 @@ export function buildHeatmapDays({
 
 export function aggregateHeatmap(days: HeatmapDay[], metric: HeatmapMetric): HeatmapDataset {
   const buckets = new Map<string, Omit<HeatmapTile, "details" | "share"> & { detailsByDate: Map<string, number> }>();
+  const foodBucketIdsByName = new Map<string, string>();
   const add = (id: string, kind: HeatmapTileKind, label: string, value: number, date: string) => {
     if (!Number.isFinite(value) || Math.abs(value) < 0.0001) {
       return;
@@ -201,7 +203,17 @@ export function aggregateHeatmap(days: HeatmapDay[], metric: HeatmapMetric): Hea
   };
 
   days.forEach((day) => {
-    day.actual.foods.forEach((food) => add(`food:${food.foodId}`, "food", food.name, food.totals[metric], day.date));
+    day.actual.foods.forEach((food) => {
+      const label = normalizeFoodLabel(food.name);
+      const normalizedName = label.toLocaleLowerCase("zh-CN");
+      const bucketId = normalizedName
+        ? foodBucketIdsByName.get(normalizedName) ?? `food:${food.foodId}`
+        : `food:${food.foodId}`;
+      if (normalizedName) {
+        foodBucketIdsByName.set(normalizedName, bucketId);
+      }
+      add(bucketId, "food", label || food.name, food.totals[metric], day.date);
+    });
     if (metric === "kcal") {
       let hasRecordedExercise = false;
       day.actual.exercises.forEach((exercise) => {

@@ -123,6 +123,65 @@ describe("heatmap ledger", () => {
     expect(protein.net).toBe(-20);
   });
 
+  it("merges same-named planned foods with different ids and sums every metric", () => {
+    const days: HeatmapDay[] = [
+      {
+        date: "2026-08-24",
+        completed: true,
+        actual: {
+          version: 2,
+          foods: [
+            {
+              foodId: "custom-breakfast",
+              name: "自制蛋白饼",
+              grams: 100,
+              totals: { kcal: 100, carbs: 10, protein: 20, fat: 2 }
+            },
+            {
+              foodId: "custom-dinner",
+              name: "  自制蛋白饼  ",
+              grams: 50,
+              totals: { kcal: 50, carbs: 5, protein: 10, fat: 1 }
+            }
+          ],
+          exercises: [],
+          bmrKcal: 0,
+          activityKcal: 0
+        },
+        target: { kcal: 0, carbs: 0, protein: 0, fat: 0 }
+      },
+      {
+        date: "2026-08-25",
+        completed: true,
+        actual: {
+          version: 2,
+          foods: [{
+            foodId: "custom-next-day",
+            name: "自制蛋白饼",
+            grams: 75,
+            totals: { kcal: 75, carbs: 8, protein: 7, fat: 3 }
+          }],
+          exercises: [],
+          bmrKcal: 0,
+          activityKcal: 0
+        },
+        target: { kcal: 0, carbs: 0, protein: 0, fat: 0 }
+      }
+    ];
+
+    const expected = { kcal: 225, carbs: 23, protein: 37, fat: 6 };
+    (Object.keys(expected) as Array<keyof typeof expected>).forEach((metric) => {
+      const foodTiles = aggregateHeatmap(days, metric).tiles.filter((tile) => tile.kind === "food");
+      expect(foodTiles).toHaveLength(1);
+      expect(foodTiles[0]).toMatchObject({ label: "自制蛋白饼", value: expected[metric] });
+    });
+
+    expect(aggregateHeatmap(days, "kcal").tiles[0].details).toEqual([
+      { date: "2026-08-25", value: 75 },
+      { date: "2026-08-24", value: 150 }
+    ]);
+  });
+
   it("allocates treemap area in exact proportion to each absolute contribution", () => {
     const dataset = aggregateHeatmap([{
       date: "2026-08-25",

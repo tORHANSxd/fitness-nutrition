@@ -570,7 +570,7 @@ describe("meal solving", () => {
     expect(recommendedGap.fat).toBeLessThan(5);
   });
 
-  it("keeps vegetables present when a meal also has a large rice allowance", () => {
+  it("keeps vegetables present without overriding a large configured rice maximum", () => {
     const meals: MealPlan[] = [
       {
         id: "lunch",
@@ -586,12 +586,11 @@ describe("meal solving", () => {
     ];
     const result = buildNutritionResult({ ...profile, goalType: "maintain", weeklyWeightChangePct: 0 }, meals, builtinFoods);
     const recommended = result.mealRecommendations[0].recommendedEntries;
-    const totalGrams = recommended.rice + recommended.broccoli + recommended.chicken;
 
     expect(recommended.broccoli).toBeGreaterThanOrEqual(100);
     expect(recommended.chicken).toBeGreaterThanOrEqual(85);
-    expect(recommended.rice).toBeLessThanOrEqual(500);
-    expect(recommended.rice / totalGrams).toBeLessThanOrEqual(0.62);
+    expect(recommended.rice).toBeGreaterThan(500);
+    expect(recommended.rice).toBeLessThanOrEqual(650);
   });
 
   it("keeps normal animal protein servings in structured main meals", () => {
@@ -1088,6 +1087,72 @@ describe("meal solving", () => {
     const result = buildNutritionResult(profile, meals, builtinFoods);
     expect(result.recommendedTotals.kcal - result.dailyTarget.kcal).toBeGreaterThan(50);
     expect(result.conflicts.some((item) => item.includes("+50 上限"))).toBe(true);
+  });
+
+  it("uses the configured maximum grams as the only hard ceiling for two-meal plans", () => {
+    const foods: FoodItem[] = [
+      {
+        id: "pure-carb",
+        name: "纯碳水主食",
+        category: "主食",
+        kcalPer100g: 400,
+        carbsPer100g: 100,
+        proteinPer100g: 0,
+        fatPer100g: 0,
+        weightBasis: "cooked",
+        cookedRawRatio: null,
+        source: "user"
+      },
+      {
+        id: "pure-protein",
+        name: "纯蛋白食物",
+        category: "肉类",
+        kcalPer100g: 400,
+        carbsPer100g: 0,
+        proteinPer100g: 100,
+        fatPer100g: 0,
+        weightBasis: "cooked",
+        cookedRawRatio: null,
+        source: "user"
+      },
+      {
+        id: "pure-fat",
+        name: "纯脂肪食物",
+        category: "食物配料",
+        kcalPer100g: 900,
+        carbsPer100g: 0,
+        proteinPer100g: 0,
+        fatPer100g: 100,
+        weightBasis: "raw",
+        cookedRawRatio: null,
+        source: "user"
+      }
+    ];
+    const meals: MealPlan[] = ["lunch", "dinner"].map((mealId) => ({
+      id: mealId,
+      name: mealId === "lunch" ? "午餐" : "晚餐",
+      ratio: 0.5,
+      locked: false,
+      entries: [
+        { id: `${mealId}-carb`, foodId: "pure-carb", grams: 100, locked: false, minGrams: 0, maxGrams: 900 },
+        { id: `${mealId}-protein`, foodId: "pure-protein", grams: 50, locked: false, minGrams: 0, maxGrams: 200 },
+        { id: `${mealId}-fat`, foodId: "pure-fat", grams: 25, locked: false, minGrams: 0, maxGrams: 100 }
+      ]
+    }));
+
+    const result = buildNutritionResult(
+      { ...defaultProfile, targetKcal: 6000, proteinTargetG: 100, fatTargetG: 50, planDate: "2026-08-30" },
+      meals,
+      foods
+    );
+
+    const recommendedCarbGrams = meals.map(
+      (meal) =>
+        result.mealRecommendations.find((item) => item.mealId === meal.id)!.recommendedEntries[`${meal.id}-carb`]
+    );
+    expect(Math.max(...recommendedCarbGrams)).toBeGreaterThan(500);
+    expect(recommendedCarbGrams.every((grams) => grams <= 900)).toBe(true);
+    expect(Math.abs(result.recommendedRemaining.carbs)).toBeLessThanOrEqual(10);
   });
 
   it("no longer hard-locks protein powder or nuts at 30g in multi-food meals", () => {

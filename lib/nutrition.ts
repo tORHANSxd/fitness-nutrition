@@ -119,17 +119,6 @@ const comfortMaxMultipliers: Record<FoodCategory, number> = {
   食物配料: 1.15
 };
 
-const multiFoodHardMaxMultipliers: Record<FoodCategory, number> = {
-  主食: 3,
-  蔬菜: 2.1,
-  水果: 2.1,
-  肉类: 1.8,
-  补剂: 1,
-  坚果: 1.5,
-  食物配料: 1
-};
-
-const cookedMainMultiFoodHardMax = 500;
 const mealSoftKcalTolerance = 80;
 const mealSoftKcalToleranceRatio = 0.15;
 const usefulMealGramLimit = 850;
@@ -622,20 +611,6 @@ function mealDeviationScore(total: MacroTotals, target: MacroTotals) {
   }, 0);
 }
 
-function multiFoodHardMaxFor(food: FoodItem, portionRule: FoodPortionRule, boundsMax: number) {
-  // 补剂（含蛋白粉/食用油等）与坚果：不再施加“多食材内部硬上限”，直接沿用该食材自身上限
-  // （用户设置的 maxGrams 或分类默认 maxGrams），避免被死锁在远低于上限的份量、调不动
-  // （此前蛋白粉=30×1、坚果=20×1.5 都被硬锁在 30g）。过量仍由 comfortMax 软惩罚抑制——软不硬。
-  if (nonStructureCategories.has(food.category) || food.category === "坚果") {
-    return boundsMax;
-  }
-  const categoryMax = portionRule.defaultGrams * multiFoodHardMaxMultipliers[food.category];
-  if (food.category === "主食" && food.weightBasis === "cooked") {
-    return Math.min(categoryMax, cookedMainMultiFoodHardMax);
-  }
-  return categoryMax;
-}
-
 function macroFitScore(
   total: MacroTotals,
   target: MacroTotals,
@@ -792,21 +767,18 @@ function buildMealSolverModels(
 
   return baseModels.map(({ entry, food, bounds, portionRule }, index) => {
     // 宏量优先收尾时放开主食/蔬果/坚果/补剂等“填充类存在感下限”，让优化器能压低它们去贴近全天宏量；
-    // 但保留肉类的动物蛋白下限（主餐不出现迷你蛋白份量）与多食材结构上限（避免单一主食压过蔬菜/蛋白）。
+    // 但保留肉类的动物蛋白下限；多食材平衡只由软评分引导，不能覆盖条目的显式 maxGrams。
     const min = relaxFloors
       ? round(animalProteinFloors[index], 1)
       : round(clamp(bounds.min + (rawFloors[index] - bounds.min) * floorScale, bounds.min, bounds.max), 1);
-    const solverMax = protectsPresence
-      ? round(clamp(multiFoodHardMaxFor(food, portionRule, bounds.max), min, bounds.max), 1)
-      : bounds.max;
     return {
       meal,
       entry,
       food,
       min,
-      max: solverMax,
-      portionTarget: round(clamp(portionRule.defaultGrams, min, solverMax), 1),
-      comfortMax: round(clamp(portionRule.defaultGrams * comfortMaxMultipliers[food.category], min, solverMax), 1),
+      max: bounds.max,
+      portionTarget: round(clamp(portionRule.defaultGrams, min, bounds.max), 1),
+      comfortMax: round(clamp(portionRule.defaultGrams * comfortMaxMultipliers[food.category], min, bounds.max), 1),
       portionWeight: portionRule.softTargetWeight
     };
   });

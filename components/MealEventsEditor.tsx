@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { tutorialAction } from "@/lib/tutorial";
 import { FoodPickerDialog } from "@/components/FoodPickerDialog";
 import type { PlannerController } from "@/components/usePlanner";
 import { actualEntryTotals, confirmMealEvent, parseMealEvent } from "@/lib/actualIntake";
@@ -27,17 +28,17 @@ export function MealEventsEditor({ controller, actual, date, timeZone, hourCycle
     try {
       const event = parseMealEvent({ ...preview, startedAt: start ? localInstant(date, start, timeZone).toString() : undefined, endedAt: end ? localInstant(addDays(date, nextDay ? 1 : 0), end, timeZone).toString() : undefined });
       if (!event.actualFoodEntries.length && !event.note?.trim()) throw new Error("未填写食物时，请填写事件名称或简短说明。");
-      if (await onSave({ ...actual, intakeComplete: false, mealEvents: [...actual.mealEvents.filter((e) => e.id !== event.id), event] })) setPreview(null);
+      if (await onSave({ ...actual, intakeComplete: false, mealEvents: [...actual.mealEvents.filter((e) => e.id !== event.id), event] })) { setPreview(null); tutorialAction("intake-saved"); }
     } catch (e) { setError(e instanceof Error ? e.message : "进食事件无效。"); }
   }
 
   return <div className="space-y-4 border-b border-line p-4">
-    <div className="flex flex-wrap gap-2">{controller.meals.map((meal) => <button key={meal.id} type="button" className="btn-secondary" disabled={disabled || !meal.entries.length} onClick={() => {
-      try { setPreview(confirmMealEvent(meal, controller.foodsById, { id: crypto.randomUUID(), timeZone })); setStart(""); setEnd(""); setNextDay(false); setError(""); } catch (e) { setError(e instanceof Error ? e.message : "无法复制该餐。"); }
+    <div className="flex flex-wrap gap-2" data-tour="intake-start">{controller.meals.map((meal) => <button key={meal.id} type="button" className="btn-secondary" disabled={disabled || !meal.entries.length} onClick={() => {
+      try { setPreview(confirmMealEvent(meal, controller.foodsById, { id: crypto.randomUUID(), timeZone })); setStart(""); setEnd(""); setNextDay(false); setError(""); tutorialAction("intake-opened"); } catch (e) { setError(e instanceof Error ? e.message : "无法复制该餐。"); }
     }}>{meal.name}按计划吃了</button>)}
-    <button type="button" className="btn-primary" disabled={disabled} onClick={() => { setPreview({ id: crypto.randomUUID(), timeZone, actualFoodEntries: [], entryMethod: "measured", containsCalories: true }); setStart(""); setEnd(""); setNextDay(false); setError(""); }}>记录食物或饮料</button></div>
+    <button type="button" className="btn-primary" disabled={disabled} onClick={() => { setPreview({ id: crypto.randomUUID(), timeZone, actualFoodEntries: [], entryMethod: "measured", containsCalories: true }); setStart(""); setEnd(""); setNextDay(false); setError(""); tutorialAction("intake-opened"); }}>记录食物或饮料</button></div>
     {actual.legacyActual && <p className="text-sm text-muted">已保留原有全天记录，请勿重复添加其中的食物。</p>}
-    {preview && <div className="space-y-3 rounded border border-line p-3" role="region" aria-label="实际进食确认预览">
+    {preview && <div className="space-y-3 rounded border border-line p-3" role="region" aria-label="实际进食确认预览" data-tour="intake-editor">
       <h4 className="font-semibold">确认实际分量与时间</h4>
       <div className="grid gap-3 sm:grid-cols-3">
         <label className="text-sm">实际开始（可空）<input type="time" className="field mt-1 w-full" value={start} onChange={(e) => setStart(e.target.value)} /></label>

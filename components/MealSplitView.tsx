@@ -2,6 +2,8 @@
 import {
   Check,
   Copy,
+  Lock,
+  LockOpen,
   MoreHorizontal,
   Plus,
   Save,
@@ -12,6 +14,7 @@ import {
 import { useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { Dialog } from "@/components/Dialog";
+import { tutorialAction } from "@/lib/tutorial";
 import { FoodPickerDialog } from "@/components/FoodPickerDialog";
 import { MealLayoutEditor } from "@/components/MealLayoutEditor";
 import { NumericInput } from "@/components/NumericInput";
@@ -70,6 +73,7 @@ export function MealSplitView({
     if (picker === "add") {
       if (customFood) c.addCustomFoodToMeal(meal.id, customFood);
       else c.addFoodToMeal(meal.id, food.id);
+      tutorialAction("food-added");
     } else
       c.updateEntry(meal.id, picker, (entry) => ({
         ...entry,
@@ -127,7 +131,8 @@ export function MealSplitView({
           <button
             className="btn-primary"
             type="button"
-            onClick={() => void c.persistPlan()}
+            data-tour="plan-save"
+            onClick={async () => { if (await c.persistPlan()) tutorialAction("plan-saved"); }}
             disabled={c.saving}
           >
             <Save size={15} />
@@ -173,19 +178,32 @@ export function MealSplitView({
       </div>
       {meal && (
         <div className="p-4 sm:p-5">
-          <div className="mb-3 flex items-center justify-between gap-3">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm text-muted">
               {meal.entries.length} 项食物
-              {meal.locked ? " · 已固定整餐分量" : ""}
             </p>
+            <div className="flex items-center gap-2">
+            <button
+              className={`portion-lock meal-lock ${meal.locked ? "is-locked" : ""}`}
+              type="button"
+              data-tour="meal-lock"
+              aria-pressed={meal.locked}
+              title={meal.locked ? "已锁定，自动调整会保留整餐分量；点击解锁" : "锁定后，自动调整会保留整餐分量"}
+              onClick={() => { c.updateMeal(meal.id, m => ({ ...m, locked: !m.locked })); tutorialAction("meal-lock-changed"); }}
+            >
+              {meal.locked ? <Lock size={16} /> : <LockOpen size={16} />}
+              锁定整餐
+            </button>
             <button
               className="btn-primary"
               type="button"
+              data-tour="meal-add"
               onClick={() => setPicker("add")}
             >
               <Plus size={17} />
               添加食物
             </button>
+            </div>
           </div>
           {meal.entries.length ? (
             <div className="divide-y divide-line">
@@ -193,6 +211,7 @@ export function MealSplitView({
                 <FoodEntryRow
                   key={entry.id}
                   entry={entry}
+                  mealLocked={meal.locked}
                   food={resolveMealFood(entry, c.foodsById).food}
                   energyUnit={energyUnit}
                   onChange={(mapper) =>
@@ -221,19 +240,6 @@ export function MealSplitView({
               本餐设置
             </summary>
             <div className="mt-3 flex flex-wrap items-center gap-3">
-              <label className="check-label">
-                <input
-                  type="checkbox"
-                  checked={meal.locked}
-                  onChange={(e) =>
-                    c.updateMeal(meal.id, (m) => ({
-                      ...m,
-                      locked: e.target.checked,
-                    }))
-                  }
-                />
-                调整分量时保持整餐不变
-              </label>
               <button
                 className="btn-secondary"
                 type="button"
@@ -565,6 +571,7 @@ function CopyPreview({
 
 function FoodEntryRow({
   entry,
+  mealLocked,
   food,
   energyUnit,
   onChange,
@@ -572,6 +579,7 @@ function FoodEntryRow({
   onDelete,
 }: {
   entry: MealFoodEntry;
+  mealLocked: boolean;
   food: FoodItem | null;
   energyUnit: EnergyUnit;
   onChange: (mapper: (entry: MealFoodEntry) => MealFoodEntry) => void;
@@ -616,20 +624,33 @@ function FoodEntryRow({
         </button>
       </div>
       <div className="food-entry-values">
-        <label className="flex items-center gap-2">
+        <div className="food-amount-control" data-tour="food-amount">
           <NumericInput
-            className="field w-28"
+            className="field w-24"
             label={`${name}克重`}
             aria-label={`${name}克重`}
             min={0}
             required
             value={entry.grams}
-            onValueChange={(value) =>
-              onChange((e) => ({ ...e, grams: value as number, locked: true }))
-            }
+            onValueChange={(value) => {
+              onChange((e) => ({ ...e, grams: value as number, locked: true }));
+              tutorialAction("food-weight-changed");
+            }}
           />
           <span className="text-xs text-muted">g</span>
-        </label>
+          <button
+            type="button"
+            className={`portion-lock ${mealLocked || entry.locked ? "is-locked" : ""}`}
+            data-tour="food-lock"
+            aria-label={`锁定${name}分量`}
+            aria-pressed={mealLocked || entry.locked}
+            disabled={mealLocked}
+            title={mealLocked ? "整餐已锁定，请先解锁整餐" : entry.locked ? "已锁定分量；点击允许自动调整" : "点击锁定，自动调整会保留这项分量"}
+            onClick={() => { onChange(v => ({ ...v, locked: !v.locked })); tutorialAction("food-lock-changed"); }}
+          >
+            {mealLocked || entry.locked ? <Lock size={17} /> : <LockOpen size={17} />}
+          </button>
+        </div>
         <div className="min-w-0 text-right">
           <strong className="text-base tabular-nums">
             {food ? round(displayEnergy(total.kcal, energyUnit), 1) : "—"}{" "}
@@ -702,19 +723,9 @@ function FoodEntryRow({
       </div>
       <details className="mt-2 text-xs text-muted">
         <summary className="cursor-pointer py-1">
-          分量设置{entry.locked ? " · 已固定" : ""}
+          分量范围
         </summary>
         <div className="mt-2 flex flex-wrap items-center gap-3">
-          <label className="check-label">
-            <input
-              type="checkbox"
-              checked={entry.locked}
-              onChange={(e) =>
-                onChange((v) => ({ ...v, locked: e.target.checked }))
-              }
-            />
-            调整分量时保持不变
-          </label>
           <label className="flex items-center gap-1">
             最少
             <NumericInput

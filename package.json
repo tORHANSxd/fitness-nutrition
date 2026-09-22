@@ -11,6 +11,7 @@
     "test:db": "vitest run --config vitest.integration.config.mts",
     "test:e2e": "playwright test",
     "test:e2e:tre": "playwright test --config playwright.tre.config.ts",
+    "test:e2e:tutorial": "playwright test --config playwright.tutorial.config.ts",
     "test:e2e:a11y": "playwright test --grep @a11y",
     "db:verify-history": "node scripts/verify-migration-history.mjs",
     "db:verify-migrations": "node scripts/verify-migration-history.mjs",

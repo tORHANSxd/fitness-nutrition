@@ -610,6 +610,8 @@ CREATE TABLE IF NOT EXISTS "public"."profiles" (
     "height_cm" numeric(6,2),
     "starting_weight_kg" numeric(6,2),
     "preferences" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
+    "tutorial_seen_version" integer DEFAULT 0 NOT NULL CHECK (tutorial_seen_version >= 0),
+    "tutorial_every_visit" boolean DEFAULT false NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "locale" "text",

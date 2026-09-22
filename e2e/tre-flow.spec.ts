@@ -44,6 +44,7 @@ for (const mode of [
     await expect(
       page.getByText("称重 200 g → 可食 118 g", { exact: true }),
     ).toBeVisible();
+    await page.getByRole("button", { name: "锁定整餐", exact: true }).click();
     await page.getByRole("button", { name: "保存计划", exact: true }).click();
     const state = async () =>
       (await request.get(fixture + "/fixture/state")).json();
@@ -54,6 +55,8 @@ for (const mode of [
       )
       .toBe(59);
     await page.reload();
+    await expect(page.getByLabel("香蕉［甘蕉］克重", { exact: true })).toHaveValue("200");
+    await expect(page.getByRole("button", { name: "锁定整餐", exact: true })).toHaveAttribute("aria-pressed", "true");
     await expect(page.getByLabel("换算可食部", { exact: true })).toBeChecked();
     await page
       .getByRole("button", { name: "删除香蕉［甘蕉］", exact: true })

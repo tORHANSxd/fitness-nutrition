@@ -6,6 +6,7 @@ import { loadPlanProtocols, protocolSchemaReady } from "@/lib/protocolStorage";
 import type { AppPreferences } from "@/lib/preferences";
 import type { MealEvent, PlanProtocol } from "@/lib/types";
 import { NutritionGoalPanel } from "@/components/NutritionGoalPanel";
+import { tutorialAction } from "@/lib/tutorial";
 
 export function PlanProtocolPanel({
   controller,
@@ -54,6 +55,7 @@ export function PlanProtocolPanel({
         protocols={protocols}
         ready={ready}
         onApplied={(saved) => {
+          tutorialAction("goal-saved");
           controller.applyProtocol?.(saved);
           setProtocols((rows) => [
             ...rows.filter((p) => p.id !== saved.id),

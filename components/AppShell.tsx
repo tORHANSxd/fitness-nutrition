@@ -15,6 +15,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { BrandMark } from "@/components/BrandMark";
+import { TutorialButton, TutorialProvider } from "@/components/Tutorial";
 import { FoodShortcutsProvider } from "@/components/FoodShortcuts";
 import { useApp } from "@/components/app/AppProvider";
 import { useZonedToday } from "@/hooks/useZonedToday";
@@ -57,6 +58,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           ? "同步中…"
           : "数据已连接";
   return (
+    <TutorialProvider user={user} ready={!loadingFoods}>
     <FoodShortcutsProvider key={user.id} userId={user.id}>
       <div className="app-frame min-h-dvh lg:pl-[224px]">
         <a className="skip-link" href="#main-content">
@@ -105,6 +107,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             ))}
           </nav>
           <div className="mt-auto border-t border-line pt-4">
+            <TutorialButton />
             <p className="truncate px-3 text-xs text-muted">{user.email}</p>
             <p className="px-3 py-2 text-xs text-muted" role="status">
               {syncLabel}
@@ -139,9 +142,12 @@ export function AppShell({ children }: { children: ReactNode }) {
             <BrandMark size={28} />
             {activeItem.label}
           </Link>
+          <div className="flex items-center gap-1">
+          <TutorialButton compact />
           <Link className="icon-button" href="/settings" aria-label="偏好设置">
             <Settings2 size={19} />
           </Link>
+          </div>
         </header>
         <main
           id="main-content"
@@ -179,5 +185,6 @@ export function AppShell({ children }: { children: ReactNode }) {
         </nav>
       </div>
     </FoodShortcutsProvider>
+    </TutorialProvider>
   );
 }

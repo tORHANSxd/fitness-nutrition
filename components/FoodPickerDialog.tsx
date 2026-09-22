@@ -150,6 +150,7 @@ export function FoodPickerDialog({ open, foods, energyUnit = "kcal", currentFood
       ref={dialogRef}
       tabIndex={-1}
       role="dialog"
+      data-tour="food-picker"
       aria-modal="true"
       aria-label={title}
       onClick={onClose}

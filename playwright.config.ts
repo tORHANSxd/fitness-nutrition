@@ -4,7 +4,7 @@ const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3200";
 
 export default defineConfig({
   testDir: "./e2e",
-  testIgnore: ["tre-flow.spec.ts", "nutrition-goals.spec.ts", "custom-meals.spec.ts"],
+  testIgnore: ["tre-flow.spec.ts", "nutrition-goals.spec.ts", "custom-meals.spec.ts", "tutorial.spec.ts"],
   outputDir: "./artifacts/playwright-results",
   fullyParallel: true,
   retries: process.env.CI ? 2 : 0,

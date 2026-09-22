@@ -394,7 +394,7 @@ describe("MealSplitView（分餐单独页含应用推荐/保存计划 + 弹出�
 
     render(<MealSplitView controller={controller} foods={builtinFoods} templates={templates} />);
 
-    expect(screen.getByText("3 项食物 · 已固定整餐分量")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "锁定整餐" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "调整分量" })).toBeDisabled();
   });
 

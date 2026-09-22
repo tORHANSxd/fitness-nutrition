@@ -377,6 +377,7 @@ export function FoodLibrary({
           <button
             className="btn-primary"
             type="button"
+            data-tour="food-create"
             onClick={() => {
               cancelEdit();
               setFormOpen(true);

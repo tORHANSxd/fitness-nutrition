@@ -10,6 +10,7 @@ artifacts/playwright-tre-report/
 artifacts/playwright-tre-results/
 artifacts/tre-e2e-run.log
 artifacts/visual-qa/
+artifacts/tutorial/
 test-results/
 .verification/
 .env

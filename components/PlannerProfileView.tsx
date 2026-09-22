@@ -48,6 +48,16 @@ export function PlannerProfileView({ controller, timeZone = DEFAULT_TIME_ZONE, u
   const { profile, updateProfile, result, meals, message } = controller;
   const energyLabel = energyUnit === "kj" ? "kJ" : "kcal";
   const energyValue = (value: number) => displayEnergy(value, energyUnit);
+  if (profile.targetMode === "calibrated") return <section className="panel space-y-3 p-4">
+    <h3 className="text-lg font-semibold">已生效目标与计划食物合计</h3>
+    <p className="text-sm text-muted">目标来自已确认协议。新体测仅更新测量，不改写固定目标和历史快照。</p>
+    <DailyBalancePanel actual={result.actualTotals} recommended={result.recommendedTotals} target={result.dailyTarget} energyUnit={energyUnit} />
+    <p className="text-xs text-muted">RMR / TDEE：{result.targetResolution
+      ? `${result.targetResolution.expenditure.rmrKcal == null ? "未使用" : Math.round(energyValue(result.targetResolution.expenditure.rmrKcal))} / ${result.targetResolution.expenditure.tdeeKcal == null ? "未使用" : Math.round(energyValue(result.targetResolution.expenditure.tdeeKcal))} ${energyLabel}（协议冻结来源）`
+      : result.estimatesAvailable ? `${Math.round(energyValue(result.bmr))} / ${Math.round(energyValue(result.tdee))} ${energyLabel}（估计）` : "资料不足，未知；不影响固定目标"}。</p>
+    <p className="text-xs text-muted">数值差额始终保留。颜色容忍带为工程显示参数（能量 50 kcal、宏量 5 g），不表示测量精度或吃得越少越好。</p>
+    {message && <p role="status" className="text-sm">{message}</p>}
+  </section>;
 
   return (
     <section className="planner-profile-view animate-fade-up space-y-5">
@@ -131,7 +141,7 @@ function DailyBalancePanel({ actual, recommended, target, energyUnit }: DailyBal
     <div className="rounded-lg border border-line bg-panel/60 p-3">
       <div className="mb-2.5 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <h3 className="text-xs font-semibold text-ink">热量 &amp; 营养素盈亏</h3>
-        <span className="text-[10px] text-muted">摄入 / 目标</span>
+        <span className="text-[10px] text-muted">计划食物 / 目标</span>
       </div>
       <div className="planner-balance-grid gap-2">
         <DailyBalanceCard actual={displayEnergy(actual.kcal, energyUnit)} label="热量" recommended={displayEnergy(recommended.kcal, energyUnit)} target={displayEnergy(target.kcal, energyUnit)} unit={energyLabel} />
@@ -162,7 +172,7 @@ function DailyBalanceCard({
         <span className="metric-label">{label}</span>
         <span className="whitespace-nowrap text-right text-[10px] tabular-nums text-muted">目标 {round(target, unit === "kcal" || unit === "kJ" ? 0 : 1)} {unit}</span>
       </div>
-      <DailyBalanceBar label="当前" target={target} unit={unit} value={actual} />
+      <DailyBalanceBar label="计划合计" target={target} unit={unit} value={actual} />
       <DailyBalanceBar label="推荐后" target={target} unit={unit} value={recommended} />
     </div>
   );
@@ -184,7 +194,8 @@ function DailyBalanceBar({
   const isSurplus = balance < 0;
   const roundedDigits = unit === "kcal" || unit === "kJ" ? 0 : 1;
   const balanceLabel = isSurplus ? "盈" : "亏";
-  const barColor = isSurplus ? "bg-rose" : "bg-accent";
+  const beyondTolerance = Math.abs(balance) > (unit === "kcal" ? 50 : unit === "kJ" ? 209.2 : 5);
+  const barColor = isSurplus && beyondTolerance ? "bg-rose" : "bg-accent";
 
   return (
     <div className="mt-3">
@@ -193,7 +204,7 @@ function DailyBalanceBar({
         <span className="whitespace-nowrap text-right tabular-nums text-ink">
           {round(value, roundedDigits)} {unit} · {round(ratio, 0)}%
         </span>
-        <span className={`col-start-2 whitespace-nowrap text-right tabular-nums font-semibold ${isSurplus ? "text-danger" : "text-accent-text"}`}>
+        <span className={`col-start-2 whitespace-nowrap text-right tabular-nums font-semibold ${isSurplus && beyondTolerance ? "text-danger" : "text-accent-text"}`}>
           {balanceLabel} {round(Math.abs(balance), roundedDigits)} {unit}
         </span>
       </div>

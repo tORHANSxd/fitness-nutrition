@@ -4,6 +4,7 @@ const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3200";
 
 export default defineConfig({
   testDir: "./e2e",
+  testIgnore: ["tre-flow.spec.ts", "nutrition-goals.spec.ts", "custom-meals.spec.ts"],
   outputDir: "./artifacts/playwright-results",
   fullyParallel: true,
   retries: process.env.CI ? 2 : 0,
@@ -25,6 +26,7 @@ export default defineConfig({
         command: "npm run dev -- --hostname 127.0.0.1 --port 3200",
         url: baseURL,
         reuseExistingServer: !process.env.CI,
+        env: { NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321", NEXT_PUBLIC_SUPABASE_ANON_KEY: "your-anon-key", NEXT_TELEMETRY_DISABLED: "1" },
         timeout: 120_000
       }
 });

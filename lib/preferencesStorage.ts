@@ -9,7 +9,7 @@ const preferenceColumns = "locale,time_zone,time_zone_mode,week_starts_on,unit_s
 export async function loadProfilePreferences(user: User): Promise<{ preferences: AppPreferences; needsInitialization: boolean }> {
   const supabase = getSupabaseClient();
   if (!supabase) {
-    throw new Error("Supabase is not configured");
+    throw new Error("设置服务暂不可用，请稍后重试。");
   }
 
   const detected = defaultPreferences({ language: navigator.language, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
@@ -32,7 +32,7 @@ export async function loadProfilePreferences(user: User): Promise<{ preferences:
 export async function saveProfilePreferences(user: User, preferences: AppPreferences): Promise<AppPreferences> {
   const supabase = getSupabaseClient();
   if (!supabase) {
-    throw new Error("Supabase is not configured");
+    throw new Error("设置服务暂不可用，请稍后重试。");
   }
 
   const { data, error } = await supabase

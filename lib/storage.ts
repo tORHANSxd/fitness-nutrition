@@ -7,7 +7,6 @@ import { calculateFoodKcalPer100g } from "@/lib/nutrition";
 import {
   DAILY_PLAN_SCHEMA_VERSION,
   NUTRITION_ALGORITHM_VERSION,
-  PLANNER_DRAFT_SCHEMA_VERSION,
   normalizeNutritionResult,
   normalizeUserProfile,
   parseDailyCheckinActual,
@@ -18,6 +17,7 @@ import {
 } from "@/lib/storageDocuments";
 import { foodToOverrideRow, foodToRow, getSupabaseClient, mapFoodOverrideRow, mapFoodRow, mapPlanRow } from "@/lib/supabase";
 import { dayTemplateFromRow, mealTemplateFromRow } from "@/lib/templates";
+import { mealMetadata, planDocumentVersion } from "@/lib/planProtocol";
 import type {
   DailyCheckin,
   DailyCheckinActual,
@@ -41,7 +41,7 @@ import type {
 // 由 AppShell 的登录门禁兜底引导。与 lib/trainingStorage.ts 保持一致。
 export class StorageAuthError extends Error {
   constructor() {
-    super("该功能需要登录后使用（数据仅保存在 Supabase 云端）。");
+    super("请先登录，再保存或查看你的记录。");
     this.name = "StorageAuthError";
   }
 }
@@ -57,6 +57,7 @@ function requireClient(user: User | null) {
 function mapDailyCheckinRow(row: Record<string, unknown>): DailyCheckin {
   const planDate = String(row.plan_date);
   return {
+    revision: row.revision == null ? undefined : Number(row.revision),
     id: String(row.id),
     planDate,
     actual: parseDailyCheckinActual(row.actual, row, planDate),
@@ -74,7 +75,7 @@ const foodOverrideColumns = "user_id,base_food_id,name,category,kcal_per_100g,fa
 const planColumns = "id,plan_date,profile,meals,result,created_at,updated_at,schema_version,algorithm_version,integrity_flags";
 const planSummaryColumns = "id,plan_date,created_at,updated_at,integrity_flags,training_time:profile->>trainingTime,daily_target:result->dailyTarget,actual_totals:result->actualTotals";
 const heatmapPlanColumns = "id,plan_date,profile,meals,schema_version,algorithm_version,integrity_flags,bmr:result->bmr,daily_target:result->dailyTarget";
-const checkinColumns = "id,plan_date,actual,target,completed,created_at,updated_at,vegetable_grams,water_liters,steps,post_workout_carbs,post_workout_protein,sleep_hours,hunger_level,mood_level";
+const checkinColumns = "*";
 
 // ---------------------------------------------------------------------------
 // 分餐草稿优先存 planner_drafts；migration 尚未部署时兼容读写
@@ -138,15 +139,16 @@ export async function savePlannerDraft(
     [...builtinFoods, ...customFoodsFromMeals(meals), ...(options.foods ?? [])].map((food) => [food.id, food]),
   );
   const snapshotMeals = parseMeals(attachFoodSnapshots(meals, foodsById));
+  const schemaVersion = planDocumentVersion(profileDocument, snapshotMeals);
   const expectedRevision = options.expectedRevision && options.expectedRevision > 0
     ? options.expectedRevision
     : null;
   const force = options.force ?? expectedRevision == null;
-  const { data, error } = await supabase.rpc("save_planner_draft_v2", {
+  const { data, error } = await supabase.rpc(schemaVersion === 3 ? "save_planner_draft_v3" : "save_planner_draft_v2", {
     p_plan_date: profileDocument.planDate,
     p_profile_snapshot: profileDocument,
     p_meals: snapshotMeals,
-    p_schema_version: PLANNER_DRAFT_SCHEMA_VERSION,
+    p_schema_version: schemaVersion,
     p_expected_revision: expectedRevision,
     p_force: force,
   });
@@ -159,13 +161,14 @@ export async function savePlannerDraft(
       meals: snapshotMeals,
       updatedAt: String(row.updated_at ?? ""),
       revision: Number(row.revision),
-      schemaVersion: PLANNER_DRAFT_SCHEMA_VERSION,
+      schemaVersion,
     };
   }
   if (/draft_conflict/i.test(String(error.message)) || String(error.code) === "40001") {
     throw new PlannerDraftConflictError();
   }
   if (!isMissingStorageSchema(error)) throw error;
+  if (schemaVersion === 3) throw new Error("新版本数据库迁移尚未就绪，未保存新草稿。旧数据仍保留。");
 
   const updatedAt = new Date().toISOString();
   const { data: existing, error: readError } = await supabase
@@ -289,10 +292,10 @@ function plannerTemplateToRow(template: PlannerTemplate, userId: string) {
   let payload: Record<string, unknown>;
   if ("foods" in template) {
     templateType = "meal";
-    payload = { version: 3, foods: template.foods };
+    payload = { version: template.schedule || template.targetAllocation || template.kind ? 4 : 3, foods: template.foods, ...mealMetadata(template) };
   } else {
     templateType = "day";
-    payload = { version: 3, meals: template.meals };
+    payload = { version: template.includesMealLayout || template.meals.some((meal) => meal.schedule || meal.kind || meal.targetAllocation) ? 4 : 3, meals: template.meals, ...(template.includesMealLayout ? { includesMealLayout: true } : {}) };
   }
   const document = { templateType, name: template.name, payload };
   return {
@@ -301,7 +304,7 @@ function plannerTemplateToRow(template: PlannerTemplate, userId: string) {
     template_type: templateType,
     name: template.name,
     payload,
-    schema_version: 3,
+    schema_version: payload.version,
     fingerprint: templateFingerprint(document),
   };
 }
@@ -602,8 +605,8 @@ export async function savePlan(
         profile: profileDocument,
         meals: snapshotMeals,
         result: resultDocument,
-        schema_version: DAILY_PLAN_SCHEMA_VERSION,
-        algorithm_version: NUTRITION_ALGORITHM_VERSION,
+        schema_version: planDocumentVersion(profileDocument, snapshotMeals),
+        algorithm_version: profileDocument.protocolSnapshot?.nutrition?.result.algorithmVersion ?? NUTRITION_ALGORITHM_VERSION,
         integrity_flags: integrityFlags,
       },
       { onConflict: "user_id,plan_date" }
@@ -739,7 +742,7 @@ export async function loadHeatmapPlanInputs(user: User | null, fromDate: string,
     const bmr = Number(row.bmr);
     const dailyTarget = parseMacroTotals(row.daily_target);
     const schemaVersion = Number(row.schema_version ?? 1);
-    if (!Number.isFinite(bmr) || !dailyTarget || (schemaVersion !== 1 && schemaVersion !== DAILY_PLAN_SCHEMA_VERSION)) {
+    if (!Number.isFinite(bmr) || !dailyTarget || ![1, 2, DAILY_PLAN_SCHEMA_VERSION].includes(schemaVersion)) {
       throw new Error(`热力图计划 ${String(row.plan_date)} 格式无效。`);
     }
     return {
@@ -779,6 +782,7 @@ export async function completeDailyRecord(
   target: MacroTotals,
   user: User | null,
   foods: FoodItem[] = [],
+  expectedRevision?: number,
 ): Promise<DailyCheckin> {
   const { supabase } = requireClient(user);
   const profileDocument = normalizeUserProfile(profile);
@@ -790,13 +794,15 @@ export async function completeDailyRecord(
     [...builtinFoods, ...customFoodsFromMeals(meals), ...foods].map((food) => [food.id, food]),
   );
   const snapshotMeals = parseMeals(attachFoodSnapshots(meals, foodsById));
-  const { data, error } = await supabase.rpc("complete_daily_record_v2", {
+  const isV3 = actualDocument.version === 3 || planDocumentVersion(profileDocument, snapshotMeals) === 3 || expectedRevision != null;
+  const { data, error } = await supabase.rpc(isV3 ? "complete_daily_record_v3" : "complete_daily_record_v2", {
+    ...(isV3 ? { p_expected_revision: expectedRevision ?? null } : {}),
     p_plan_date: profileDocument.planDate,
     p_profile: profileDocument,
     p_meals: snapshotMeals,
     p_result: resultDocument,
-    p_plan_schema_version: DAILY_PLAN_SCHEMA_VERSION,
-    p_algorithm_version: NUTRITION_ALGORITHM_VERSION,
+    p_plan_schema_version: planDocumentVersion(profileDocument, snapshotMeals),
+    p_algorithm_version: profileDocument.protocolSnapshot?.nutrition?.result.algorithmVersion ?? NUTRITION_ALGORITHM_VERSION,
     p_integrity_flags: unresolvedFoodFlags(snapshotMeals, foodsById),
     p_actual: actualDocument,
     p_target: targetDocument,
@@ -852,6 +858,14 @@ export async function saveDailyCheckin(
   const actual = parseDailyCheckinActual(checkin.actual, {}, checkin.planDate);
   const target = checkin.target == null ? null : parseMacroTotals(checkin.target);
   if (checkin.target != null && !target) throw new Error("每日目标格式无效。");
+  if (actual.version === 3 || checkin.revision != null) {
+    const { data, error } = await supabase.rpc("save_daily_actual_v3", { p_plan_date: checkin.planDate, p_actual: actual, p_target: target, p_completed: checkin.completed, p_expected_revision: checkin.revision ?? null });
+    if (error) {
+      if (error.code === "40001") throw new Error("实际记录已在另一处修改，请重新载入后再保存。");
+      throw error;
+    }
+    return mapDailyCheckinRow(data as Record<string, unknown>);
+  }
   const { data, error } = await supabase
     .from("daily_checkins")
     .upsert({

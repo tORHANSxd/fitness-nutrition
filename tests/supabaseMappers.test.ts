@@ -43,7 +43,7 @@ describe("workout session JSON documents", () => {
   });
 
   it("rejects unsupported or damaged sets documents", () => {
-    const row = { id: "session-1", session_date: "2026-08-26", split_label: "腿", created_at: "", sets: { version: 2, sets: [] } };
+    const row = { id: "session-1", session_date: "2026-08-26", split_label: "腿", created_at: "", sets: { version: 99, sets: [] } };
     expect(() => mapWorkoutSessionRow(row)).toThrow("不支持的训练组文档版本");
   });
 });

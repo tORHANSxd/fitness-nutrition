@@ -1,16 +1,44 @@
 "use client";
 
 import type { User } from "@supabase/supabase-js";
-import { Archive, Copy, Download, Pencil, Plus, RotateCcw, Save, Search, Upload, X } from "lucide-react";
+import {
+  Archive,
+  Copy,
+  Download,
+  Pencil,
+  Plus,
+  RotateCcw,
+  Save,
+  Search,
+  Upload,
+} from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { foodCategories, type FoodFormState, type FoodItem } from "@/lib/types";
-import { deleteFood, importUserFoods, loadArchivedFoods, restoreFood, saveFood } from "@/lib/storage";
-import { sortFoods } from "@/lib/foods";
-import { calculateFoodKcalPer100g, getFoodEnergyMismatch, round, weightBasisLabel } from "@/lib/nutrition";
+import {
+  deleteFood,
+  importUserFoods,
+  loadArchivedFoods,
+  restoreFood,
+  saveFood,
+} from "@/lib/storage";
+import { selectableFoodCatalog } from "@/lib/foodCatalog";
+import { Dialog } from "@/components/Dialog";
+import {
+  calculateFoodKcalPer100g,
+  round,
+  weightBasisLabel,
+} from "@/lib/nutrition";
 import { csvToFoodForms, foodsToCsv, jsonToFoodForms } from "@/lib/dataIO";
 import { displayEnergy, type EnergyUnit } from "@/lib/preferences";
-import { NumericDraftNotice, NumericDraftProvider, NumericInput, useNumericDraftForm } from "@/components/NumericInput";
+import {
+  NumericDraftNotice,
+  NumericDraftProvider,
+  NumericInput,
+  useNumericDraftForm,
+} from "@/components/NumericInput";
 import { roundForStorage } from "@/lib/numericInput";
+import { matchesFoodSearch } from "@/lib/chinaFoodComposition";
+import { FoodPagination, useFoodPage } from "@/components/FoodPagination";
 
 interface FoodLibraryProps {
   foods: FoodItem[];
@@ -25,18 +53,12 @@ type SourceFilter = "all" | "public" | "user";
 const emptyForm: FoodFormState = {
   name: "",
   category: "主食",
-  kcalPer100g: 130,
-  fatPer100g: 0.21,
-  carbsPer100g: 28.59,
-  proteinPer100g: 2.38,
-  weightBasis: "cooked",
-  cookedRawRatio: 2.5
-};
-
-const severityBadge: Record<"ok" | "warn" | "error", { label: string; cls: string } | null> = {
-  ok: null,
-  warn: { label: "能量偏差", cls: "border-amber/40 bg-amber/10 text-warning" },
-  error: { label: "能量不符", cls: "border-rose/40 bg-rose/10 text-danger" }
+  kcalPer100g: 0,
+  fatPer100g: 0,
+  carbsPer100g: 0,
+  proteinPer100g: 0,
+  weightBasis: "none",
+  cookedRawRatio: null,
 };
 
 function downloadFile(filename: string, content: string, mime: string) {
@@ -49,13 +71,22 @@ function downloadFile(filename: string, content: string, mime: string) {
   URL.revokeObjectURL(url);
 }
 
-export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated, energyUnit = "kcal" }: FoodLibraryProps) {
+export function FoodLibrary({
+  foods,
+  user,
+  onFoodsChanged,
+  onFoodsUpdated,
+  energyUnit = "kcal",
+}: FoodLibraryProps) {
   const numericDraftForm = useNumericDraftForm();
   const [form, setForm] = useState<FoodFormState>(emptyForm);
   const [search, setSearch] = useState("");
-  const [activeCategories, setActiveCategories] = useState<Set<FoodItem["category"]>>(new Set());
+  const [activeCategories, setActiveCategories] = useState<
+    Set<FoodItem["category"]>
+  >(new Set());
   const energyLabel = energyUnit === "kj" ? "kJ" : "kcal";
-  const energyValue = (kcal: number) => round(displayEnergy(kcal, energyUnit), 1);
+  const energyValue = (kcal: number) =>
+    round(displayEnergy(kcal, energyUnit), 1);
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -63,9 +94,14 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated, energ
   const [archivedFoods, setArchivedFoods] = useState<FoodItem[]>([]);
   const [archivedLoading, setArchivedLoading] = useState(false);
   const [editingFood, setEditingFood] = useState<FoodItem | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
+  const [archivedId, setArchivedId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const formKcalPer100g = calculateFoodKcalPer100g(form);
-  const libraryFoods = showArchived ? archivedFoods : foods;
+  const libraryFoods = useMemo(
+    () => selectableFoodCatalog(showArchived ? archivedFoods : foods),
+    [showArchived, archivedFoods, foods],
+  );
 
   useEffect(() => {
     if (!showArchived || !user) return;
@@ -76,7 +112,10 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated, energ
         if (!cancelled) setArchivedFoods(items);
       })
       .catch((error) => {
-        if (!cancelled) setMessage(error instanceof Error ? error.message : "归档食物加载失败。");
+        if (!cancelled)
+          setMessage(
+            error instanceof Error ? error.message : "归档食物加载失败。",
+          );
       })
       .finally(() => {
         if (!cancelled) setArchivedLoading(false);
@@ -86,30 +125,10 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated, energ
     };
   }, [showArchived, user]);
 
-  // 重复检测：按小写名出现次数。
-  const duplicateNames = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const food of libraryFoods) {
-      const key = food.name.trim().toLowerCase();
-      counts.set(key, (counts.get(key) ?? 0) + 1);
-    }
-    return new Set(Array.from(counts.entries()).filter(([, n]) => n > 1).map(([name]) => name));
-  }, [libraryFoods]);
-
-  const stats = useMemo(() => {
-    let warnings = 0;
-    for (const food of libraryFoods) {
-      if (getFoodEnergyMismatch(food).severity !== "ok") {
-        warnings += 1;
-      }
-    }
-    return { total: libraryFoods.length, warnings, duplicates: duplicateNames.size };
-  }, [libraryFoods, duplicateNames]);
-
   const visibleFoods = useMemo(() => {
     const term = search.trim().toLowerCase();
     const filtered = libraryFoods.filter((food) => {
-      if (term && !food.name.toLowerCase().includes(term)) {
+      if (!matchesFoodSearch(food, term)) {
         return false;
       }
       if (activeCategories.size > 0 && !activeCategories.has(food.category)) {
@@ -124,8 +143,14 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated, energ
       return true;
     });
     // 全站统一排序：始终按「分类 → 拼音名」，不再提供按营养素列排序。
-    return sortFoods(filtered);
+    return filtered;
   }, [libraryFoods, search, activeCategories, sourceFilter]);
+
+  const pagination = useFoodPage(
+    visibleFoods,
+    JSON.stringify([search, [...activeCategories], sourceFilter, showArchived]),
+    12,
+  );
 
   function toggleCategory(category: FoodItem["category"]) {
     setActiveCategories((prev) => {
@@ -140,6 +165,7 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated, energ
   }
 
   function startEditFood(food: FoodItem) {
+    setFormOpen(true);
     setEditingFood(food);
     setForm({
       name: food.name,
@@ -149,7 +175,7 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated, energ
       carbsPer100g: food.carbsPer100g,
       proteinPer100g: food.proteinPer100g,
       weightBasis: food.weightBasis,
-      cookedRawRatio: food.cookedRawRatio ?? null
+      cookedRawRatio: food.cookedRawRatio ?? null,
     });
     setMessage("");
   }
@@ -174,12 +200,16 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated, energ
       fatPer100g: roundForStorage(form.fatPer100g, 2),
       carbsPer100g: roundForStorage(form.carbsPer100g, 2),
       proteinPer100g: roundForStorage(form.proteinPer100g, 2),
-      cookedRawRatio: form.cookedRawRatio == null ? null : roundForStorage(form.cookedRawRatio, 3)
+      cookedRawRatio:
+        form.cookedRawRatio == null
+          ? null
+          : roundForStorage(form.cookedRawRatio, 3),
     };
-    const precisionChanged = normalizedForm.fatPer100g !== form.fatPer100g
-      || normalizedForm.carbsPer100g !== form.carbsPer100g
-      || normalizedForm.proteinPer100g !== form.proteinPer100g
-      || normalizedForm.cookedRawRatio !== form.cookedRawRatio;
+    const precisionChanged =
+      normalizedForm.fatPer100g !== form.fatPer100g ||
+      normalizedForm.carbsPer100g !== form.carbsPer100g ||
+      normalizedForm.proteinPer100g !== form.proteinPer100g ||
+      normalizedForm.cookedRawRatio !== form.cookedRawRatio;
     const payload: FoodItem = {
       id: editingFood?.id ?? "",
       userId: editingFood?.userId,
@@ -187,16 +217,23 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated, energ
       kcalPer100g: calculateFoodKcalPer100g(normalizedForm),
       name: form.name.trim(),
       source: editingFood?.source ?? "user",
-      isUserOverride: editingFood?.source === "public" || editingFood?.isUserOverride
+      isUserOverride:
+        editingFood?.source === "public" || editingFood?.isUserOverride,
     };
     setBusy(true);
     setMessage("");
     try {
       const savedFood = await saveFood(payload, user);
-      onFoodsUpdated([...foods.filter((food) => food.id !== savedFood.id), savedFood]);
+      onFoodsUpdated([
+        ...foods.filter((food) => food.id !== savedFood.id),
+        savedFood,
+      ]);
       setForm(emptyForm);
       setEditingFood(null);
-      setMessage(`${editingFood ? "食物已更新" : "食物已保存"}${precisionChanged ? "，营养素按 2 位、换算率按 3 位小数记录" : ""}。`);
+      setFormOpen(false);
+      setMessage(
+        `${editingFood ? "食物已更新" : "食物已保存"}${precisionChanged ? "，数值已保留适当精度" : ""}。`,
+      );
       await onFoodsChanged();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "保存失败。");
@@ -219,7 +256,7 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated, energ
         proteinPer100g: food.proteinPer100g,
         weightBasis: food.weightBasis,
         cookedRawRatio: food.cookedRawRatio ?? null,
-        source: "user"
+        source: "user",
       };
       await saveFood(copy, user);
       await onFoodsChanged();
@@ -236,8 +273,13 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated, energ
     setMessage("");
     try {
       await deleteFood(foodId, user);
+      if (!foodId.startsWith("public-")) setArchivedId(foodId);
       await onFoodsChanged();
-      setMessage(foodId.startsWith("public-") ? "公共食物已恢复默认值。" : "食物已归档，可在归档视图中恢复。");
+      setMessage(
+        foodId.startsWith("public-")
+          ? "公共食物已恢复默认值。"
+          : "食物已归档，可在归档视图中恢复。",
+      );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "删除失败。");
     } finally {
@@ -258,7 +300,10 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated, energ
     setMessage("");
     try {
       await restoreFood(foodId, user);
-      setArchivedFoods((current) => current.filter((food) => food.id !== foodId));
+      setArchivedId(null);
+      setArchivedFoods((current) =>
+        current.filter((food) => food.id !== foodId),
+      );
       await onFoodsChanged();
       setMessage("食物已恢复到在用列表。");
     } catch (error) {
@@ -271,11 +316,21 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated, energ
   function exportFoods(format: "csv" | "json") {
     const exportable = visibleFoods.length > 0 ? visibleFoods : libraryFoods;
     if (format === "csv") {
-      downloadFile("foods.csv", foodsToCsv(exportable), "text/csv;charset=utf-8");
+      downloadFile(
+        "foods.csv",
+        foodsToCsv(exportable),
+        "text/csv;charset=utf-8",
+      );
     } else {
-      downloadFile("foods.json", JSON.stringify(exportable, null, 2), "application/json");
+      downloadFile(
+        "foods.json",
+        JSON.stringify(exportable, null, 2),
+        "application/json",
+      );
     }
-    setMessage(`已导出 ${exportable.length} 条食物（${format.toUpperCase()}）。`);
+    setMessage(
+      `已导出 ${exportable.length} 条食物（${format.toUpperCase()}）。`,
+    );
   }
 
   async function importFoods(file: File) {
@@ -283,14 +338,20 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated, energ
     setMessage("正在导入…");
     try {
       const text = await file.text();
-      const parsed = file.name.toLowerCase().endsWith(".json") ? jsonToFoodForms(text) : csvToFoodForms(text);
+      const parsed = file.name.toLowerCase().endsWith(".json")
+        ? jsonToFoodForms(text)
+        : csvToFoodForms(text);
       if (parsed.foods.length === 0) {
-        setMessage("未解析到可导入的食物（请检查表头：name,category,kcalPer100g,fatPer100g,carbsPer100g,proteinPer100g,weightBasis,cookedRawRatio）。");
+        setMessage(
+          "未解析到可导入的食物（请检查表头：name,category,kcalPer100g,fatPer100g,carbsPer100g,proteinPer100g,weightBasis,cookedRawRatio）。",
+        );
         return;
       }
       const result = await importUserFoods(parsed.foods, user, true);
       await onFoodsChanged();
-      setMessage(`导入完成：成功 ${result.inserted} 条${parsed.skipped ? `，跳过 ${parsed.skipped} 条（缺名）` : ""}。`);
+      setMessage(
+        `导入完成：成功 ${result.inserted} 条${parsed.skipped ? `，跳过 ${parsed.skipped} 条（缺名）` : ""}。`,
+      );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "导入失败。");
     } finally {
@@ -303,249 +364,374 @@ export function FoodLibrary({ foods, user, onFoodsChanged, onFoodsUpdated, energ
 
   return (
     <NumericDraftProvider form={numericDraftForm}>
-    <section className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
-      {/* 新增/编辑表单：桌面端吸顶跟随页面滚动 */}
-      <div className="panel p-4 xl:sticky xl:top-6">
-        <div className="mb-4">
-          <h2 className="text-lg font-semibold text-gradient">{editingFood ? "编辑食物" : "新增食物"}</h2>
-          <p className="text-sm text-muted">
-            {editingFood?.source === "public"
-              ? "公共食物会保存为你的覆盖值，不影响其他用户。"
-              : "营养值按每 100g 保存；热量由净碳水、蛋白、脂肪自动计算。"}
-          </p>
+      <section className="panel overflow-hidden">
+        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line p-5">
+          <div>
+            <h2 className="text-lg">
+              {showArchived ? "已归档食物" : "我的食物与公共食物"}
+            </h2>
+            <p className="mt-1 text-xs text-muted">
+              每 100 g 可食用部分 · 热量按碳水、蛋白质与脂肪计算
+            </p>
+          </div>
+          <button
+            className="btn-primary"
+            type="button"
+            onClick={() => {
+              cancelEdit();
+              setFormOpen(true);
+            }}
+          >
+            <Plus size={16} />
+            添加食物
+          </button>
+        </header>
+        <div className="space-y-3 p-4 sm:p-5">
+          <div className="flex flex-wrap gap-3">
+            <div className="relative min-w-0 flex-1">
+              <Search
+                size={17}
+                className="pointer-events-none absolute left-3 top-3.5 text-muted"
+              />
+              <input
+                className="field w-full pl-10"
+                aria-label="搜索食物"
+                placeholder="搜索食物名称…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            <select
+              className="field"
+              aria-label="食物来源"
+              value={sourceFilter}
+              onChange={(e) => setSourceFilter(e.target.value as SourceFilter)}
+            >
+              <option value="all">全部食物</option>
+              <option value="user">我的食物</option>
+              <option value="public">公共食物</option>
+            </select>
+          </div>
+          <div className="food-category-strip">
+            <button
+              type="button"
+              className={activeCategories.size === 0 ? "is-active" : ""}
+              onClick={() => setActiveCategories(new Set())}
+            >
+              全部分类
+            </button>
+            {foodCategories.map((category) => (
+              <button
+                type="button"
+                className={activeCategories.has(category) ? "is-active" : ""}
+                aria-pressed={activeCategories.has(category)}
+                onClick={() => toggleCategory(category)}
+                key={category}
+              >
+                {category}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center justify-between gap-3 text-xs text-muted">
+            <span>{visibleFoods.length} 项食物 · 个人添加优先</span>
+            <button
+              className="btn-text"
+              type="button"
+              onClick={() => selectArchiveMode(!showArchived)}
+            >
+              {showArchived ? "返回食物库" : "查看归档"}
+            </button>
+          </div>
         </div>
-        <div className="grid gap-3">
-          <label>
-            <span className="metric-label mb-1 block">名称</span>
-            <input className="field w-full" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
+        {message && !formOpen && (
+          <div
+            className="mx-5 mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-panel px-4 py-3 text-sm"
+            role="status"
+          >
+            <span>{message}</span>
+            {archivedId && (
+              <button
+                className="btn-text"
+                type="button"
+                disabled={busy}
+                onClick={() => void restoreArchivedFood(archivedId)}
+              >
+                撤销归档
+              </button>
+            )}
+          </div>
+        )}
+        {archivedLoading ? (
+          <p className="p-5 text-sm text-muted">正在读取归档…</p>
+        ) : pagination.items.length ? (
+          <ul className="divide-y divide-line px-4 sm:px-5">
+            {pagination.items.map((food) => (
+              <li key={food.id} className="food-library-row">
+                <div className="min-w-0">
+                  <p className="break-words text-sm font-semibold">
+                    {food.name}
+                  </p>
+                  <div className="mt-1 flex flex-wrap gap-2 text-xs text-muted">
+                    <span>
+                      {food.category} · {weightBasisLabel(food.weightBasis)}
+                    </span>
+                    {food.source === "user" || food.isUserOverride ? (
+                      <span className="food-badge">
+                        {food.isUserOverride ? "已调整" : "我的食物"}
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="mt-2 text-xs tabular-nums text-muted">
+                    碳 {round(food.carbsPer100g, 1)} · 蛋{" "}
+                    {round(food.proteinPer100g, 1)} · 脂{" "}
+                    {round(food.fatPer100g, 1)} g
+                  </p>
+                </div>
+                <strong className="text-right text-base tabular-nums">
+                  {energyValue(calculateFoodKcalPer100g(food))}
+                  <small className="ml-1 text-xs font-normal text-muted">
+                    {energyLabel}
+                  </small>
+                </strong>
+                <div className="flex items-center gap-1">
+                  {showArchived ? (
+                    <button
+                      className="btn-secondary"
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void restoreArchivedFood(food.id)}
+                    >
+                      <RotateCcw size={15} />
+                      恢复
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        className="icon-button"
+                        type="button"
+                        aria-label={`编辑${food.name}`}
+                        disabled={busy}
+                        onClick={() => startEditFood(food)}
+                      >
+                        <Pencil size={16} />
+                      </button>
+                      <button
+                        className="icon-button"
+                        type="button"
+                        aria-label={`复制${food.name}`}
+                        disabled={busy}
+                        onClick={() => void copyFood(food)}
+                      >
+                        <Copy size={16} />
+                      </button>
+                      {food.source === "user" || food.isUserOverride ? (
+                        <button
+                          className="icon-button"
+                          type="button"
+                          aria-label={`归档${food.name}`}
+                          disabled={busy}
+                          onClick={() => void removeFood(food.id)}
+                        >
+                          <Archive size={16} />
+                        </button>
+                      ) : null}
+                    </>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <div className="empty-state">
+            <Search size={28} />
+            <p>还没有符合条件的食物</p>
+            <button
+              type="button"
+              className="btn-text"
+              onClick={() => {
+                setSearch("");
+                setActiveCategories(new Set());
+                setSourceFilter("all");
+              }}
+            >
+              清除筛选
+            </button>
+          </div>
+        )}
+        <FoodPagination {...pagination} />
+        <details className="border-t border-line p-5">
+          <summary className="cursor-pointer text-sm text-muted">
+            导入与导出
+          </summary>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              className="btn-secondary"
+              onClick={() => exportFoods("csv")}
+              type="button"
+            >
+              <Download size={15} />
+              导出表格
+            </button>
+            <button
+              className="btn-secondary"
+              onClick={() => exportFoods("json")}
+              type="button"
+            >
+              导出备份
+            </button>
+            <button
+              className="btn-secondary"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={busy}
+              type="button"
+            >
+              <Upload size={15} />
+              导入食物
+            </button>
+            <input
+              className="hidden"
+              ref={fileInputRef}
+              type="file"
+              accept=".csv,.json"
+              aria-label="导入食物文件"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void importFoods(file);
+              }}
+            />
+          </div>
+        </details>
+      </section>
+      <Dialog
+        open={formOpen}
+        title={editingFood ? "编辑食物" : "添加食物"}
+        onClose={() => {
+          if (!busy) {
+            setFormOpen(false);
+            cancelEdit();
+          }
+        }}
+      >
+        <p className="mb-4 text-sm text-muted">
+          {editingFood?.source === "public"
+            ? "修改仅对你的账户生效。"
+            : "填写每 100 g 可食用部分的营养。"}
+          热量自动计算。
+        </p>
+        <div className="grid gap-4">
+          <label className="text-sm">
+            食物名称
+            <input
+              className="field mt-1 w-full"
+              maxLength={120}
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+            />
           </label>
           <div className="grid grid-cols-2 gap-3">
-            <label>
-              <span className="metric-label mb-1 block">分类</span>
-              <select className="field w-full" value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value as FoodItem["category"] })}>
+            <label className="text-sm">
+              分类
+              <select
+                className="field mt-1 w-full"
+                value={form.category}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    category: e.target.value as FoodItem["category"],
+                  })
+                }
+              >
                 {foodCategories.map((category) => (
-                  <option key={category} value={category}>{category}</option>
+                  <option key={category}>{category}</option>
                 ))}
               </select>
             </label>
-            <label>
-              <span className="metric-label mb-1 block">口径</span>
-              <select className="field w-full" value={form.weightBasis} onChange={(event) => setForm({ ...form, weightBasis: event.target.value as FoodItem["weightBasis"] })}>
+            <label className="text-sm">
+              称重状态
+              <select
+                className="field mt-1 w-full"
+                value={form.weightBasis}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    weightBasis: e.target.value as FoodItem["weightBasis"],
+                  })
+                }
+              >
                 <option value="raw">生重</option>
                 <option value="cooked">熟重</option>
-                <option value="none">不适用</option>
+                <option value="none">无需区分</option>
               </select>
             </label>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <span className="metric-label mb-1 block">热量 {energyLabel}/100g</span>
-              <div className="field flex w-full items-center bg-surface/60 text-muted">{energyValue(formKcalPer100g)}</div>
-            </div>
-            <label>
-              <span className="metric-label mb-1 block">脂肪 g/100g</span>
-              <NumericInput className="field w-full" label="脂肪" min={0} required value={form.fatPer100g} onValueChange={(value) => setForm((current) => ({ ...current, fatPer100g: value as number }))} />
-            </label>
-            <label>
-              <span className="metric-label mb-1 block">净碳水 g/100g</span>
-              <NumericInput className="field w-full" label="净碳水" min={0} required value={form.carbsPer100g} onValueChange={(value) => setForm((current) => ({ ...current, carbsPer100g: value as number }))} />
-            </label>
-            <label>
-              <span className="metric-label mb-1 block">蛋白 g/100g</span>
-              <NumericInput className="field w-full" label="蛋白" min={0} required value={form.proteinPer100g} onValueChange={(value) => setForm((current) => ({ ...current, proteinPer100g: value as number }))} />
-            </label>
+          <div className="grid grid-cols-3 gap-3">
+            {(
+              [
+                { key: "carbsPer100g", label: "碳水" },
+                { key: "proteinPer100g", label: "蛋白质" },
+                { key: "fatPer100g", label: "脂肪" },
+              ] as const
+            ).map(({ key, label }) => (
+              <label className="text-sm" key={key}>
+                {label}（g）
+                <NumericInput
+                  className="field mt-1 w-full"
+                  label={label}
+                  min={0}
+                  max={100}
+                  required
+                  value={form[key]}
+                  onValueChange={(n) =>
+                    setForm((current) => ({ ...current, [key]: n as number }))
+                  }
+                />
+              </label>
+            ))}
           </div>
-          <label>
-            <span className="metric-label mb-1 block">熟化换算率，可空</span>
-            <NumericInput
-              blankValue={null}
-              className="field w-full"
-              label="熟化换算率"
-              minExclusive={0}
-              value={form.cookedRawRatio}
-              onValueChange={(value) => setForm((current) => ({ ...current, cookedRawRatio: value }))}
-              placeholder="例：生米1g对应熟饭2.5g"
-            />
-          </label>
+          <div className="rounded-xl bg-panel p-4 text-sm">
+            每 100 g 热量{" "}
+            <strong className="float-right tabular-nums">
+              {energyValue(formKcalPer100g)} {energyLabel}
+            </strong>
+          </div>
+          <details>
+            <summary className="cursor-pointer text-sm text-muted">
+              更多设置
+            </summary>
+            <label className="mt-3 block text-sm">
+              熟重 ÷ 生重（可选）
+              <NumericInput
+                className="field mt-1 w-full"
+                label="熟化换算率"
+                minExclusive={0}
+                blankValue={null}
+                value={form.cookedRawRatio}
+                onValueChange={(n) =>
+                  setForm((current) => ({ ...current, cookedRawRatio: n }))
+                }
+              />
+            </label>
+            <p className="mt-1 text-xs text-muted">
+              例如 100 g 生米煮成 250 g 米饭，填 2.5。
+            </p>
+          </details>
           <NumericDraftNotice />
-          <div className="flex flex-wrap gap-2">
-            <button className="btn-primary" type="button" onClick={submitFood} disabled={busy}>
-              {editingFood ? <Save size={16} /> : <Plus size={16} />}
-              {editingFood ? "更新食物" : "保存食物"}
-            </button>
-            {editingFood ? (
-              <button className="btn-secondary" type="button" onClick={cancelEdit} disabled={busy}>
-                <X size={16} /> 取消编辑
-              </button>
-            ) : null}
-          </div>
-          {message ? (
-            <p className={`rounded-md border p-3 text-sm ${message.includes("失败") || message.includes("不能") || message.includes("未解析") ? "border-rose/30 bg-rose/10 text-danger" : "border-line bg-surface/80 text-ink"}`}>
+          {message && (
+            <p role="status" className="text-sm">
               {message}
             </p>
-          ) : null}
+          )}
+          <button
+            className="btn-primary w-full"
+            type="button"
+            onClick={() => void submitFood()}
+            disabled={busy}
+          >
+            <Save size={16} />
+            {busy ? "保存中…" : "保存食物"}
+          </button>
         </div>
-      </div>
-
-      <div className="panel overflow-hidden">
-        <div className="flex flex-col gap-3 border-b border-line p-4">
-          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-gradient">{showArchived ? "已归档食物" : "食物库"}</h2>
-              <p className="text-sm text-muted">
-                共 {stats.total} 条 · <span className={stats.warnings ? "text-warning" : ""}>{stats.warnings} 条能量偏差</span> · <span className={stats.duplicates ? "text-danger" : ""}>{stats.duplicates} 组重名</span>
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <button className="btn-secondary h-11 px-2.5 text-xs" type="button" onClick={() => exportFoods("csv")}>
-                <Download size={14} /> CSV
-              </button>
-              <button className="btn-secondary h-11 px-2.5 text-xs" type="button" onClick={() => exportFoods("json")}>
-                <Download size={14} /> JSON
-              </button>
-              <button className="btn-cta h-11 px-2.5 text-xs" type="button" onClick={() => fileInputRef.current?.click()} disabled={busy}>
-                <Upload size={14} /> 导入
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".csv,.json"
-                className="hidden"
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (file) {
-                    importFoods(file);
-                  }
-                }}
-              />
-            </div>
-          </div>
-          <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
-            <div className="grid grid-cols-2 rounded border border-line bg-panel p-1" aria-label="食物状态">
-              <button className={`segmented-option ${!showArchived ? "is-active" : ""}`} type="button" onClick={() => selectArchiveMode(false)}>
-                在用
-              </button>
-              <button className={`segmented-option ${showArchived ? "is-active" : ""}`} type="button" onClick={() => selectArchiveMode(true)}>
-                <Archive size={14} />
-                已归档
-              </button>
-            </div>
-            <div className="relative flex-1">
-              <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-              <input className="field w-full pl-9" aria-label="搜索食物" placeholder="按名称搜索…" value={search} onChange={(event) => setSearch(event.target.value)} />
-            </div>
-            <select className="field lg:w-32" aria-label="食物来源" value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value as SourceFilter)}>
-              <option value="all">全部来源</option>
-              <option value="public">公共</option>
-              <option value="user">本人</option>
-            </select>
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {foodCategories.map((category) => {
-              const active = activeCategories.has(category);
-              return (
-                <button
-                  key={category}
-                  type="button"
-                  onClick={() => toggleCategory(category)}
-                  className={`min-h-11 rounded-full border px-2.5 py-1 text-xs transition-colors ${active ? "border-accent bg-accent/15 text-accent-text" : "border-line text-muted hover:text-ink"}`}
-                >
-                  {category}
-                </button>
-              );
-            })}
-            {activeCategories.size > 0 ? (
-              <button type="button" onClick={() => setActiveCategories(new Set())} className="min-h-11 rounded-full px-2 py-1 text-xs text-muted hover:text-ink">
-                清除
-              </button>
-            ) : null}
-          </div>
-        </div>
-        <div className="min-w-0">
-          {/* 窄屏保留名称、热量和操作；其余字段按可用宽度逐级展开，页面不再横向滚动。 */}
-          <table className="w-full table-fixed text-left text-sm xl:table-auto">
-            <thead className="border-b border-line text-[11px] uppercase text-muted-soft">
-              <tr>
-                <th className="w-[42%] px-3 py-3 sm:px-4 xl:w-auto">食物</th>
-                <th className="hidden px-3 py-3 lg:table-cell">分类</th>
-                <th className="w-20 px-2 py-3 sm:px-3 xl:w-auto">热量 {energyLabel}</th>
-                <th className="hidden px-3 py-3 xl:table-cell">脂肪 g</th>
-                <th className="hidden px-3 py-3 xl:table-cell">净碳水 g</th>
-                <th className="hidden px-3 py-3 xl:table-cell">蛋白 g</th>
-                <th className="hidden px-3 py-3 lg:table-cell">口径</th>
-                <th className="hidden px-3 py-3 md:table-cell">来源</th>
-                <th className="w-24 px-2 py-3 text-right sm:w-[148px] sm:px-3 xl:w-auto">操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visibleFoods.map((food) => {
-                const mismatch = getFoodEnergyMismatch(food);
-                const badge = severityBadge[mismatch.severity as "ok" | "warn" | "error"];
-                const isDuplicate = duplicateNames.has(food.name.trim().toLowerCase());
-                return (
-                  <tr key={food.id} className="group border-t border-line transition-colors hover:bg-panel/40">
-                    <td className="min-w-0 px-3 py-3 font-medium text-ink sm:px-4">
-                      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                        <span className="min-w-0 break-words">{food.name}</span>
-                        {isDuplicate ? <span className="rounded-full border border-rose/40 bg-rose/10 px-1.5 py-0.5 text-[10px] text-danger">重名</span> : null}
-                      </div>
-                    </td>
-                    <td className="hidden px-3 py-3 text-muted lg:table-cell">{food.category}</td>
-                    <td className="whitespace-nowrap px-2 py-3 tabular-nums sm:px-3" title={badge ? `按宏量应为 ${energyValue(mismatch.macroKcalPer100g)} ${energyLabel}` : undefined}>
-                      {energyValue(calculateFoodKcalPer100g(food))}
-                    </td>
-                    <td className="hidden px-3 py-3 tabular-nums xl:table-cell">{food.fatPer100g}</td>
-                    <td className="hidden px-3 py-3 tabular-nums xl:table-cell">{food.carbsPer100g}</td>
-                    <td className="hidden px-3 py-3 tabular-nums xl:table-cell">{food.proteinPer100g}</td>
-                    <td className="hidden px-3 py-3 text-muted lg:table-cell">{weightBasisLabel(food.weightBasis)}</td>
-                    <td className="hidden px-3 py-3 md:table-cell">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs text-muted">{showArchived ? "本人·已归档" : food.source === "public" ? (food.isUserOverride ? "公共·已修改" : "公共") : "本人"}</span>
-                        {badge ? <span className={`rounded-full border px-1.5 py-0.5 text-[10px] ${badge.cls}`}>{badge.label}</span> : null}
-                      </div>
-                    </td>
-                    <td className="bg-surface px-2 py-3 transition-colors group-hover:bg-panel sm:px-3">
-                      <div className="flex flex-wrap justify-end gap-1.5">
-                        {showArchived ? (
-                          <button className="btn-secondary h-11 w-11 p-0" type="button" onClick={() => restoreArchivedFood(food.id)} disabled={busy} aria-label={`恢复${food.name}`} title="恢复">
-                            <RotateCcw size={14} />
-                          </button>
-                        ) : (
-                          <>
-                            <button className="btn-secondary h-11 w-11 p-0" type="button" onClick={() => startEditFood(food)} disabled={busy} aria-label={`编辑${food.name}`} title="编辑">
-                              <Pencil size={14} />
-                            </button>
-                            <button className="btn-secondary h-11 w-11 p-0" type="button" onClick={() => copyFood(food)} disabled={busy} aria-label={`复制${food.name}为自定义食物`} title="复制为自定义">
-                              <Copy size={14} />
-                            </button>
-                            {food.source === "user" ? (
-                              <button className="btn-danger h-11 w-11 p-0" type="button" onClick={() => removeFood(food.id)} disabled={busy} aria-label={`归档${food.name}`} title="归档">
-                                <Archive size={14} />
-                              </button>
-                            ) : null}
-                            {food.source === "public" && food.isUserOverride ? (
-                              <button className="btn-secondary h-11 w-11 p-0" type="button" onClick={() => removeFood(food.id)} disabled={busy} aria-label={`重置${food.name}为默认值`} title="重置为默认">
-                                <RotateCcw size={14} />
-                              </button>
-                            ) : null}
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-              {visibleFoods.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-sm text-muted">{archivedLoading ? "正在读取归档食物…" : "没有符合条件的食物。"}</td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </section>
+      </Dialog>
     </NumericDraftProvider>
   );
 }
-

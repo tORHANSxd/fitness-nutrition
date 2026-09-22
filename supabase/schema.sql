@@ -127,7 +127,7 @@ begin
     begin
       if jsonb_typeof(v_item) is distinct from 'object'
         or nullif(btrim(v_item ->> 'name'), '') is null
-        or v_item ->> 'category' not in ('主食', '蔬菜', '水果', '肉类', '补剂', '坚果', '食物配料')
+        or v_item ->> 'category' not in ('主食', '蔬菜', '水果', '肉类', '豆类', '乳制品', '补剂', '坚果', '其他', '食物配料')
         or v_item ->> 'weight_basis' not in ('raw', 'cooked', 'none')
         or jsonb_typeof(v_item -> 'kcal_per_100g') is distinct from 'number'
         or jsonb_typeof(v_item -> 'fat_per_100g') is distinct from 'number'
@@ -473,7 +473,7 @@ CREATE TABLE IF NOT EXISTS "public"."food_overrides" (
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     CONSTRAINT "food_overrides_carbs_per_100g_check" CHECK (("carbs_per_100g" >= (0)::numeric)),
-    CONSTRAINT "food_overrides_category_check" CHECK (("category" = ANY (ARRAY['主食'::"text", '蔬菜'::"text", '水果'::"text", '肉类'::"text", '补剂'::"text", '坚果'::"text", '食物配料'::"text"]))),
+    CONSTRAINT "food_overrides_category_check" CHECK (("category" = ANY (ARRAY['主食'::"text", '蔬菜'::"text", '水果'::"text", '肉类'::"text", '豆类'::"text", '乳制品'::"text", '补剂'::"text", '坚果'::"text", '其他'::"text", '食物配料'::"text"]))),
     CONSTRAINT "food_overrides_cooked_raw_ratio_check" CHECK ((("cooked_raw_ratio" IS NULL) OR ("cooked_raw_ratio" > (0)::numeric))),
     CONSTRAINT "food_overrides_fat_per_100g_check" CHECK (("fat_per_100g" >= (0)::numeric)),
     CONSTRAINT "food_overrides_kcal_per_100g_check" CHECK (("kcal_per_100g" >= (0)::numeric)),
@@ -504,7 +504,7 @@ CREATE TABLE IF NOT EXISTS "public"."foods" (
     "source" "text" DEFAULT 'user'::"text" NOT NULL,
     "archived_at" timestamp with time zone,
     CONSTRAINT "foods_carbs_per_100g_check" CHECK (("carbs_per_100g" >= (0)::numeric)),
-    CONSTRAINT "foods_category_check" CHECK (("category" = ANY (ARRAY['主食'::"text", '蔬菜'::"text", '水果'::"text", '肉类'::"text", '补剂'::"text", '坚果'::"text", '食物配料'::"text"]))),
+    CONSTRAINT "foods_category_check" CHECK (("category" = ANY (ARRAY['主食'::"text", '蔬菜'::"text", '水果'::"text", '肉类'::"text", '豆类'::"text", '乳制品'::"text", '补剂'::"text", '坚果'::"text", '其他'::"text", '食物配料'::"text"]))),
     CONSTRAINT "foods_cooked_raw_ratio_check" CHECK ((("cooked_raw_ratio" IS NULL) OR ("cooked_raw_ratio" > (0)::numeric))),
     CONSTRAINT "foods_fat_per_100g_check" CHECK (("fat_per_100g" >= (0)::numeric)),
     CONSTRAINT "foods_kcal_per_100g_check" CHECK (("kcal_per_100g" >= (0)::numeric)),

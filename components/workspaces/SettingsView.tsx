@@ -34,7 +34,7 @@ export function SettingsView() {
     setSaving(true);
     setMessage("");
     const saved = await updatePreferences(draft);
-    setMessage(saved ? "偏好已保存到云端。" : "保存失败；如果尚未执行 migration，请先更新 Supabase。" );
+    setMessage(saved ? "偏好已保存到云端。" : "保存失败，请稍后重试。" );
     setSaving(false);
   }
 
@@ -46,7 +46,7 @@ export function SettingsView() {
       <div className="space-y-6">
         <section className="settings-section" aria-labelledby="region-settings-title">
           <div>
-            <p className="eyebrow">REGION</p>
+
             <h2 id="region-settings-title" className="mt-1 text-xl text-ink">地区与单位</h2>
           </div>
           <div className="settings-grid">
@@ -65,7 +65,7 @@ export function SettingsView() {
               </select>
             </label>
             <label className="sm:col-span-2">
-              <span className="metric-label mb-1 block">IANA 时区</span>
+              <span className="metric-label mb-1 block">所在时区</span>
               <input
                 className="field w-full"
                 list="time-zone-options"
@@ -109,7 +109,7 @@ export function SettingsView() {
 
         <section className="settings-section" aria-labelledby="appearance-settings-title">
           <div>
-            <p className="eyebrow">APPEARANCE</p>
+
             <h2 id="appearance-settings-title" className="mt-1 text-xl text-ink">外观与无障碍</h2>
           </div>
           <div className="settings-grid">
@@ -134,10 +134,10 @@ export function SettingsView() {
               </select>
             </label>
             <label>
-              <span className="metric-label mb-1 block">热力图配色</span>
+              <span className="metric-label mb-1 block">营养图配色</span>
               <select className="field w-full" value={draft.heatmapPalette} onChange={(event) => update("heatmapPalette", event.target.value as AppPreferences["heatmapPalette"])}>
-                <option value="red-positive">红盈绿亏</option>
-                <option value="green-positive">红亏绿盈</option>
+                <option value="red-positive">摄入较多用红色</option>
+                <option value="green-positive">摄入较多用绿色</option>
               </select>
             </label>
           </div>
@@ -145,19 +145,19 @@ export function SettingsView() {
 
         <section className="settings-section" aria-labelledby="account-settings-title">
           <div>
-            <p className="eyebrow">ACCOUNT</p>
+
             <h2 id="account-settings-title" className="mt-1 text-xl text-ink">账户与同步</h2>
           </div>
           <p className="text-sm text-muted">{user.email}</p>
           {syncState === "schema-required" ? (
             <p className="rounded border border-amber/40 bg-amber/10 px-3 py-2 text-sm text-warning" role="alert">
-              当前 Supabase 尚缺少全局偏好列。请执行仓库中的 migration 后再保存这些设置。
+              设置服务暂不可用，请稍后重试。
             </p>
           ) : null}
         </section>
 
         <div className="sticky bottom-[calc(4.6rem+env(safe-area-inset-bottom))] z-10 flex items-center justify-between gap-3 border border-line bg-surface/95 p-3 shadow-soft backdrop-blur lg:bottom-4">
-          <p className="text-sm text-muted" role="status" aria-live="polite">{message || "显示单位只影响界面，数据库仍存 kg、cm 与 kcal。"}</p>
+          <p className="text-sm text-muted" role="status" aria-live="polite">{message || "更改单位不会改变已记录的数值。"}</p>
           <button className="btn-primary shrink-0" type="submit" disabled={saving}>
             <Save size={17} />{saving ? "保存中" : "保存偏好"}
           </button>

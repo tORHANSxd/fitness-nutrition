@@ -28,7 +28,7 @@ export const emptyProfile: UserProfile = {
   activityFactor: 1.1,
   exerciseKcal: 0,
   goalType: "cut",
-  trainingTime: "afternoon",
+  trainingTime: "rest",
   planDate: ""
 };
 

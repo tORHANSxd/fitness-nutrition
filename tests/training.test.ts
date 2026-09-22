@@ -27,7 +27,11 @@ function makeSet(partial: Partial<WorkoutSet>): WorkoutSet {
     weightKg: partial.weightKg ?? 100,
     reps: partial.reps ?? 5,
     rir: partial.rir ?? 2,
-    isWarmup: partial.isWarmup ?? false
+    isWarmup: partial.isWarmup ?? false,
+    completed: partial.completed ?? true,
+    loadType: partial.loadType ?? "external",
+    exerciseId: partial.exerciseId ?? partial.exercise ?? "squat",
+    equipmentId: partial.equipmentId ?? "test-barbell"
   };
 }
 
@@ -97,7 +101,7 @@ describe("bestE1RMByExercise", () => {
       makeSet({ exercise: "卧推", muscleGroup: "chest", weightKg: 85, reps: 3 })
     ]);
     const result = bestE1RMByExercise(session);
-    expect(result[0].exercise).toBe("卧推");
+    expect(result[0].exercise).toBe("卧推 · 卧推 / test-barbell");
     expect(result[0].e1rm).toBe(estimate1RM(85, 3, "epley"));
   });
 });
@@ -192,8 +196,9 @@ describe("v2 五分化模板（2026-07-10 计划）", () => {
     expect(allExercises).toContain("罗马尼亚硬拉");
   });
 
-  it("旧张老师模板已退役，v2 模板成为列表首位", () => {
-    expect(Object.keys(programTemplates)[0]).toBe("fiveDayV2");
+  it("新恢复模板可选，旧v2模板仍保留", () => {
+    expect(Object.keys(programTemplates)[0]).toBe("rptAlternate8DayV4");
+    expect(programTemplates.fiveDayV2).toBeDefined();
     expect(Object.keys(programTemplates)).not.toContain("ppl");
     expect(splitLabels.fiveDayV2).toContain("五分化");
   });

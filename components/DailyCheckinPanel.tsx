@@ -5,9 +5,11 @@ import { Check, CircleDot, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { PlannerController } from "@/components/usePlanner";
 import { buildDailyActual } from "@/lib/heatmap";
+import { actualTotals, emptyActualV3, normalizeActualV3 } from "@/lib/actualIntake";
+import { MealEventsEditor } from "@/components/MealEventsEditor";
 import { canonicalEnergy, displayEnergy, type EnergyUnit } from "@/lib/preferences";
 import { completeDailyRecord, loadDailyCheckin, saveDailyCheckin } from "@/lib/storage";
-import type { DailyCheckin, ExerciseEnergyEntry } from "@/lib/types";
+import type { DailyCheckin, DailyCheckinActualV3, ExerciseEnergyEntry } from "@/lib/types";
 import { NumericDraftNotice, NumericDraftProvider, NumericInput, useNumericDraftForm } from "@/components/NumericInput";
 
 const noExercises: ExerciseEnergyEntry[] = [];
@@ -17,13 +19,21 @@ export function DailyCheckinPanel({
   date,
   today,
   user,
-  energyUnit
+  energyUnit,
+  timeZone = "Asia/Shanghai",
+  hourCycle = "h23",
+  onCheckinChange,
+  allowV3 = controller.profile.targetMode === "calibrated",
 }: {
   controller: PlannerController;
   date: string;
   today: string;
   user: User;
   energyUnit: EnergyUnit;
+  timeZone?: string;
+  hourCycle?: "h12" | "h23";
+  onCheckinChange?: (checkin: DailyCheckin | null) => void;
+  allowV3?: boolean;
 }) {
   const numericDraftForm = useNumericDraftForm();
   const [checkin, setCheckin] = useState<DailyCheckin | null>(null);
@@ -32,18 +42,23 @@ export function DailyCheckinPanel({
   const [exerciseName, setExerciseName] = useState("");
   const [exerciseEnergy, setExerciseEnergy] = useState<number | null>(null);
   const [message, setMessage] = useState("");
+  const [loadError, setLoadError] = useState(false);
+  const v3Mode = allowV3 || checkin?.actual.version === 3;
   const ready = controller.profile.planDate === date;
   const isFuture = date > today;
   const exercises = checkin?.actual.exercises ?? noExercises;
 
   const liveActual = useMemo(
-    () => buildDailyActual(controller.profile, controller.meals, controller.result, controller.foodsById, exercises),
-    [controller.foodsById, controller.meals, controller.profile, controller.result, exercises]
+    () => v3Mode ? checkin?.actual.version === 3 ? checkin.actual : { ...emptyActualV3(checkin?.actual), ...(!checkin && controller.profile.protocolSnapshot?.nutrition ? { targetProtocolSnapshot: structuredClone(controller.profile.protocolSnapshot) } : {}) }
+      : checkin?.completed ? checkin.actual : buildDailyActual(controller.profile, controller.meals, controller.result, controller.foodsById, exercises),
+    [v3Mode, checkin, controller.foodsById, controller.meals, controller.profile, controller.result, exercises]
   );
+  useEffect(() => { onCheckinChange?.(checkin); }, [checkin, onCheckinChange]);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setLoadError(false);
     setMessage("");
     loadDailyCheckin(date, user)
       .then((record) => {
@@ -54,6 +69,7 @@ export function DailyCheckinPanel({
       .catch((error) => {
         if (!cancelled) {
           setCheckin(null);
+          setLoadError(true);
           setMessage(error instanceof Error ? error.message : "实际记录加载失败。");
         }
       })
@@ -68,14 +84,16 @@ export function DailyCheckinPanel({
   }, [date, user]);
 
   async function persistExercises(nextExercises: ExerciseEnergyEntry[]) {
+    if (loadError || loading || checkin?.completed) throw new Error("请先载入记录；已确认记录需明确重开后才能修改。");
     const keepConfirmedFoodSnapshot = checkin?.completed ?? false;
     const actual = keepConfirmedFoodSnapshot
       ? { ...checkin!.actual, exercises: nextExercises }
       : { ...liveActual, exercises: nextExercises };
     return saveDailyCheckin({
+      revision: checkin?.revision,
       planDate: date,
       actual,
-      target: keepConfirmedFoodSnapshot ? checkin?.target ?? controller.result.dailyTarget : controller.result.dailyTarget,
+      target: checkin?.target ?? controller.result.dailyTarget,
       completed: keepConfirmedFoodSnapshot
     }, user);
   }
@@ -123,7 +141,7 @@ export function DailyCheckinPanel({
   }
 
   async function completeDay() {
-    if (!ready || isFuture) {
+    if (!ready || isFuture || loading || loadError || checkin?.completed) {
       return;
     }
     if ((exerciseName.trim() || exerciseEnergy != null) && !numericDraftForm.validateAll()) {
@@ -133,14 +151,16 @@ export function DailyCheckinPanel({
     setSaving(true);
     setMessage("");
     try {
+      if (liveActual.version === 3 && !liveActual.mealEvents.length && !liveActual.legacyActual) throw new Error("请先录入实际进食，再确认当天记录完整。");
       const saved = await completeDailyRecord(
         controller.profile,
         controller.meals,
         controller.result,
-        liveActual,
-        controller.result.dailyTarget,
+        liveActual.version === 3 ? { ...liveActual, intakeComplete: true } : liveActual,
+        checkin?.target ?? controller.result.dailyTarget,
         user,
         Array.from(controller.foodsById.values()),
+        checkin?.revision,
       );
       setCheckin(saved);
       setMessage("当日记录已完成。");
@@ -159,6 +179,7 @@ export function DailyCheckinPanel({
     setMessage("");
     try {
       setCheckin(await saveDailyCheckin({
+        revision: checkin.revision,
         planDate: date,
         actual: checkin.actual,
         target: checkin.target,
@@ -172,12 +193,22 @@ export function DailyCheckinPanel({
     }
   }
 
+  async function saveActual(actual: DailyCheckinActualV3): Promise<boolean> {
+    if (loading || saving || loadError || checkin?.completed || isFuture) return false;
+    setSaving(true); setMessage("");
+    try {
+      const normalized = normalizeActualV3(actual, actual.legacyActual);
+      setCheckin(await saveDailyCheckin({ planDate: date, actual: normalized, target: checkin?.target ?? controller.result.dailyTarget, completed: false, revision: checkin?.revision }, user));
+      setMessage("实际记录已保存。"); return true;
+    } catch (error) { setMessage(error instanceof Error ? error.message : "实际记录保存失败。"); return false; } finally { setSaving(false); }
+  }
+
   return (
     <NumericDraftProvider form={numericDraftForm}>
     <section className="panel overflow-hidden" aria-labelledby="daily-checkin-title">
       <header className="flex flex-col gap-3 border-b border-line px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
         <div>
-          <p className="eyebrow">ACTUAL LEDGER</p>
+
           <h3 id="daily-checkin-title" className="mt-1 text-lg text-ink">实际记录</h3>
         </div>
         <span className={`inline-flex items-center gap-2 text-xs font-semibold ${checkin?.completed ? "text-success" : "text-muted"}`}>
@@ -186,8 +217,11 @@ export function DailyCheckinPanel({
         </span>
       </header>
 
-      <div className="grid min-w-0 lg:grid-cols-[minmax(0,1fr)_minmax(300px,0.7fr)]">
-        <div className="min-w-0 border-b border-line p-4 sm:p-5 lg:border-b-0 lg:border-r">
+      {liveActual.version === 3 && <MealEventsEditor key={`${date}:${loading}`} controller={controller} actual={liveActual} date={date} timeZone={timeZone} hourCycle={hourCycle} energyUnit={energyUnit} disabled={loading || saving || loadError || Boolean(checkin?.completed) || isFuture} onSave={saveActual} />}
+      <p className="border-b border-line px-4 py-3 text-sm">实际摄入：{checkin ? Math.round(displayEnergy(actualTotals(checkin.actual).kcal, energyUnit)) : "尚未记录"} {checkin ? (energyUnit === "kj" ? "kJ" : "kcal") : ""}{checkin?.completed ? " · 已确认完整" : ""}</p>
+
+      <div className="grid min-w-0">
+        <details className="min-w-0 border-b border-line p-4 sm:p-5"><summary className="mb-3 cursor-pointer text-sm text-muted">记录运动消耗（可选）</summary>
           <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_150px_auto] sm:items-end">
             <label className="grid gap-1.5 text-xs font-semibold text-muted">
               运动名称
@@ -215,7 +249,7 @@ export function DailyCheckinPanel({
                 disabled={loading || saving || isFuture}
               />
             </label>
-            <button className="btn-secondary px-3" type="button" onClick={addExercise} disabled={loading || saving || isFuture}>
+            <button className="btn-secondary px-3" type="button" onClick={addExercise} disabled={loading || saving || isFuture || loadError || Boolean(checkin?.completed)}>
               <Plus size={16} />
               添加
             </button>
@@ -236,7 +270,7 @@ export function DailyCheckinPanel({
                     className="icon-button"
                     type="button"
                     onClick={() => removeExercise(exercise.id)}
-                    disabled={saving}
+                    disabled={saving || loadError || Boolean(checkin?.completed)}
                     aria-label={`删除 ${exercise.name}`}
                     title="删除运动"
                   >
@@ -246,7 +280,7 @@ export function DailyCheckinPanel({
               </div>
             ))}
           </div>
-        </div>
+        </details>
 
         <div className="flex min-w-0 flex-col justify-between gap-4 bg-panel/45 p-4 sm:p-5">
           <dl className="grid grid-cols-2 gap-3">
@@ -260,9 +294,9 @@ export function DailyCheckinPanel({
             </div>
           </dl>
           <div className="flex flex-wrap gap-2">
-            <button className="btn-primary flex-1" type="button" onClick={completeDay} disabled={loading || saving || !ready || isFuture}>
+            <button className="btn-primary flex-1" type="button" onClick={completeDay} disabled={loading || loadError || saving || !ready || isFuture || Boolean(checkin?.completed)}>
               <Check size={16} />
-              {checkin?.completed ? "重新确认" : "完成记录"}
+              {checkin?.completed ? "已确认（重开后可改）" : "完成记录"}
             </button>
             {checkin?.completed ? (
               <button className="icon-button h-11 w-11" type="button" onClick={reopenDay} disabled={saving} aria-label="恢复为记录中" title="恢复为记录中">

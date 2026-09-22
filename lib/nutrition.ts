@@ -10,6 +10,8 @@ import type {
   TrainingTime,
   UserProfile
 } from "@/lib/types";
+import { calibratedTarget, explicitMealTargets, protocolMeals } from "@/lib/planProtocol";
+import { edibleGrams } from "@/lib/foodWeights";
 
 export const zeroTotals: MacroTotals = {
   kcal: 0,
@@ -92,6 +94,9 @@ const defaultPortionRules: Record<FoodCategory, FoodPortionRule> = {
   蔬菜: { defaultGrams: 200, maxGrams: 200, softTargetWeight: 0.34 },
   水果: { defaultGrams: 120, maxGrams: 250, softTargetWeight: 0.34 },
   肉类: { defaultGrams: 150, maxGrams: 260, softTargetWeight: 0.26 },
+  豆类: { defaultGrams: 100, maxGrams: 250, softTargetWeight: 0.3 },
+  乳制品: { defaultGrams: 100, maxGrams: 300, softTargetWeight: 0.3 },
+  其他: { defaultGrams: 30, maxGrams: 100, softTargetWeight: 0.5 },
   补剂: { defaultGrams: 30, maxGrams: 40, softTargetWeight: 1.3 },
   坚果: { defaultGrams: 20, maxGrams: 35, softTargetWeight: 1.1 },
   // 食物配料（油/盐/糖等烹调用料）：小份量、软目标权重与补剂一致；食用油有专属 10/20g 分支。
@@ -103,6 +108,9 @@ const presenceFloorRatios: Record<FoodCategory, number> = {
   蔬菜: 0.5,
   水果: 0.4,
   肉类: 0.15,
+  豆类: 0.15,
+  乳制品: 0.15,
+  其他: 0,
   补剂: 0.15,
   坚果: 0.3,
   // 配料不强制出现：允许求解器压到 0（与旧行为一致——食用油此前经补剂 isCookingOil 分支拿到 0 下限）。
@@ -114,6 +122,9 @@ const comfortMaxMultipliers: Record<FoodCategory, number> = {
   蔬菜: 1.7,
   水果: 1.7,
   肉类: 1.45,
+  豆类: 1.45,
+  乳制品: 1.45,
+  其他: 1.25,
   补剂: 1.15,
   坚果: 1.25,
   食物配料: 1.15
@@ -133,6 +144,9 @@ const categoryGramWeights: Record<FoodCategory, number> = {
   蔬菜: 0.34,
   水果: 0.24,
   肉类: 0.27,
+  豆类: 0.27,
+  乳制品: 0.24,
+  其他: 0.06,
   补剂: 0.04,
   坚果: 0.06,
   食物配料: 0.04
@@ -314,6 +328,7 @@ function isSnackMeal(meal?: Pick<MealPlan, "id" | "name">) {
   if (!meal) {
     return false;
   }
+  if ("kind" in meal && meal.kind != null) return meal.kind === "snack";
   const label = `${meal.id} ${meal.name}`.toLowerCase();
   return label.includes("pre-workout") || label.includes("snack") || label.includes("加餐") || label.includes("训练前");
 }
@@ -450,16 +465,22 @@ export function autoFatTargetG(profile: Pick<UserProfile, "weightKg">) {
 // 碳水渐降（文档第五节校准）作用在最终目标热量上：无论目标来自公式还是手动覆盖，
 // Σ 步进都叠加生效——蛋白/脂肪 getter 不经过它，扣减自然全部落在碳水。
 export function getTargetKcal(profile: UserProfile) {
+  const fixed = calibratedTarget(profile);
+  if (fixed) return fixed.kcal;
   const value = profile.targetKcal && profile.targetKcal > 0 ? profile.targetKcal : autoTargetKcal(profile);
   return clamp(value + getCarbTaperKcal(profile), targetKcalRange.min, targetKcalRange.max);
 }
 
 export function getProteinTargetG(profile: UserProfile) {
+  const fixed = calibratedTarget(profile);
+  if (fixed) return fixed.protein;
   const value = profile.proteinTargetG && profile.proteinTargetG > 0 ? profile.proteinTargetG : autoProteinTargetG(profile);
   return clamp(value, proteinTargetRange.min, proteinTargetRange.max);
 }
 
 export function getFatTargetG(profile: UserProfile) {
+  const fixed = calibratedTarget(profile);
+  if (fixed) return fixed.fat;
   const value = profile.fatTargetG && profile.fatTargetG > 0 ? profile.fatTargetG : autoFatTargetG(profile);
   return clamp(value, fatTargetRange.min, fatTargetRange.max);
 }
@@ -467,6 +488,8 @@ export function getFatTargetG(profile: UserProfile) {
 // v2 每日目标：由体重/体脂/赤字公式派生（可手动覆盖），碳水吃掉剩余热量 (kcal − P×4 − F×9)/4。
 // 与碳循环日、训练/休息无关；身体档案不完整（新账号留空）时返回全 0，由 UI 引导。
 export function calculateDailyTarget(profile: UserProfile): MacroTotals {
+  const fixed = calibratedTarget(profile);
+  if (fixed) return fixed;
   if (!isProfileComplete(profile)) {
     return { ...zeroTotals };
   }
@@ -514,8 +537,8 @@ export function calculatePlannedCalorieDelta(profile: UserProfile) {
   return calculateDailyTarget(profile).kcal - calculateTdee(profile);
 }
 
-export function calculateFoodTotals(food: FoodItem, grams: number): MacroTotals {
-  const safeGrams = Number.isFinite(grams) ? Math.max(grams, 0) : 0;
+export function calculateFoodTotals(food: FoodItem, grams: number, selection?: Pick<MealFoodEntry, "useEdiblePortion" | "ediblePercent">): MacroTotals {
+  const safeGrams = edibleGrams(Number.isFinite(grams) ? Math.max(grams, 0) : 0, selection);
   const ratio = safeGrams / 100;
   return {
     kcal: calculateMacroKcalPer100g(food) * ratio,
@@ -531,7 +554,7 @@ export function calculateMealTotals(meal: MealPlan, foodsById: Map<string, FoodI
     if (!food) {
       return total;
     }
-    return addTotals(total, calculateFoodTotals(food, entry.grams));
+    return addTotals(total, calculateFoodTotals(food, entry.grams, entry));
   }, zeroTotals);
 }
 
@@ -541,6 +564,7 @@ export function calculateMealsTotals(meals: MealPlan[], foods: FoodItem[]) {
 }
 
 export function createDefaultMeals(profile: UserProfile): MealPlan[] {
+  if (profile.targetMode === "calibrated" && profile.protocolSnapshot) return protocolMeals(profile.protocolSnapshot);
   // 休息日（训练时间选休息日）无训练前加餐，回退三餐结构。
   if (profile.trainingTime === "rest") {
     return [
@@ -560,7 +584,7 @@ export function createDefaultMeals(profile: UserProfile): MealPlan[] {
   return [
     { id: "breakfast", name: "早餐", ratio: breakfast, locked: false, entries: [] },
     { id: "lunch", name: "午餐", ratio: lunch, locked: false, entries: [] },
-    { id: "pre-workout", name: "训练前加餐", ratio: snack, locked: false, entries: [] },
+    { id: "pre-workout", name: "加餐", ratio: snack, locked: false, entries: [] },
     { id: "dinner", name: "晚餐", ratio: dinner, locked: false, entries: [] }
   ];
 }
@@ -756,7 +780,7 @@ function buildMealSolverModels(
     return clamp(Math.max(categoryPresenceFloor, animalProteinFloors[index]), bounds.min, bounds.max);
   });
   const floorTotals = baseModels.reduce(
-    (total, model, index) => addTotals(total, calculateFoodTotals(model.food, rawFloors[index])),
+    (total, model, index) => addTotals(total, calculateFoodTotals(model.food, rawFloors[index], model.entry)),
     zeroTotals
   );
   const floorKcalLimit =
@@ -1009,7 +1033,7 @@ function calculateTotalsFromEntries(
     if (!food) {
       return total;
     }
-    return addTotals(total, calculateFoodTotals(food, gramsByEntryId[entry.id] ?? entry.grams));
+    return addTotals(total, calculateFoodTotals(food, gramsByEntryId[entry.id] ?? entry.grams, entry));
   }, zeroTotals);
 }
 
@@ -1286,8 +1310,10 @@ export function buildNutritionResult(profile: UserProfile, meals: MealPlan[], fo
   const cycleAverageTarget = calculateCycleAverageTarget(profile);
   const dailyTarget = calculateDailyTarget(profile);
   const actualTotals = calculateMealsTotals(meals, foods);
-  const tdee = calculateTdee(profile);
-  const plannedCalorieDelta = calculatePlannedCalorieDelta(profile);
+  const targetResolution = profile.protocolSnapshot?.nutrition?.result;
+  const estimatesAvailable = targetResolution ? targetResolution.expenditure.tdeeKcal != null : isProfileComplete(profile);
+  const tdee = targetResolution ? targetResolution.expenditure.tdeeKcal ?? 0 : estimatesAvailable ? calculateTdee(profile) : 0;
+  const plannedCalorieDelta = targetResolution ? targetResolution.rawValues.energyDeltaKcal ?? 0 : calculatePlannedCalorieDelta(profile);
   const lockedMealTotals = meals
     .filter((meal) => meal.locked)
     .reduce((total, meal) => addTotals(total, calculateMealTotals(meal, foodsById)), zeroTotals);
@@ -1303,20 +1329,21 @@ export function buildNutritionResult(profile: UserProfile, meals: MealPlan[], fo
   // 新模型每日目标热量≈当日维持(TDEE)；当实际摄入明显低于目标（超出计划盈亏再 250kcal）时提示缺口过大。
   const plannedDeficit = Math.max(-plannedCalorieDelta, 0);
   const actualDeficitFromMaintenance = tdee - actualTotals.kcal;
-  if (actualTotals.kcal > 0 && actualDeficitFromMaintenance > plannedDeficit + 250) {
+  if (profile.targetMode !== "calibrated" && estimatesAvailable && actualTotals.kcal > 0 && actualDeficitFromMaintenance > plannedDeficit + 250) {
     conflicts.push(
       `当前实际热量缺口过大：实际 ${round(actualTotals.kcal, 0)} kcal，低于当日目标(维持) ${round(tdee, 0)} kcal 达 ${round(actualDeficitFromMaintenance, 0)} kcal`
     );
   }
 
-  const mealTargetsById = buildMealTargets(meals, remainingAfterLockedMeals, unlockedRatioSum, foodsById);
+  const fixedMealTargets = explicitMealTargets(profile, meals, dailyTarget);
+  const mealTargetsById = fixedMealTargets ?? buildMealTargets(meals, remainingAfterLockedMeals, unlockedRatioSum, foodsById);
   const { solvedEntriesByMealId, recommendedTotals } = solveAllMealRecommendations(
     meals,
     dailyTarget,
     mealTargetsById,
     foodsById
   );
-  const dynamicMealTargetsById = buildDynamicMealTargets(meals, dailyTarget, solvedEntriesByMealId, mealTargetsById, foodsById);
+  const dynamicMealTargetsById = fixedMealTargets ?? buildDynamicMealTargets(meals, dailyTarget, solvedEntriesByMealId, mealTargetsById, foodsById);
 
   if (!isDailyMacroBandAligned(recommendedTotals, dailyTarget)) {
     conflicts.push(dailyBandConflictMessage(subtractTotals(dailyTarget, recommendedTotals)));
@@ -1367,7 +1394,9 @@ export function buildNutritionResult(profile: UserProfile, meals: MealPlan[], fo
   });
 
   return {
-    bmr: calculateBmr(profile),
+    estimatesAvailable,
+    ...(targetResolution ? { targetResolution: structuredClone(targetResolution) } : {}),
+    bmr: targetResolution ? targetResolution.expenditure.rmrKcal ?? 0 : estimatesAvailable ? calculateBmr(profile) : 0,
     tdee,
     plannedCalorieDelta,
     cycleAverageTarget,
@@ -1398,7 +1427,7 @@ export function convertWeightLabel(food: FoodItem, grams: number) {
 export function weightBasisLabel(value: FoodItem["weightBasis"]) {
   if (value === "raw") return "生重";
   if (value === "cooked") return "熟重";
-  return "不适用";
+  return "无需区分";
 }
 
 export function normalizeMealRatios(meals: MealPlan[]) {

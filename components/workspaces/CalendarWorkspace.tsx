@@ -11,7 +11,7 @@ export function CalendarWorkspace() {
     <ScheduleCalendar
       user={user}
       foods={foods}
-      onGoTraining={(date) => router.push(`/training?date=${date}`)}
+      onGoTraining={(date) => router.push(`/records?tab=training&date=${date}`)}
       onGoPlanner={(date) => router.push(`/today?date=${date}&section=meals`)}
       timeZone={preferences.timeZone}
       locale={preferences.locale}

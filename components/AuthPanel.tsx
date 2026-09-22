@@ -17,11 +17,17 @@ export function AuthPanel({ user, onSignedIn }: AuthPanelProps) {
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const configured = isSupabaseConfigured();
+  const registrationEnabled = process.env.NEXT_PUBLIC_ENABLE_SIGNUP === "true";
 
   async function submit() {
+    if (mode === "register" && !registrationEnabled) {
+      setMessage("注册暂时关闭，请使用已有账号登录。");
+      return;
+    }
+
     const supabase = getSupabaseClient();
     if (!supabase) {
-      setMessage("当前未配置 Supabase，无法登录或保存数据。请先在 .env.local 配置后重启。");
+      setMessage("登录服务暂不可用，请稍后重试。");
       return;
     }
 
@@ -62,7 +68,7 @@ export function AuthPanel({ user, onSignedIn }: AuthPanelProps) {
   return (
     <section className="auth-panel mx-auto w-full max-w-md px-6 py-7 sm:px-8 sm:py-9">
       <div className="mb-7 border-b border-line pb-5">
-        <p className="eyebrow mb-2">Secure access / 01</p>
+
         <h2 className="text-3xl font-semibold text-ink">{user ? "已登录" : mode === "login" ? "登录" : "注册"}</h2>
         <p className="mt-1.5 text-sm text-muted">
           {configured
@@ -71,7 +77,7 @@ export function AuthPanel({ user, onSignedIn }: AuthPanelProps) {
               : mode === "login"
                 ? "输入邮箱和密码继续"
                 : "创建账户后，你的计划与食物库将保存在云端"
-            : "请先配置 .env.local 中的 Supabase 环境变量"}
+            : "登录服务暂不可用"}
         </p>
       </div>
 
@@ -112,18 +118,22 @@ export function AuthPanel({ user, onSignedIn }: AuthPanelProps) {
             {busy ? "处理中…" : mode === "login" ? "登录" : "注册"}
           </button>
           <p className="text-center text-sm text-muted">
-            {mode === "login" ? "还没有账号？" : "已有账号？"}
-            <button
-              className="ml-1 font-medium text-accent2 underline-offset-4 hover:underline"
-              type="button"
-              onClick={() => {
-                setMode(mode === "login" ? "register" : "login");
-                setMessage("");
-              }}
-            >
-              {mode === "login" ? "注册" : "登录"}
-              <ArrowRight size={14} className="ml-1 inline" />
-            </button>
+            {registrationEnabled ? (
+              <>
+                {mode === "login" ? "还没有账号？" : "已有账号？"}
+                <button
+                  className="ml-1 font-medium text-accent2 underline-offset-4 hover:underline"
+                  type="button"
+                  onClick={() => {
+                    setMode(mode === "login" ? "register" : "login");
+                    setMessage("");
+                  }}
+                >
+                  {mode === "login" ? "注册" : "登录"}
+                  <ArrowRight size={14} className="ml-1 inline" />
+                </button>
+              </>
+            ) : "注册暂时关闭，请使用已有账号登录。"}
           </p>
         </form>
       )}

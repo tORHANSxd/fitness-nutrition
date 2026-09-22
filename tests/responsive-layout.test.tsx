@@ -1,5 +1,5 @@
 import type { User } from "@supabase/supabase-js";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { ReactNode } from "react";
@@ -63,7 +63,7 @@ describe("无横向滚动的响应式布局", () => {
     }
   });
 
-  it("spreads the five-day training template across the desktop row", () => {
+  it("starts with manual entry and does not expose generated training plans", async () => {
     render(
       <TrainingLog
         user={{ id: "visual-test-user" } as User}
@@ -75,13 +75,11 @@ describe("无横向滚动的响应式布局", () => {
       />
     );
 
-    const templateGrid = screen.getByTestId("training-template-days");
-    expect(templateGrid).toHaveClass("grid", "lg:grid-cols-5");
-    expect(templateGrid).not.toHaveClass("overflow-x-auto");
-    expect(templateGrid.children).toHaveLength(5);
-    for (const card of Array.from(templateGrid.children)) {
-      expect(card).not.toHaveClass("min-w-[120px]", "shrink-0");
-    }
+    fireEvent.click(await screen.findByRole("button", {name:"添加训练组"}));
+    expect(screen.getByLabelText("第1组动作")).toHaveValue("");
+    expect(screen.getByLabelText("第1组重量")).toHaveValue("");
+    expect(screen.queryByTestId("training-template-days")).not.toBeInTheDocument();
+    expect(screen.queryByText(/生成训练|训练处方|减载周/)).not.toBeInTheDocument();
   });
 });
 

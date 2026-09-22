@@ -6,6 +6,9 @@ coverage/
 .playwright/
 artifacts/playwright-report/
 artifacts/playwright-results/
+artifacts/playwright-tre-report/
+artifacts/playwright-tre-results/
+artifacts/tre-e2e-run.log
 artifacts/visual-qa/
 test-results/
 .verification/
@@ -21,3 +24,8 @@ pnpm-debug.log*
 
 .vercel
 supabase/.temp/
+
+# 私人执行资料与本地导出不进入版本控制。
+01_personal_cutting_plan.md
+private-data/
+health-exports/

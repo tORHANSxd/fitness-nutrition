@@ -39,9 +39,9 @@ export function TemplateManager({ templates, foods, onTemplatesChanged, onApplyD
     <section className="space-y-4">
       <div className="overflow-hidden">
         <div className="border-b border-line bg-surface/80 p-4">
-          <h2 className="text-xl font-semibold text-ink">模板管理</h2>
+          <h2 className="text-xl font-semibold text-ink">饮食模板</h2>
           <p className="mt-1 text-sm text-muted">
-            模板只记录食物组合（不含克重），名字由食物按分类和拼音自动生成、同名不可重复创建。应用模板后克重取分类默认值，推荐由求解器实时计算。
+            保存常用食物搭配与餐次。使用后可按当天需要调整分量。
           </p>
         </div>
         <div className="grid grid-cols-1 gap-4 p-4 xl:grid-cols-2">
@@ -54,6 +54,7 @@ export function TemplateManager({ templates, foods, onTemplatesChanged, onApplyD
                     <div className="line-clamp-2 break-all text-sm font-semibold leading-snug text-ink" title={template.name}>{template.name}</div>
                     <div className="mt-0.5 text-[11px] text-muted">
                       {template.meals.length} 餐 · {formatInstant(template.createdAt, locale, timeZone, { year: "numeric", month: "short", day: "numeric" })}
+                      {template.includesMealLayout ? " · 完整分餐模板" : " · 旧食品模板"}
                     </div>
                   </div>
                   <div className="flex shrink-0 gap-1.5">
@@ -69,7 +70,8 @@ export function TemplateManager({ templates, foods, onTemplatesChanged, onApplyD
                 <div className="mt-2 space-y-1.5 border-t border-line pt-2">
                   {template.meals.map((meal) => (
                     <div key={meal.id} className="flex flex-wrap items-center gap-1.5">
-                      <span className="w-14 shrink-0 text-[11px] font-medium text-muted">{meal.name}</span>
+                      <span className="max-w-full break-all text-[11px] font-medium text-muted">{meal.name}</span>
+                      {template.includesMealLayout && meal.targetAllocation && <span className="text-[11px] text-muted">碳 {(meal.targetAllocation.carbs * 100).toFixed(1)}% / 蛋 {(meal.targetAllocation.protein * 100).toFixed(1)}% / 脂 {(meal.targetAllocation.fat * 100).toFixed(1)}%</span>}
                       <FoodChips refs={meal.foods} foodsById={foodsById} />
                     </div>
                   ))}

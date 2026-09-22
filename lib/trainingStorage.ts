@@ -4,7 +4,7 @@ import type { User } from "@supabase/supabase-js";
 import { getSupabaseClient, mapWorkoutSessionRow, workoutSessionToRow } from "@/lib/supabase";
 import type { WorkoutSession } from "@/lib/types";
 
-const workoutSessionColumns = "id,session_date,split_label,bodyweight_kg,recovery,note,sets,created_at,updated_at";
+const workoutSessionColumns = "*";
 
 /**
  * 训练数据存储层：按用户要求 **仅落 Supabase，不使用 localStorage 回退**。
@@ -13,7 +13,7 @@ const workoutSessionColumns = "id,session_date,split_label,bodyweight_kg,recover
 
 export class TrainingAuthError extends Error {
   constructor() {
-    super("训练模块需要登录后才能使用（数据仅保存在 Supabase）。");
+    super("请先登录，再保存或查看训练记录。");
     this.name = "TrainingAuthError";
   }
 }
@@ -44,9 +44,18 @@ export async function loadWorkoutSessions(user: User | null, fromDate?: string, 
 
 export async function saveWorkoutSession(session: WorkoutSession, user: User | null): Promise<WorkoutSession> {
   const supabase = requireClient(user);
+  const row = workoutSessionToRow(session, user as User);
+  if (row.sets.version === 2 || session.revision != null) {
+    const { data, error } = await supabase.rpc("save_workout_session_v2", { p_document: { ...row, schedule_id: session.scheduleId ?? null, status: session.status ?? "legacy_unknown" }, p_expected_revision: session.revision ?? null });
+    if (error) {
+      if (error.code === "40001") throw new Error("训练记录已在另一处修改，请重新载入后再保存。");
+      throw error;
+    }
+    return mapWorkoutSessionRow(data as Record<string, unknown>);
+  }
   const { data, error } = await supabase
     .from("workout_sessions")
-    .upsert(workoutSessionToRow(session, user as User), { onConflict: "user_id,session_date" })
+    .upsert(row, { onConflict: "user_id,session_date" })
     .select(workoutSessionColumns)
     .single();
   if (error) {

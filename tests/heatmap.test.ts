@@ -254,7 +254,7 @@ describe("heatmap ledger", () => {
       checkins: [],
       foods: [food],
       today: "2026-08-25",
-      includeIncomplete: false
+      includeIncomplete: true
     });
     const dataset = aggregateHeatmap([day], "kcal");
 
@@ -268,7 +268,7 @@ describe("heatmap ledger", () => {
     });
   });
 
-  it("keeps today live and excludes incomplete history unless requested", () => {
+  it("excludes all unconfirmed plans, including today, unless explicitly requested", () => {
     const yesterdayPlan = savedPlan("2026-08-24");
     const todayPlan = savedPlan("2026-08-25");
     const hiddenHistory = buildHeatmapDays({
@@ -278,7 +278,8 @@ describe("heatmap ledger", () => {
       today: "2026-08-25",
       includeIncomplete: false
     });
-    expect(hiddenHistory.map((day) => day.date)).toEqual(["2026-08-25"]);
+    expect(hiddenHistory).toEqual([]);
+    expect(buildHeatmapDays({ plans: [yesterdayPlan,todayPlan], checkins: [], foods: [food], today: "2026-08-25", includeIncomplete: true })).toHaveLength(2);
 
     const completedCheckin: DailyCheckin = {
       id: "checkin-1",
@@ -295,10 +296,10 @@ describe("heatmap ledger", () => {
       foods: [food],
       today: "2026-08-25",
       includeIncomplete: false
-    }).map((day) => day.date)).toEqual(["2026-08-24", "2026-08-25"]);
+    }).map((day) => day.date)).toEqual(["2026-08-24"]);
   });
 
-  it("uses today's full plan instead of an earlier completed snapshot", () => {
+  it("keeps today's confirmed snapshot when the plan changes", () => {
     const dinnerFood: FoodItem = {
       ...food,
       id: "food-dinner",
@@ -348,16 +349,14 @@ describe("heatmap ledger", () => {
       includeIncomplete: false
     });
 
-    expect(day.actual.foods.find((item) => item.foodId === dinnerFood.id)).toMatchObject({
-      name: "晚餐三文鱼",
-      grams: 180
-    });
+    expect(day.actual.foods.find((item) => item.foodId === dinnerFood.id)).toBeUndefined();
+    expect(day.actual).toEqual(staleCheckin.actual);
     expect(day.actual.exercises).toEqual(staleCheckin.actual.exercises);
-    expect(day.target).toEqual(result.dailyTarget);
-    expect(day.completed).toBe(false);
+    expect(day.target).toEqual(staleCheckin.target);
+    expect(day.completed).toBe(true);
   });
 
-  it("keeps today's planned exercise visible after an early completion without recorded exercise", () => {
+  it("does not substitute planned exercise for missing actual exercise after confirmation", () => {
     const plannedProfile = { ...profile, exerciseKcal: 450 };
     const result = buildNutritionResult(plannedProfile, meals, [food]);
     const plan: SavedPlan = {
@@ -387,11 +386,8 @@ describe("heatmap ledger", () => {
     });
     const dataset = aggregateHeatmap([day], "kcal");
 
-    expect(day.completed).toBe(false);
-    expect(dataset.tiles.find((tile) => tile.id === "exercise:planned")).toMatchObject({
-      label: "计划运动消耗",
-      value: -450
-    });
+    expect(day.completed).toBe(true);
+    expect(dataset.tiles.find((tile) => tile.id === "exercise:planned")).toBeUndefined();
   });
 
   it("falls back to the saved plan target for completed legacy check-ins", () => {

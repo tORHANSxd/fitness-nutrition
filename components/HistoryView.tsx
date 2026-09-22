@@ -4,7 +4,8 @@ import type { User } from "@supabase/supabase-js";
 import { CalendarClock, ChevronDown, RefreshCw, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { formatDateKey } from "@/lib/dateTime";
-import { round, trainingTimeLabels } from "@/lib/nutrition";
+import Link from "next/link";
+import { round } from "@/lib/nutrition";
 import { displayEnergy, type AppLocale, type EnergyUnit } from "@/lib/preferences";
 import { deletePlan, loadPlanSummaryPage, type PlanCursor } from "@/lib/storage";
 import type { SavedPlanSummary } from "@/lib/types";
@@ -85,8 +86,8 @@ export function HistoryView({ user, locale = "zh-CN", energyUnit = "kcal" }: His
             <CalendarClock size={20} />
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-ink">历史记录</h2>
-            <p className="text-sm text-muted">按日期分批读取，每次 30 条。</p>
+            <h2 className="text-lg font-semibold text-ink">已保存的饮食计划</h2>
+            <p className="text-sm text-muted">选择日期查看餐食。这里显示计划值。</p>
           </div>
         </div>
         <button className="btn-secondary" type="button" onClick={refresh}>
@@ -104,9 +105,8 @@ export function HistoryView({ user, locale = "zh-CN", energyUnit = "kcal" }: His
           <thead className="border-b border-line text-[11px] uppercase text-muted-soft">
             <tr>
               <th className="w-[38%] px-3 py-3 sm:px-4 lg:w-auto">日期</th>
-              <th className="hidden px-4 py-3 lg:table-cell">训练时间</th>
               <th className="hidden px-3 py-3 sm:table-cell sm:px-4">当日目标热量</th>
-              <th className="px-3 py-3 sm:px-4">当前热量</th>
+              <th className="px-3 py-3 sm:px-4">计划热量</th>
               <th className="hidden px-4 py-3 lg:table-cell">碳水</th>
               <th className="hidden px-4 py-3 lg:table-cell">蛋白</th>
               <th className="hidden px-4 py-3 lg:table-cell">脂肪</th>
@@ -116,19 +116,17 @@ export function HistoryView({ user, locale = "zh-CN", energyUnit = "kcal" }: His
           <tbody>
             {plans.length === 0 ? (
               <tr>
-                <td className="px-4 py-8 text-center text-muted" colSpan={8}>
+                <td className="px-4 py-8 text-center text-muted" colSpan={7}>
                   暂无保存记录。
                 </td>
               </tr>
             ) : (
-              plans.map((plan, index) => (
+              plans.map((plan) => (
                 <tr
                   key={plan.id}
-                  className="border-t border-line animate-fade-up transition-colors hover:bg-panel/40"
-                  style={{ animationDelay: `${index * 40}ms` }}
+                  className="border-t border-line transition-colors hover:bg-panel/40"
                 >
-                  <td className="break-words px-3 py-3 font-medium leading-tight text-ink sm:px-4">{formatDateKey(plan.planDate, locale, { year: "numeric", month: "short", day: "numeric" })}</td>
-                  <td className="hidden px-4 py-3 lg:table-cell">{trainingTimeLabels[plan.trainingTime]}</td>
+                  <td className="break-words px-3 py-3 font-medium leading-tight text-ink sm:px-4"><Link href={`/today?date=${plan.planDate}`} className="text-accent2 hover:underline">{formatDateKey(plan.planDate, locale, { year: "numeric", month: "short", day: "numeric" })}</Link></td>
                   <td className="hidden whitespace-nowrap px-3 py-3 tabular-nums sm:table-cell sm:px-4">{round(displayEnergy(plan.dailyTarget.kcal, energyUnit), 0)} {energyLabel}</td>
                   <td className="whitespace-nowrap px-3 py-3 tabular-nums sm:px-4">{round(displayEnergy(plan.actualTotals.kcal, energyUnit), 0)} {energyLabel}</td>
                   <td className="hidden px-4 py-3 tabular-nums lg:table-cell">{round(plan.actualTotals.carbs)} g</td>

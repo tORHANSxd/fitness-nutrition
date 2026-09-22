@@ -1,10 +1,13 @@
 "use client";
 
-import { PenLine, Plus, Search, X } from "lucide-react";
+import { PenLine, Plus, Search, Star, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { NumericDraftNotice, NumericDraftProvider, NumericInput, useNumericDraftForm } from "@/components/NumericInput";
-import { sortFoods } from "@/lib/foods";
+import { selectableFoodCatalog } from "@/lib/foodCatalog";
+import { useFoodShortcuts } from "@/components/FoodShortcuts";
+import { getChinaFoodSummary, matchesFoodSearch } from "@/lib/chinaFoodComposition";
+import { FoodPagination, useFoodPage } from "@/components/FoodPagination";
 import { calculateFoodKcalPer100g, round, weightBasisLabel } from "@/lib/nutrition";
 import { displayEnergy, type EnergyUnit } from "@/lib/preferences";
 import { foodCategories, type CustomFoodDraft, type FoodItem } from "@/lib/types";
@@ -29,6 +32,10 @@ const emptyCustomDraft: CustomFoodDraft = { name: "", category: "主食", carbsP
  * 用分类把食物库分门别类，辅助在计划里快速找到目标食物。
  */
 export function FoodPickerDialog({ open, foods, energyUnit = "kcal", currentFoodId, title = "选择食物", onSelect, onSelectCustom, onClose }: FoodPickerDialogProps) {
+  const shortcuts = useFoodShortcuts();
+  const [includeReference, setIncludeReference] = useState(false);
+  const [group, setGroup] = useState<"all" | "recent" | "favorites">("all");
+  const catalog = useMemo(() => selectableFoodCatalog(foods, includeReference), [foods, includeReference]);
   const [activeCategory, setActiveCategory] = useState<FoodItem["category"] | "all">("all");
   const [search, setSearch] = useState("");
   const [customMode, setCustomMode] = useState(false);
@@ -46,6 +53,8 @@ export function FoodPickerDialog({ open, foods, energyUnit = "kcal", currentFood
   useEffect(() => {
     if (open) {
       setActiveCategory("all");
+      setIncludeReference(false);
+      setGroup("all");
       setSearch("");
       setCustomMode(false);
       setCustomDraft(emptyCustomDraft);
@@ -109,23 +118,27 @@ export function FoodPickerDialog({ open, foods, energyUnit = "kcal", currentFood
 
   // 仅展示实际存在食物的分类标签（按 foodCategories 顺序）。
   const presentCategories = useMemo(
-    () => foodCategories.filter((category) => foods.some((food) => food.category === category)),
-    [foods]
+    () => foodCategories.filter((category) => catalog.some((food) => food.category === category)),
+    [catalog]
   );
 
   const visibleFoods = useMemo(() => {
     const term = search.trim().toLowerCase();
-    const filtered = foods.filter((food) => {
+    const filtered = catalog.filter((food) => {
+      if (group === "recent" && !shortcuts.recent.includes(food.id)) return false;
+      if (group === "favorites" && !shortcuts.favorites.includes(food.id)) return false;
       if (activeCategory !== "all" && food.category !== activeCategory) {
         return false;
       }
-      if (term && !food.name.toLowerCase().includes(term)) {
+      if (!matchesFoodSearch(food, term)) {
         return false;
       }
       return true;
     });
-    return sortFoods(filtered);
-  }, [foods, activeCategory, search]);
+    return filtered;
+  }, [catalog, activeCategory, search, group, shortcuts.recent, shortcuts.favorites]);
+
+  const pagination = useFoodPage(visibleFoods, JSON.stringify([open, activeCategory, search, includeReference, group]), 20);
 
   if (!open || typeof document === "undefined") {
     return null;
@@ -178,15 +191,18 @@ export function FoodPickerDialog({ open, foods, energyUnit = "kcal", currentFood
             <input
               className="field w-full pl-9"
               aria-label="搜索食物"
-              placeholder="按名称搜索…"
+              placeholder="搜索食物名称…"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               autoFocus
             />
           </div>
-          {/* 先选种类：分类标签页 */}
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            <CategoryChip label="全部" active={activeCategory === "all"} onClick={() => setActiveCategory("all")} />
+          <div className="mt-3 flex gap-2" aria-label="快捷食物">
+            {([['all', '全部'], ['recent', '最近使用'], ['favorites', '常用']] as const).map(([value, label]) => <button type="button" key={value} className={`tab-button ${group === value ? "is-active" : ""}`} aria-pressed={group === value} onClick={() => setGroup(value)}>{label}</button>)}
+          </div>
+          <label className="mt-3 flex items-center gap-2 text-sm text-muted"><input type="checkbox" checked={includeReference} onChange={event => { setIncludeReference(event.target.checked); setActiveCategory("all"); }} />包含中国食物成分表</label>
+          <div className="food-category-strip mt-3 flex gap-1.5 overflow-x-auto">
+            <CategoryChip label="全部分类" active={activeCategory === "all"} onClick={() => setActiveCategory("all")} />
             {presentCategories.map((category) => (
               <CategoryChip
                 key={category}
@@ -204,34 +220,37 @@ export function FoodPickerDialog({ open, foods, energyUnit = "kcal", currentFood
             <p className="px-2 py-8 text-center text-sm text-muted">没有符合条件的食物。</p>
           ) : (
             <ul className="flex flex-col gap-1">
-              {visibleFoods.map((food) => {
+              {pagination.items.map((food) => {
                 const active = food.id === currentFoodId;
                 return (
-                  <li key={food.id}>
+                  <li key={food.id} className="flex items-center gap-1">
                     <button
                       type="button"
                       onClick={() => {
+                        shortcuts.remember(food.id);
                         onSelect(food.id);
                         onClose();
                       }}
-                      className={`flex min-h-11 w-full items-center justify-between gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors ${
+                      className={`flex min-h-11 min-w-0 flex-1 items-center justify-between gap-3 rounded-lg border px-3 py-3 text-left transition-colors ${
                         active ? "border-accent bg-accent/10 text-accent-text" : "border-transparent hover:border-line hover:bg-black/[0.03]"
                       }`}
                     >
                       <span className="flex min-w-0 flex-col">
-                        <span className="truncate text-sm font-medium text-ink">{food.name}</span>
+                        <span className="break-words text-sm font-medium text-ink">{food.name}</span>
                         <span className="text-[11px] text-muted">
-                          {food.category} · {weightBasisLabel(food.weightBasis)}
+                          {food.source === "user" ? "我的食物" : food.isUserOverride ? "已调整" : food.category} · {getChinaFoodSummary(food.id) ? "每 100g 可食部" : weightBasisLabel(food.weightBasis)}
                         </span>
                       </span>
                       <span className="shrink-0 tabular-nums text-xs text-muted">{round(displayEnergy(calculateFoodKcalPer100g(food), energyUnit), 0)} {energyLabel}/100g</span>
                     </button>
+                    <button className={`icon-button shrink-0 ${shortcuts.favorites.includes(food.id) ? "text-warning" : "text-muted"}`} type="button" aria-label={`${shortcuts.favorites.includes(food.id) ? "取消常用" : "设为常用"}${food.name}`} aria-pressed={shortcuts.favorites.includes(food.id)} onClick={() => shortcuts.toggleFavorite(food.id)}><Star size={17} fill={shortcuts.favorites.includes(food.id) ? "currentColor" : "none"} /></button>
                   </li>
                 );
               })}
             </ul>
           )}
         </div>
+        <FoodPagination {...pagination} />
           </>
         )}
       </div>
@@ -274,7 +293,7 @@ function CustomFoodForm({
   return (
     <NumericDraftProvider form={numericDraftForm}>
     <div className="flex flex-col gap-3 p-4">
-      <p className="text-xs text-muted">临时食物只保存在当前计划里，不进食物库。填写每 100g 的三大营养素，热量自动按 4/4/9 计算。</p>
+      <p className="text-sm text-muted">填写每 100g 的营养值，热量自动计算。此食物仅用于当前计划。</p>
       <div className="grid grid-cols-2 gap-3">
         <label>
           <span className="metric-label mb-1 block">名称</span>

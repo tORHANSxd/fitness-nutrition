@@ -12,10 +12,16 @@ import {
   type UserProfile,
 } from "@/lib/types";
 import { parseFoodSnapshot } from "@/lib/foodSnapshots";
+import { edibleSelection } from "@/lib/foodWeights";
+import { assertDocument, assertMealAllocations, boundedNumber, mealMetadata, parseMealSchedule, parsePlanProtocol, record, UnsupportedDocumentError, validTime } from "@/lib/planProtocol";
+import { isDateKey } from "@/lib/dateTime";
+import { normalizeActualV3 } from "@/lib/actualIntake";
+import { nutritionInputFingerprint } from "@/lib/nutritionGoals/calculator";
+import type { NutritionTargetResolution } from "@/lib/nutritionGoals/types";
 
-export const DAILY_PLAN_SCHEMA_VERSION = 2;
-export const PLANNER_DRAFT_SCHEMA_VERSION = 2;
-export const NUTRITION_ALGORITHM_VERSION = "nutrition-v2.3";
+export const DAILY_PLAN_SCHEMA_VERSION = 3;
+export const PLANNER_DRAFT_SCHEMA_VERSION = 3;
+export const NUTRITION_ALGORITHM_VERSION = "nutrition-v3-explicit";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -31,13 +37,13 @@ function nonNegative(value: unknown, fallback = 0): number {
   return number == null ? fallback : Math.max(0, number);
 }
 
-export function parseMacroTotals(value: unknown): MacroTotals | null {
+export function parseMacroTotals(value: unknown, allowSigned = false): MacroTotals | null {
   if (!isRecord(value)) return null;
   const kcal = finiteNumber(value.kcal);
   const carbs = finiteNumber(value.carbs);
   const protein = finiteNumber(value.protein);
   const fat = finiteNumber(value.fat);
-  return kcal == null || carbs == null || protein == null || fat == null
+  return kcal == null || carbs == null || protein == null || fat == null || (!allowSigned && [kcal, carbs, protein, fat].some(n => n < 0))
     ? null
     : { kcal, carbs, protein, fat };
 }
@@ -50,10 +56,11 @@ function optionalFiniteNumber(value: unknown, label: string): number | undefined
 }
 
 function parseUserProfile(value: unknown): UserProfile {
+  assertDocument(value);
   if (!isRecord(value)
     || (value.sex !== "male" && value.sex !== "female")
     || !["morning", "afternoon", "evening", "rest"].includes(String(value.trainingTime))
-    || typeof value.planDate !== "string") {
+    || typeof value.planDate !== "string" || !isDateKey(value.planDate)) {
     throw new Error("计划档案格式无效。");
   }
 
@@ -74,6 +81,21 @@ function parseUserProfile(value: unknown): UserProfile {
     trainingTime: value.trainingTime as UserProfile["trainingTime"],
     planDate: value.planDate,
   };
+  if (value.targetMode != null && !["legacy", "calibrated"].includes(String(value.targetMode))) throw new Error("目标模式无效。");
+  if (value.allocationMode != null && !["ratio", "explicitMacros"].includes(String(value.allocationMode))) throw new Error("分配模式无效。");
+  if (value.targetMode != null) profile.targetMode = value.targetMode as UserProfile["targetMode"];
+  if (value.allocationMode != null) profile.allocationMode = value.allocationMode as UserProfile["allocationMode"];
+  if (value.protocolSnapshot != null) profile.protocolSnapshot = parsePlanProtocol(value.protocolSnapshot);
+  if (value.targetMode === "calibrated" && (!profile.protocolSnapshot || value.allocationMode !== "explicitMacros")) throw new Error("校准模式缺少协议及显式分配。");
+  if (value.scheduleOverride != null) {
+    const override = record(value.scheduleOverride);
+    profile.scheduleOverride = {
+      ...override,
+      ...(override.trainingStartLocal != null ? { trainingStartLocal: validTime(override.trainingStartLocal) } : {}),
+      ...(override.preTrainingNoIntakeMinutes != null ? { preTrainingNoIntakeMinutes: boundedNumber(override.preTrainingNoIntakeMinutes, 0, 1440, "训练前间隔") } : {}),
+      ...(override.eatingWindow != null ? { eatingWindow: parseMealSchedule(override.eatingWindow) } : {}),
+    };
+  }
   for (const key of ["exerciseKcal", "targetKcal", "proteinTargetG", "fatTargetG", "calorieDeficit", "weeklyWeightChangePct"] as const) {
     const number = optionalFiniteNumber(value[key], key);
     if (number !== undefined) profile[key] = number;
@@ -122,14 +144,19 @@ function parseMealEntry(value: unknown): MealFoodEntry {
   if (!isRecord(value)
     || typeof value.id !== "string"
     || typeof value.foodId !== "string"
-    || finiteNumber(value.grams) == null
+    || finiteNumber(value.grams) == null || Number(value.grams) < 0
     || typeof value.locked !== "boolean") {
     throw new Error("计划餐食条目格式无效。");
   }
 
   const snapshot = parseFoodSnapshot(value.foodSnapshot);
+  if (value.foodSnapshot != null && !snapshot) throw new UnsupportedDocumentError("食品快照无效或版本不支持；原始内容已保留。", value);
   const customFood = parseCustomFood(value.customFood);
+  for (const key of ["minGrams", "maxGrams"] as const) if (value[key] != null && (typeof value[key] !== "number" || !Number.isFinite(value[key]) || value[key] < 0)) throw new Error("克重限制必须为有限非负数。");
+  if (value.minGrams != null && value.maxGrams != null && Number(value.minGrams) > Number(value.maxGrams)) throw new Error("最小克重不能超过最大克重。");
   return {
+    ...value,
+    ...edibleSelection(value),
     id: value.id,
     foodId: value.foodId,
     grams: Number(value.grams),
@@ -142,6 +169,7 @@ function parseMealEntry(value: unknown): MealFoodEntry {
 }
 
 export function parseMeals(value: unknown): MealPlan[] {
+  assertDocument(value);
   if (!Array.isArray(value)) throw new Error("计划餐次格式无效。");
   return value.map((meal) => {
     if (!isRecord(meal)
@@ -153,11 +181,13 @@ export function parseMeals(value: unknown): MealPlan[] {
       throw new Error("计划餐次格式无效。");
     }
     return {
+      ...meal,
       id: meal.id,
       name: meal.name,
       ratio: Number(meal.ratio),
       locked: meal.locked,
       entries: meal.entries.map(parseMealEntry),
+      ...mealMetadata(meal),
     };
   });
 }
@@ -176,8 +206,8 @@ function parseRecommendation(value: unknown): MealRecommendation {
   }
   const target = parseMacroTotals(value.target);
   const actual = parseMacroTotals(value.actual);
-  const deficit = parseMacroTotals(value.deficit);
-  const actualDeficit = parseMacroTotals(value.actualDeficit) ?? deficit;
+  const deficit = parseMacroTotals(value.deficit, true);
+  const actualDeficit = parseMacroTotals(value.actualDeficit, true) ?? deficit;
   const targetRatio = parseMacroRatio(value.targetRatio);
   const actualRatio = parseMacroRatio(value.actualRatio);
   const recommendedEntries: Record<string, number> = {};
@@ -193,6 +223,7 @@ function parseRecommendation(value: unknown): MealRecommendation {
 }
 
 function parseNutritionResult(value: unknown): NutritionResult {
+  assertDocument(value);
   if (!isRecord(value) || !Array.isArray(value.mealRecommendations) || !Array.isArray(value.conflicts)) {
     throw new Error("计划计算结果格式无效。");
   }
@@ -205,8 +236,18 @@ function parseNutritionResult(value: unknown): NutritionResult {
   const recommendedTotals = parseMacroTotals(value.recommendedTotals);
   const targetRatio = parseMacroRatio(value.targetRatio);
   const actualRatio = parseMacroRatio(value.actualRatio);
-  const remaining = parseMacroTotals(value.remaining);
-  const recommendedRemaining = parseMacroTotals(value.recommendedRemaining);
+  const remaining = parseMacroTotals(value.remaining, true);
+  const recommendedRemaining = parseMacroTotals(value.recommendedRemaining, true);
+  let targetResolution: NutritionTargetResolution | undefined;
+  if (value.targetResolution != null) {
+    const resolution = record(value.targetResolution);
+    if (resolution.algorithmVersion !== "nutrition-v5.0" || resolution.policyVersion !== "nutrition-goals-v5.0" || resolution.presetVersion !== 1) throw new UnsupportedDocumentError("不支持的营养计算结果版本；原始数据已保留。", value);
+    const expenditure = record(resolution.expenditure);
+    for (const key of ["rmrKcal", "tdeeKcal"] as const) if (expenditure[key] !== null && (typeof expenditure[key] !== "number" || !Number.isFinite(expenditure[key]) || expenditure[key] <= 0)) throw new Error("营养消耗快照无效。");
+    if (resolution.status !== "valid" || typeof resolution.inputFingerprint !== "string" || !Array.isArray(resolution.trace)
+      || nutritionInputFingerprint(resolution.resolvedTarget) !== nutritionInputFingerprint(dailyTarget)) throw new Error("目标结果与冻结目标不一致。");
+    targetResolution = structuredClone(resolution) as unknown as NutritionTargetResolution;
+  }
   if (bmr == null || tdee == null || plannedCalorieDelta == null || !cycleAverageTarget || !dailyTarget
     || !actualTotals || !recommendedTotals || !targetRatio || !actualRatio || !remaining || !recommendedRemaining
     || value.conflicts.some((item) => typeof item !== "string")) {
@@ -214,6 +255,8 @@ function parseNutritionResult(value: unknown): NutritionResult {
   }
   return {
     bmr,
+    ...(targetResolution ? { targetResolution } : {}),
+    ...(typeof value.estimatesAvailable === "boolean" ? { estimatesAvailable: value.estimatesAvailable } : {}),
     tdee,
     plannedCalorieDelta,
     cycleAverageTarget,
@@ -235,15 +278,22 @@ export function normalizeNutritionResult(value: unknown): NutritionResult {
 
 export function parseSavedPlanRow(row: Record<string, unknown>): SavedPlan {
   const schemaVersion = finiteNumber(row.schema_version) ?? 1;
-  if (schemaVersion !== 1 && schemaVersion !== DAILY_PLAN_SCHEMA_VERSION) {
-    throw new Error(`不支持的每日计划版本：${String(row.schema_version)}`);
+  if (![1, 2, DAILY_PLAN_SCHEMA_VERSION].includes(schemaVersion)) {
+    throw new UnsupportedDocumentError(`不支持的每日计划版本：${String(row.schema_version)}；原始内容已保留。`, row);
   }
+  const profile = parseUserProfile(row.profile);
+  const meals = parseMeals(row.meals);
+  if (profile.planDate !== row.plan_date) throw new UnsupportedDocumentError("计划业务日期与文档日期不一致。", row);
+  if (profile.allocationMode === "explicitMacros") assertMealAllocations(meals);
+  const result = parseNutritionResult(row.result);
+  if (profile.protocolSnapshot?.nutrition && (nutritionInputFingerprint(result.targetResolution) !== nutritionInputFingerprint(profile.protocolSnapshot.nutrition.result)
+    || nutritionInputFingerprint(result.dailyTarget) !== nutritionInputFingerprint(profile.protocolSnapshot.dailyTarget))) throw new UnsupportedDocumentError("每日计划与执行协议冻结结果不一致。", row);
   return {
     id: String(row.id),
     planDate: String(row.plan_date),
-    profile: parseUserProfile(row.profile),
-    meals: parseMeals(row.meals),
-    result: parseNutritionResult(row.result),
+    profile,
+    meals,
+    result,
     createdAt: String(row.created_at ?? ""),
     updatedAt: String(row.updated_at ?? ""),
     schemaVersion,
@@ -257,12 +307,16 @@ export function parseSavedPlanRow(row: Record<string, unknown>): SavedPlan {
 export function parsePlannerDraftRow(row: Record<string, unknown>): PlannerDraft {
   const revision = finiteNumber(row.revision);
   const schemaVersion = finiteNumber(row.schema_version);
-  if (revision == null || revision < 1 || (schemaVersion !== 1 && schemaVersion !== PLANNER_DRAFT_SCHEMA_VERSION)) {
-    throw new Error("云端草稿版本无效。");
+  if (revision == null || revision < 1 || schemaVersion == null || ![1, 2, PLANNER_DRAFT_SCHEMA_VERSION].includes(schemaVersion)) {
+    throw new UnsupportedDocumentError("云端草稿版本无效；原始内容已保留。", row);
   }
+  const profile = parseUserProfile(row.profile_snapshot);
+  const meals = parseMeals(row.meals);
+  if (row.plan_date != null && row.plan_date !== profile.planDate) throw new UnsupportedDocumentError("草稿业务日期与文档不一致。", row);
+  if (profile.allocationMode === "explicitMacros") assertMealAllocations(meals);
   return {
-    profile: parseUserProfile(row.profile_snapshot),
-    meals: parseMeals(row.meals),
+    profile,
+    meals,
     updatedAt: String(row.updated_at ?? ""),
     revision,
     schemaVersion,
@@ -287,8 +341,9 @@ function parseDailyFoods(value: unknown) {
     const foodId = String(item.foodId ?? item.food_id ?? "").trim();
     const name = String(item.name ?? "").trim();
     const totals = parseMacroTotals(item.totals);
-    return foodId && name && totals
-      ? [{ foodId, name, grams: nonNegative(item.grams), totals }]
+    const grams = finiteNumber(item.grams);
+    return foodId && name && totals && grams != null && grams >= 0
+      ? [{ foodId, name, grams, totals }]
       : [];
   });
 }
@@ -298,8 +353,8 @@ function parseExercises(value: unknown, planDate: string) {
   return value.flatMap((item, index) => {
     if (!isRecord(item)) return [];
     const name = String(item.name ?? "").trim();
-    const kcal = nonNegative(item.kcal);
-    return name && kcal > 0
+    const kcal = finiteNumber(item.kcal);
+    return name && kcal != null && kcal >= 0
       ? [{ id: String(item.id ?? `${planDate}-exercise-${index}`), name, kcal }]
       : [];
   });
@@ -315,16 +370,21 @@ export function parseDailyCheckinActual(
   row: Record<string, unknown>,
   planDate: string,
 ): DailyCheckinActual {
+  assertDocument(value);
   if (!isRecord(value)) throw new Error("每日实际记录格式无效。");
   const version = value.version == null ? 1 : finiteNumber(value.version);
-  if (version !== 1 && version !== 2) throw new Error(`不支持的每日实际记录版本：${String(value.version)}`);
+  if (version === 3) {
+    const legacy = value.legacyActual == null ? undefined : parseDailyCheckinActual(value.legacyActual, {}, planDate);
+    if (legacy && legacy.version !== 2) throw new Error("历史实际快照必须为 V2。");
+    return normalizeActualV3(value, legacy);
+  }
+  if (version !== 1 && version !== 2) throw new UnsupportedDocumentError(`不支持的每日实际记录版本：${String(value.version)}`, value);
 
   const foods = parseDailyFoods(value.foods);
   const exercises = parseExercises(value.exercises, planDate);
-  if (version === 2
-    && ((Array.isArray(value.foods) && foods.length !== value.foods.length)
+  if (((Array.isArray(value.foods) && foods.length !== value.foods.length)
       || (Array.isArray(value.exercises) && exercises.length !== value.exercises.length))) {
-    throw new Error("每日实际记录包含损坏条目。");
+    throw new UnsupportedDocumentError("每日实际记录包含损坏条目，保留原文并停止写入。", value);
   }
 
   const legacyTotals = parseMacroTotals(value.totalsSnapshot)

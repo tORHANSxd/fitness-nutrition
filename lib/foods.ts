@@ -1,7 +1,8 @@
 import { foodCategories, type CustomFoodDraft, type FoodItem, type MealPlan } from "@/lib/types";
 import { foodFromSnapshot, parseFoodSnapshot } from "@/lib/foodSnapshots";
+import { chinaCompositionFoods } from "@/lib/chinaFoodComposition";
 
-// 分类排序权重：按 foodCategories 声明顺序（主食→蔬菜→水果→肉类→补剂→坚果）。
+// 分类排序权重：按 foodCategories 声明顺序。
 const categoryOrder = new Map<string, number>(foodCategories.map((category, index) => [category, index]));
 
 /**
@@ -451,5 +452,6 @@ export const builtinFoods: FoodItem[] = [
     weightBasis: "raw",
     cookedRawRatio: null,
     source: "public"
-  }
+  },
+  ...chinaCompositionFoods
 ];

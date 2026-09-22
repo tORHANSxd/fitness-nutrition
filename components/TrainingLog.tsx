@@ -1,672 +1,654 @@
 "use client";
-
+import Link from "next/link";
 import type { User } from "@supabase/supabase-js";
-import { CalendarRange, ChevronLeft, ChevronRight, LogIn, Plus, Save, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useDeloadWeeks } from "@/components/useDeloadWeeks";
+import { Copy, Plus, Save, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useZonedToday } from "@/hooks/useZonedToday";
-import { addDays, addMonths, formatDateKey, monthGrid, monthKey, weekdayLabels } from "@/lib/dateTime";
-import { canonicalWeight, displayWeight, type AppLocale, type UnitSystem } from "@/lib/preferences";
+import { addDays, formatDateKey } from "@/lib/dateTime";
 import {
-  applyDeloadToTemplate,
-  autoregulate,
-  bestE1RMByExercise,
-  intensityZones,
-  isDeloadWeek,
+  canonicalWeight,
+  displayWeight,
+  type AppLocale,
+  type UnitSystem,
+} from "@/lib/preferences";
+import {
   muscleGroupLabels,
   muscleGroupOrder,
-  programTemplates,
-  rpeFromRir,
   sessionTonnage,
-  splitLabels,
-  volumeLandmarks,
-  volumeStatus,
-  volumeStatusLabels,
-  weeklyWorkingSets,
-  weekStartKey
 } from "@/lib/training";
-import { deleteWorkoutSession, loadWorkoutSessions, saveWorkoutSession, TrainingAuthError } from "@/lib/trainingStorage";
-import type { ExperienceLevel, MuscleGroup, TrainingSplit, WorkoutSession, WorkoutSet } from "@/lib/types";
-import { NumericDraftNotice, NumericDraftProvider, NumericInput, useNumericDraftForm } from "@/components/NumericInput";
-import { roundForStorage } from "@/lib/numericInput";
+import {
+  deleteWorkoutSession,
+  loadWorkoutSessions,
+  saveWorkoutSession,
+} from "@/lib/trainingStorage";
+import type { WorkoutSession, WorkoutSet } from "@/lib/types";
+import {
+  NumericDraftNotice,
+  NumericDraftProvider,
+  NumericInput,
+  useNumericDraftForm,
+} from "@/components/NumericInput";
+import { Dialog } from "@/components/Dialog";
 
 interface TrainingLogProps {
   user: User | null;
   onRequireLogin: () => void;
-  /** 从安排日历跳转：nonce 变化时把日历定位到该日并选中。 */
   dateRequest?: { date: string; nonce: number } | null;
   timeZone: string;
   locale: AppLocale;
   weekStartsOn: number;
   unitSystem: UnitSystem;
+  historyOnly?: boolean;
 }
-
-const experienceLabels: Record<ExperienceLevel, string> = {
-  beginner: "新手",
-  intermediate: "中级",
-  advanced: "进阶"
-};
-
-function blankSession(dateKey: string): WorkoutSession {
+function blankSession(date: string): WorkoutSession {
   return {
+    status: "recorded",
     id: "",
-    sessionDate: dateKey,
+    sessionDate: date,
     splitLabel: "",
     bodyweightKg: null,
     recovery: null,
     note: "",
     sets: [],
-    createdAt: ""
+    createdAt: "",
   };
 }
-
 function newSet(partial?: Partial<WorkoutSet>): WorkoutSet {
   return {
     id: crypto.randomUUID(),
     exercise: partial?.exercise ?? "",
     muscleGroup: partial?.muscleGroup ?? "chest",
-    weightKg: partial?.weightKg ?? 0,
-    reps: partial?.reps ?? 0,
-    rir: partial?.rir ?? 2,
-    isWarmup: partial?.isWarmup ?? false
+    weightKg: partial?.weightKg ?? null,
+    reps: partial?.reps ?? null,
+    rir: partial?.rir ?? null,
+    isWarmup: partial?.isWarmup ?? false,
+    completed: false,
+    loadType: partial?.loadType ?? "external",
+    durationSeconds: partial?.durationSeconds,
   };
 }
-
-export function TrainingLog({ user, onRequireLogin, dateRequest, timeZone, locale, weekStartsOn, unitSystem }: TrainingLogProps) {
-  const numericDraftForm = useNumericDraftForm();
+export function TrainingLog({
+  user,
+  onRequireLogin,
+  dateRequest,
+  timeZone,
+  locale,
+  unitSystem,
+  historyOnly = false,
+}: TrainingLogProps) {
   const today = useZonedToday(timeZone);
-  const [monthCursor, setMonthCursor] = useState(() => monthKey(today));
+  const numeric = useNumericDraftForm();
+  const [date, setDate] = useState(dateRequest?.date ?? today);
   const [sessions, setSessions] = useState<WorkoutSession[]>([]);
-  const [selectedDate, setSelectedDate] = useState<string>(today);
-  const [draft, setDraft] = useState<WorkoutSession>(() => blankSession(today));
-  const [split, setSplit] = useState<TrainingSplit>("fiveDayV2");
-  const [experience, setExperience] = useState<ExperienceLevel>("intermediate");
-  const [loading, setLoading] = useState(false);
+  const [draft, setDraft] = useState<WorkoutSession>(() => blankSession(date));
+  const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState("");
-  const [setErrors, setSetErrors] = useState<Record<string, string>>({});
-
-  const monthRange = useMemo(() => {
-    return { from: addMonths(monthCursor, -1), to: addDays(addMonths(monthCursor, 2), -1) };
-  }, [monthCursor]);
-
-  const refresh = useCallback(async () => {
-    if (!user) {
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      setSessions(await loadWorkoutSessions(user, monthRange.from, monthRange.to));
-    } catch (err) {
-      if (err instanceof TrainingAuthError) {
-        setError(err.message);
-      } else {
-        setError("加载训练记录失败，请检查 Supabase 连接。");
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, [user, monthRange.from, monthRange.to]);
-
+  const [message, setMessage] = useState("");
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [removed, setRemoved] = useState<WorkoutSet | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const dirtyRef = useRef(false);
+  const [pendingDate, setPendingDate] = useState<string | null>(null);
   useEffect(() => {
-    refresh();
-  }, [refresh]);
-
-  // 从安排日历跳转：定位月历到目标日期并选中。
-  useEffect(() => {
-    if (!dateRequest) {
-      return;
+    if (dateRequest) {
+      if (dirtyRef.current) setPendingDate(dateRequest.date);
+      else setDate(dateRequest.date);
     }
-    setMonthCursor(monthKey(dateRequest.date));
-    setSelectedDate(dateRequest.date);
   }, [dateRequest]);
-
-  const sessionsByDate = useMemo(() => {
-    const map = new Map<string, WorkoutSession>();
-    for (const session of sessions) {
-      map.set(session.sessionDate, session);
-    }
-    return map;
-  }, [sessions]);
-
-  // 切换选中日期时，载入已有记录或建一张空白草稿。
   useEffect(() => {
-    const existing = sessionsByDate.get(selectedDate);
-    setDraft(existing ? structuredClone(existing) : blankSession(selectedDate));
-  }, [selectedDate, sessionsByDate]);
-
-  const weeks = useMemo(() => {
-    const cursorMonth = monthCursor.slice(0, 7);
-    const keys = monthGrid(monthCursor, weekStartsOn);
-    return Array.from({ length: 6 }, (_, weekIndex) => keys.slice(weekIndex * 7, weekIndex * 7 + 7).map((key) => ({
-      key,
-      inMonth: key.startsWith(cursorMonth)
-    })));
-  }, [monthCursor, weekStartsOn]);
-
-  // 减载周：按选中日期所在周判断；开着时模板整体换成减载版（组数减半、RIR 4–5）。
-  const { deloadWeeks, toggleDeloadWeek } = useDeloadWeeks(user, weekStartsOn);
-  const deloadActive = isDeloadWeek(selectedDate, deloadWeeks, weekStartsOn);
-  const template = useMemo(
-    () => (deloadActive ? applyDeloadToTemplate(programTemplates[split]) : programTemplates[split]),
-    [split, deloadActive]
-  );
-
-  async function handleToggleDeload() {
-    if (!user) {
-      onRequireLogin();
-      return;
-    }
-    const saved = await toggleDeloadWeek(selectedDate);
-    if (!saved) {
-      setError("减载周标记保存失败，请重试。");
-    }
-  }
-
-  const weeklyCounts = useMemo(
-    () => weeklyWorkingSets(sessions, weekStartKey(selectedDate, weekStartsOn)),
-    [sessions, selectedDate, weekStartsOn]
-  );
-  const landmarks = volumeLandmarks[experience];
-
-  const tonnage = sessionTonnage(draft);
-  const e1rms = bestE1RMByExercise(draft);
-  const workingSetCount = draft.sets.filter((set) => !set.isWarmup).length;
-
-  function updateDraft(patch: Partial<WorkoutSession>) {
-    setDraft((prev) => ({ ...prev, ...patch }));
-  }
-
-  function updateSet(id: string, patch: Partial<WorkoutSet>) {
-    setDraft((prev) => ({ ...prev, sets: prev.sets.map((set) => (set.id === id ? { ...set, ...patch } : set)) }));
-  }
-
-  function addSet() {
-    const last = draft.sets[draft.sets.length - 1];
-    setDraft((prev) => ({
-      ...prev,
-      sets: [...prev.sets, newSet(last ? { exercise: last.exercise, muscleGroup: last.muscleGroup, weightKg: last.weightKg, reps: last.reps, rir: last.rir } : undefined)]
-    }));
-  }
-
-  function removeSet(id: string) {
-    setDraft((prev) => ({ ...prev, sets: prev.sets.filter((set) => set.id !== id) }));
-  }
-
-  function applyTemplateDay(dayIndex: number) {
-    const day = template.days[dayIndex];
-    const expanded: WorkoutSet[] = day.exercises.flatMap((ex) =>
-      Array.from({ length: ex.sets }, () => newSet({ exercise: ex.exercise, muscleGroup: ex.muscleGroup, reps: ex.repRange[0], rir: ex.targetRir }))
-    );
-    updateDraft({ splitLabel: day.splitLabel, sets: expanded });
-  }
-
-  async function handleSave() {
-    if (!user) {
-      onRequireLogin();
-      return;
-    }
-    if (draft.sets.length === 0 && !draft.splitLabel) {
-      setError("请先填写训练内容（套用模板某天或手动添加组）。");
-      return;
-    }
-    if (!numericDraftForm.validateAll()) {
-      setError("请先修正标红的数字，再保存训练记录。");
-      return;
-    }
-    const normalizedDraft: WorkoutSession = {
-      ...draft,
-      bodyweightKg: draft.bodyweightKg == null ? null : roundForStorage(draft.bodyweightKg, 2),
-      sets: draft.sets.map((set) => ({ ...set, weightKg: roundForStorage(set.weightKg, 2) }))
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
     };
-    const precisionChanged = normalizedDraft.bodyweightKg !== draft.bodyweightKg
-      || normalizedDraft.sets.some((set, index) => set.weightKg !== draft.sets[index]?.weightKg);
-    setSaving(true);
-    setError(null);
-    setNotice("");
-    try {
-      await saveWorkoutSession({ ...normalizedDraft, splitLabel: normalizedDraft.splitLabel || "自定义训练" }, user);
-      await refresh();
-      setNotice(`训练记录已保存${precisionChanged ? "，重量按 2 位小数记录" : ""}。`);
-    } catch (err) {
-      setError(err instanceof TrainingAuthError ? err.message : "保存失败，请重试。");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  function updateSetError(setId: string, field: string, nextError: string | null) {
-    const key = `${setId}:${field}`;
-    setSetErrors((current) => {
-      if (nextError) {
-        return current[key] === nextError ? current : { ...current, [key]: nextError };
-      }
-      if (!(key in current)) {
-        return current;
-      }
-      const next = { ...current };
-      delete next[key];
-      return next;
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
+  useEffect(() => {
+    let live = true;
+    setLoaded(false);
+    setMessage("");
+    loadWorkoutSessions(user, addDays(date, -365), date > today ? date : today)
+      .then((rows) => {
+        if (live) {
+          setSessions(rows);
+          if (!dirtyRef.current) {
+            setDraft(
+              structuredClone(
+                rows.find((s) => s.sessionDate === date) ?? blankSession(date),
+              ),
+            );
+            setDirty(false);
+          }
+          setLoaded(true);
+          setRemoved(null);
+        }
+      })
+      .catch(() => {
+        if (live) setMessage("训练记录读取失败，请刷新后重试。");
+      });
+    return () => {
+      live = false;
+    };
+  }, [date, today, user]);
+  const change = (next: WorkoutSession) => {
+    setDraft(next);
+    setDirty(true);
+    dirtyRef.current = true;
+  };
+  const updateSet = (id: string, patch: Partial<WorkoutSet>) =>
+    change({
+      ...draft,
+      sets: draft.sets.map((s) => (s.id === id ? { ...s, ...patch } : s)),
     });
-  }
-
-  async function handleDelete() {
+  async function save() {
     if (!user) {
+      onRequireLogin();
+      return;
+    }
+    if (!loaded || !numeric.validateAll() || date > today) return;
+    if (draft.sets.some((s) => !s.exercise.trim())) {
+      setMessage("请填写每组动作名称。");
+      return;
+    }
+    if (!draft.sets.length) {
+      setMessage("请先添加训练组。");
+      return;
+    }
+    if (
+      draft.sets.some(
+        (s) =>
+          s.completed &&
+          (s.loadType === "timed"
+            ? !(s.durationSeconds && s.durationSeconds > 0)
+            : !(s.reps && s.reps > 0) ||
+              ((s.loadType ?? "external") !== "bodyweight" &&
+                s.weightKg == null)),
+      )
+    ) {
+      setMessage("请补全已完成组的次数与重量，计时动作需填写时长。");
       return;
     }
     setSaving(true);
-    setError(null);
+    setMessage("");
     try {
-      await deleteWorkoutSession(selectedDate, user);
-      await refresh();
-      setDraft(blankSession(selectedDate));
-    } catch (err) {
-      setError(err instanceof TrainingAuthError ? err.message : "删除失败，请重试。");
+      const saved = await saveWorkoutSession(
+        { ...draft, status: "recorded", sessionDate: date },
+        user,
+      );
+      setDraft(saved);
+      setSessions((rows) => [
+        saved,
+        ...rows.filter((s) => s.sessionDate !== date),
+      ]);
+      setMessage("训练记录已保存。");
+      setDirty(false);
+      dirtyRef.current = false;
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "保存失败，请重试。");
     } finally {
       setSaving(false);
     }
   }
-
-  if (!user) {
-    return (
-      <section className="panel flex min-h-[420px] flex-col items-center justify-center gap-4 px-6 text-center">
-        <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-accent/[0.12] text-accent-text ring-1 ring-accent/25">
-          <CalendarRange size={26} />
-        </div>
-        <div>
-          <h2 className="text-lg font-semibold text-ink">训练日历需要登录</h2>
-          <p className="mt-1 max-w-sm text-sm text-muted">
-            训练记录仅保存在 Supabase 云端（不写本地浏览器存储），登录后即可逐日逐组记录并自动计算。
-          </p>
-        </div>
-        <button className="btn-primary px-5" type="button" onClick={onRequireLogin}>
-          <LogIn size={16} />
-          去登录
-        </button>
-      </section>
-    );
+  function selectDate(next: string) {
+    if (!next) return;
+    if (dirty) setPendingDate(next);
+    else setDate(next);
   }
-
-  const monthLabel = formatDateKey(monthCursor, locale, { year: "numeric", month: "long" });
-  const weekdayHeads = weekdayLabels(locale, weekStartsOn);
-  const weightUnit = unitSystem === "imperial" ? "lb" : "kg";
-  const templateDayColumns = template.days.length === 3 ? "lg:grid-cols-3" : template.days.length === 4 ? "lg:grid-cols-4" : "lg:grid-cols-5";
-
   return (
-    <NumericDraftProvider form={numericDraftForm}>
-    <div className="flex flex-col gap-5">
-      {/* 方案模板选择 + 周排期条带（升级版「五分化」） */}
-      <section className="panel p-4">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-base font-semibold text-ink">训练方案模板</h2>
-            <p className="mt-0.5 text-xs text-muted">{template.summary}</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-1.5">
-            {(Object.keys(splitLabels) as TrainingSplit[]).map((key) => (
-              <button
-                key={key}
-                type="button"
-                className={`min-h-11 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-                  split === key ? "bg-accent text-accent-ink" : "border border-line bg-panel text-muted hover:text-ink"
-                }`}
-                onClick={() => setSplit(key)}
-              >
-                {splitLabels[key]}
-              </button>
-            ))}
-            <label
-              className={`flex min-h-11 cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
-                deloadActive ? "border-accent/50 bg-accent/15 text-accent-text" : "border-line bg-panel text-muted hover:text-ink"
-              }`}
-              title={`标记 ${weekStartKey(selectedDate, weekStartsOn)} 起的一周为减载周`}
-            >
-              <input type="checkbox" className="h-3.5 w-3.5 accent-[#155D4A]" checked={deloadActive} onChange={handleToggleDeload} />
-              本周减载
-            </label>
-          </div>
-        </div>
-        {deloadActive ? (
-          <p className="mb-3 rounded-lg border border-accent/30 bg-accent/[0.07] px-3 py-2 text-xs leading-relaxed text-ink">
-            减载周（{weekStartKey(selectedDate, weekStartsOn)} 起）：模板已切换为减载版——组数减半、每组留 4–5 次余力；重量用平时的
-            85–90%，停用全部拉长半程/递减组，间歇有氧换匀速或散步。练完应"意犹未尽"，不是"被掏空"。
-          </p>
-        ) : null}
-        <div className={`grid grid-cols-1 gap-1.5 sm:grid-cols-2 ${templateDayColumns}`} data-testid="training-template-days">
-          {template.days.map((day, index) => (
-            <button
-              key={day.dayLabel}
-              type="button"
-              onClick={() => applyTemplateDay(index)}
-              title="点击套用到当前选中日期"
-              className="min-h-11 min-w-0 rounded-lg border border-line bg-surface/40 px-3 py-2.5 text-left transition-colors hover:border-accent/30"
-            >
-              <div className="text-[11px] font-semibold text-ink">{day.dayLabel}</div>
-              <div className="mt-1 text-xs font-medium text-ink">{day.splitLabel}</div>
-              <div className="mt-0.5 text-[10px] leading-4 text-muted">
-                {day.muscleGroups.map((m) => muscleGroupLabels[m]).join(" · ")}
-              </div>
-            </button>
-          ))}
-        </div>
-        <p className="mt-2 text-[11px] text-muted">点任一训练日 → 自动把动作与目标 RIR 填入下方选中日期，逐组填重量即可。</p>
-      </section>
-
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
-        {/* 日历 */}
-        <section className="panel p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-base font-semibold text-ink">训练日历</h2>
-            <div className="flex items-center gap-2">
-              <button className="icon-button shrink-0" type="button" onClick={() => setMonthCursor(addMonths(monthCursor, -1))} aria-label="上个月">
-                <ChevronLeft size={16} />
-              </button>
-              <span className="min-w-[110px] text-center text-sm font-medium text-ink">{monthLabel}</span>
-              <button className="icon-button shrink-0" type="button" onClick={() => setMonthCursor(addMonths(monthCursor, 1))} aria-label="下个月">
-                <ChevronRight size={16} />
-              </button>
-            </div>
-          </div>
-          <div className="grid grid-cols-7 gap-1 text-center">
-            {weekdayHeads.map((d) => (
-              <div key={d} className="py-1 text-[11px] font-semibold text-muted">{d}</div>
-            ))}
-            {weeks.flat().map((cell) => {
-              const session = sessionsByDate.get(cell.key);
-              const isSelected = cell.key === selectedDate;
-              const isToday = cell.key === today;
-              return (
-                <button
-                  key={cell.key}
-                  type="button"
-                  onClick={() => setSelectedDate(cell.key)}
-                  aria-label={`${formatDateKey(cell.key, locale, { month: "short", day: "numeric" })}${session ? `，${session.splitLabel}` : "，无训练记录"}`}
-                  className={`relative flex aspect-square flex-col items-center justify-center rounded-lg border text-sm transition-colors ${
-                    isSelected
-                      ? "border-accent bg-accent/15 text-ink"
-                      : cell.inMonth
-                        ? "border-line bg-black/[0.02] text-ink hover:border-accent/40"
-                        : "border-transparent text-muted/55"
-                  }`}
-                >
-                  <span className={isToday ? "font-bold text-accent2" : ""}>{Number(cell.key.slice(8, 10))}</span>
-                  {session ? <span className="mt-1 h-1.5 w-1.5 rounded-full bg-accent" /> : null}
-                </button>
-              );
-            })}
-          </div>
-          <div className="mt-3 flex items-center gap-3 text-[11px] text-muted">
-            <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-accent" />已训练</span>
-            {loading ? <span className="ml-auto">加载中…</span> : null}
-          </div>
-
-          {/* 当周训练量地标 */}
-          <div className="mt-4 border-t border-line pt-4">
-            <div className="mb-2 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-ink">本周训练量（{weekStartKey(selectedDate, weekStartsOn)} 起）</h3>
-              <div className="flex gap-1">
-                {(Object.keys(experienceLabels) as ExperienceLevel[]).map((lvl) => (
-                  <button
-                    key={lvl}
-                    type="button"
-                    className={`rounded px-2 py-0.5 text-[11px] ${experience === lvl ? "bg-accent/20 text-accent-text" : "text-muted hover:text-ink"}`}
-                    onClick={() => setExperience(lvl)}
-                  >
-                    {experienceLabels[lvl]}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              {muscleGroupOrder
-                .filter((m) => weeklyCounts[m] > 0)
-                .map((m) => {
-                  const sets = weeklyCounts[m];
-                  const lm = landmarks[m];
-                  const status = volumeStatus(sets, lm);
-                  const pct = Math.min(100, (sets / lm.mrv) * 100);
-                  const barColor =
-                    status === "under" ? "bg-[#6E8CA8]/80" : status === "over" ? "bg-rose/80" : status === "near-max" ? "bg-[#e0a23a]/85" : "bg-accent/80";
-                  return (
-                    <div key={m} className="text-xs">
-                      <div className="flex items-center justify-between">
-                        <span className="text-ink">{muscleGroupLabels[m]}</span>
-                        <span className="text-muted">{sets} 组 · {volumeStatusLabels[status]}</span>
-                      </div>
-                      <div className="mt-0.5 h-1.5 w-full overflow-hidden rounded-full bg-black/[0.08]" title={`MEV ${lm.mev} / MAV ${lm.mav} / MRV ${lm.mrv}`}>
-                        <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              {muscleGroupOrder.every((m) => weeklyCounts[m] === 0) ? (
-                <p className="text-xs text-muted">本周还没有训练记录。</p>
-              ) : null}
-            </div>
-          </div>
-        </section>
-
-        {/* 当日逐组录入 */}
-        <section className="panel p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <div>
-              <h2 className="text-base font-semibold text-ink">{selectedDate} 训练记录</h2>
-              <p className="text-xs text-muted">{draft.id ? "已保存 · 可修改" : "未记录 · 新建中"}</p>
-            </div>
-            <div className="text-right">
-              <div className="metric-label">容量</div>
-              <div className="text-lg font-semibold text-accent2">{Math.round(displayWeight(tonnage, unitSystem)).toLocaleString(locale)} {weightUnit}</div>
-            </div>
-          </div>
-
-          {/* 元信息 */}
-          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-            <label className="flex flex-col gap-1">
-              <span className="metric-label">部位/分化</span>
-              <input className="field" value={draft.splitLabel} placeholder="如 腿 Legs" onChange={(e) => updateDraft({ splitLabel: e.target.value })} />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="metric-label">体重 {weightUnit}</span>
-              <NumericInput
-                blankValue={null}
+    <NumericDraftProvider form={numeric}>
+      <section className="space-y-4" aria-label="手动训练记录">
+        {!historyOnly && (
+          <section className="panel p-4 sm:p-5">
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-lg">记录训练</h2>
+              <input
+                type="date"
                 className="field"
-                formatKey={unitSystem}
-                formatValue={(value) => roundForStorage(displayWeight(value, unitSystem), 2)}
-                label={`体重 ${weightUnit}`}
-                minExclusive={0}
-                toValue={(value) => canonicalWeight(value, unitSystem)}
-                value={draft.bodyweightKg}
-                placeholder="—"
-                onValueChange={(value) => updateDraft({ bodyweightKg: value })}
+                aria-label="训练日期"
+                max={today}
+                value={date}
+                onChange={(e) => selectDate(e.target.value)}
               />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="metric-label">恢复 1–5</span>
-              <select className="field" value={draft.recovery ?? ""} onChange={(e) => updateDraft({ recovery: e.target.value === "" ? null : Number(e.target.value) })}>
-                <option value="">—</option>
-                {[1, 2, 3, 4, 5].map((n) => (
-                  <option key={n} value={n}>{n}</option>
-                ))}
-              </select>
-            </label>
-          </div>
-
-          {/* 逐组表 */}
-          <div className="mt-4">
-            <div className="mb-1.5 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-ink">逐组记录（{workingSetCount} 有效组）</h3>
-              <button className="btn-secondary h-11 px-2.5 text-xs" type="button" onClick={addSet}>
-                <Plus size={14} /> 加一组
-              </button>
             </div>
-            <div className="flex flex-col gap-1.5">
-              <div className="hidden grid-cols-[1.6fr_1fr_0.9fr_0.7fr_0.7fr_auto] gap-1.5 px-1 text-[10px] font-semibold uppercase text-muted md:grid">
-                <span>动作</span><span>部位</span><span>重量{weightUnit}</span><span>次数</span><span>RIR</span><span></span>
-              </div>
-              {draft.sets.map((set) => (
-                <div key={set.id} className="grid grid-cols-2 gap-1.5 rounded-lg border border-line bg-panel/50 p-1.5 md:grid-cols-[1.6fr_1fr_0.9fr_0.7fr_0.7fr_auto] md:border-0 md:bg-transparent md:p-0">
-                  <input className="field h-11" value={set.exercise} placeholder="动作" aria-label="动作名称" onChange={(e) => updateSet(set.id, { exercise: e.target.value })} />
-                  <select className="field h-11" value={set.muscleGroup} aria-label="训练部位" onChange={(e) => updateSet(set.id, { muscleGroup: e.target.value as MuscleGroup })}>
-                    {muscleGroupOrder.map((m) => (
-                      <option key={m} value={m}>{muscleGroupLabels[m]}</option>
-                    ))}
-                  </select>
-                  <NumericInput
-                    className="field h-11"
-                    formatKey={unitSystem}
-                    formatValue={(value) => roundForStorage(displayWeight(value, unitSystem), 2)}
-                    label="训练重量"
-                    min={0}
-                    required
-                    showError={false}
-                    toValue={(value) => canonicalWeight(value, unitSystem)}
-                    value={set.weightKg}
-                    placeholder="0"
-                    aria-label={`重量 ${weightUnit}`}
-                    onErrorChange={(nextError) => updateSetError(set.id, "weight", nextError)}
-                    onValueChange={(value) => updateSet(set.id, { weightKg: value as number })}
+            {!loaded ? (
+              <p role="status" className="text-sm text-muted">
+                {message || "正在读取记录…"}
+              </p>
+            ) : (
+              <fieldset disabled={saving || date > today} className="space-y-4">
+                <label className="block text-sm">
+                  训练名称
+                  <input
+                    className="field mt-1 w-full"
+                    maxLength={80}
+                    placeholder="例如：上肢训练（可选）"
+                    value={draft.splitLabel}
+                    onChange={(e) =>
+                      change({ ...draft, splitLabel: e.target.value })
+                    }
                   />
-                  <NumericInput
-                    className="field h-11"
-                    inputMode="numeric"
-                    integer
-                    label="次数"
-                    min={0}
-                    required
-                    showError={false}
-                    value={set.reps}
-                    placeholder="0"
-                    aria-label="次数"
-                    onErrorChange={(nextError) => updateSetError(set.id, "reps", nextError)}
-                    onValueChange={(value) => updateSet(set.id, { reps: value as number })}
-                  />
-                  <NumericInput
-                    blankValue={null}
-                    className="field h-11"
-                    inputMode="numeric"
-                    integer
-                    label="RIR"
-                    min={0}
-                    max={5}
-                    showError={false}
-                    value={set.rir}
-                    placeholder="—"
-                    aria-label="剩余次数 RIR"
-                    onErrorChange={(nextError) => updateSetError(set.id, "rir", nextError)}
-                    onValueChange={(value) => updateSet(set.id, { rir: value ?? null })}
-                  />
-                  <div className="col-span-2 flex items-center justify-between gap-1 md:col-span-1 md:justify-end">
-                    <label className="flex items-center gap-1 text-[11px] text-muted">
-                      <input type="checkbox" checked={set.isWarmup} onChange={(e) => updateSet(set.id, { isWarmup: e.target.checked })} /> 热身
-                    </label>
-                    <button className="btn-danger h-11 w-11 px-0" type="button" onClick={() => removeSet(set.id)} aria-label="删除该组">
-                      <Trash2 size={14} />
+                </label>
+                {draft.sets.length === 0 && (
+                  <div className="empty-state">
+                    <span className="empty-food-icon">
+                      <Plus size={25} />
+                    </span>
+                    <p>从一个动作开始记录</p>
+                    <span className="text-sm text-muted">
+                      填写你实际完成的重量、次数或时长。
+                    </span>
+                  </div>
+                )}
+                <div className="space-y-3">
+                  {draft.sets.map((s, i) => (
+                    <article key={s.id} className="training-set">
+                      <div className="flex items-center gap-2">
+                        <span className="set-number">{i + 1}</span>
+                        <input
+                          className="field min-w-0 flex-1"
+                          aria-label={`第${i + 1}组动作`}
+                          maxLength={120}
+                          placeholder="动作名称"
+                          value={s.exercise}
+                          onChange={(e) =>
+                            updateSet(s.id, { exercise: e.target.value })
+                          }
+                        />
+                        <button
+                          className="icon-button"
+                          type="button"
+                          aria-label={`复制第${i + 1}组`}
+                          onClick={() =>
+                            change({
+                              ...draft,
+                              sets: [...draft.sets, newSet(s)],
+                            })
+                          }
+                        >
+                          <Copy size={16} />
+                        </button>
+                        <button
+                          className="icon-button text-muted"
+                          type="button"
+                          aria-label={`删除第${i + 1}组`}
+                          onClick={() => {
+                            setRemoved(s);
+                            change({
+                              ...draft,
+                              sets: draft.sets.filter((v) => v.id !== s.id),
+                            });
+                          }}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                        <label className="text-xs text-muted">
+                          记录方式
+                          <select
+                            className="field mt-1 w-full"
+                            value={s.loadType ?? "external"}
+                            onChange={(e) =>
+                              updateSet(s.id, {
+                                loadType: e.target
+                                  .value as WorkoutSet["loadType"],
+                              })
+                            }
+                          >
+                            <option value="external">器械 / 自由重量</option>
+                            <option value="bodyweight">自重</option>
+                            <option value="weighted_bodyweight">
+                              自重加负重
+                            </option>
+                            <option value="assisted">辅助自重</option>
+                            <option value="timed">按时长</option>
+                          </select>
+                        </label>
+                        {s.loadType === "timed" ? (
+                          <label className="text-xs text-muted">
+                            时长（秒）
+                            <NumericInput
+                              className="field mt-1 w-full"
+                              label={`第${i + 1}组时长`}
+                              aria-label={`第${i + 1}组时长`}
+                              minExclusive={0}
+                              required={s.completed === true}
+                              value={s.durationSeconds}
+                              onValueChange={(n) =>
+                                updateSet(s.id, {
+                                  durationSeconds: n ?? undefined,
+                                })
+                              }
+                            />
+                          </label>
+                        ) : (
+                          <>
+                            <label className="text-xs text-muted">
+                              {s.loadType === "assisted"
+                                ? "辅助重量"
+                                : s.loadType === "weighted_bodyweight"
+                                  ? "额外负重"
+                                  : "重量"}
+                              （{unitSystem === "imperial" ? "lb" : "kg"}）
+                              <NumericInput
+                                className="field mt-1 w-full"
+                                label={`第${i + 1}组重量`}
+                                aria-label={`第${i + 1}组重量`}
+                                min={0}
+                                disabled={s.loadType === "bodyweight"}
+                                required={
+                                  s.completed === true &&
+                                  s.loadType !== "bodyweight"
+                                }
+                                value={s.weightKg}
+                                formatKey={unitSystem}
+                                formatValue={(n) =>
+                                  Number(
+                                    displayWeight(n, unitSystem).toFixed(2),
+                                  )
+                                }
+                                toValue={(n) => canonicalWeight(n, unitSystem)}
+                                blankValue={null}
+                                onValueChange={(n) =>
+                                  updateSet(s.id, { weightKg: n ?? null })
+                                }
+                              />
+                            </label>
+                            <label className="text-xs text-muted">
+                              次数
+                              <NumericInput
+                                className="field mt-1 w-full"
+                                label={`第${i + 1}组次数`}
+                                aria-label={`第${i + 1}组次数`}
+                                min={1}
+                                integer
+                                required={s.completed === true}
+                                value={s.reps}
+                                blankValue={null}
+                                onValueChange={(n) =>
+                                  updateSet(s.id, { reps: n ?? null })
+                                }
+                              />
+                            </label>
+                          </>
+                        )}
+                        <label className="check-label self-end py-3">
+                          <input
+                            type="checkbox"
+                            checked={s.completed === true}
+                            onChange={(e) =>
+                              updateSet(s.id, { completed: e.target.checked })
+                            }
+                          />
+                          已完成
+                        </label>
+                      </div>
+                      <details className="mt-2 text-xs text-muted">
+                        <summary className="cursor-pointer py-2">
+                          更多记录项
+                        </summary>
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                          <label>
+                            训练部位
+                            <select
+                              className="field mt-1 w-full"
+                              value={s.muscleGroup}
+                              onChange={(e) =>
+                                updateSet(s.id, {
+                                  muscleGroup: e.target
+                                    .value as WorkoutSet["muscleGroup"],
+                                })
+                              }
+                            >
+                              {muscleGroupOrder.map((g) => (
+                                <option value={g} key={g}>
+                                  {muscleGroupLabels[g]}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <label>
+                            还能完成几次
+                            <NumericInput
+                              className="field mt-1 w-full"
+                              label={`第${i + 1}组剩余次数`}
+                              aria-label={`第${i + 1}组剩余次数`}
+                              min={0}
+                              max={10}
+                              blankValue={null}
+                              value={s.rir}
+                              onValueChange={(n) =>
+                                updateSet(s.id, { rir: n ?? null })
+                              }
+                            />
+                          </label>
+                          <label className="check-label">
+                            <input
+                              type="checkbox"
+                              checked={s.isWarmup}
+                              onChange={(e) =>
+                                updateSet(s.id, { isWarmup: e.target.checked })
+                              }
+                            />
+                            热身组
+                          </label>
+                        </div>
+                      </details>
+                    </article>
+                  ))}
+                </div>
+                {removed && (
+                  <div
+                    className="flex items-center gap-3 text-sm"
+                    role="status"
+                  >
+                    训练组已移除
+                    <button
+                      className="btn-text"
+                      type="button"
+                      onClick={() => {
+                        change({ ...draft, sets: [...draft.sets, removed] });
+                        setRemoved(null);
+                      }}
+                    >
+                      撤销
                     </button>
                   </div>
-                  {Object.entries(setErrors).find(([key]) => key.startsWith(`${set.id}:`))?.[1] ? (
-                    <p className="col-span-2 text-[11px] leading-tight text-danger md:col-span-6" role="alert">
-                      {Object.entries(setErrors).find(([key]) => key.startsWith(`${set.id}:`))?.[1]}
-                    </p>
-                  ) : null}
+                )}
+                <button
+                  className="btn-secondary w-full"
+                  type="button"
+                  onClick={() =>
+                    change({ ...draft, sets: [...draft.sets, newSet()] })
+                  }
+                >
+                  <Plus size={16} />
+                  添加训练组
+                </button>
+                <details>
+                  <summary className="cursor-pointer py-2 text-sm text-muted">
+                    备注与体重
+                  </summary>
+                  <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                    <label className="text-sm">
+                      当天体重（{unitSystem === "imperial" ? "lb" : "kg"}）
+                      <NumericInput
+                        className="field mt-1 w-full"
+                        label="训练体重"
+                        minExclusive={0}
+                        blankValue={null}
+                        value={draft.bodyweightKg}
+                        formatKey={unitSystem}
+                        formatValue={(n) =>
+                          Number(displayWeight(n, unitSystem).toFixed(2))
+                        }
+                        toValue={(n) => canonicalWeight(n, unitSystem)}
+                        onValueChange={(n) =>
+                          change({ ...draft, bodyweightKg: n ?? null })
+                        }
+                      />
+                    </label>
+                    <label className="text-sm">
+                      备注
+                      <input
+                        className="field mt-1 w-full"
+                        maxLength={1000}
+                        value={draft.note ?? ""}
+                        onChange={(e) =>
+                          change({ ...draft, note: e.target.value })
+                        }
+                      />
+                    </label>
+                  </div>
+                </details>
+                <NumericDraftNotice />
+                <div className="flex items-center justify-between gap-3">
+                  <button
+                    className="btn-primary"
+                    type="button"
+                    onClick={() => void save()}
+                    disabled={saving}
+                  >
+                    <Save size={16} />
+                    {saving ? "保存中…" : "保存训练记录"}
+                  </button>
+                  {draft.id && (
+                    <button
+                      className="btn-text text-danger"
+                      type="button"
+                      onClick={() => setDeleteOpen(true)}
+                    >
+                      删除当日记录
+                    </button>
+                  )}
                 </div>
-              ))}
-              {draft.sets.length === 0 ? (
-                <p className="rounded-lg border border-dashed border-line py-4 text-center text-xs text-muted">
-                  还没有组。点上方模板某天快速填入，或「加一组」手动录入。
-                </p>
-              ) : null}
-            </div>
-          </div>
-
-          {/* 计算结果 */}
-          {e1rms.length > 0 ? (
-            <div className="mt-4 rounded-lg border border-line bg-panel/40 p-3">
-              <h3 className="mb-2 text-sm font-semibold text-ink">本次估算 1RM（E1RM）</h3>
-              <div className="flex flex-wrap gap-2">
-                {e1rms.map((item) => (
-                  <span key={item.exercise} className="rounded-lg border border-accent/30 bg-accent/[0.08] px-2.5 py-1 text-xs text-ink">
-                    {item.exercise} <span className="font-semibold text-accent2">{Math.round(displayWeight(item.e1rm, unitSystem) * 10) / 10} {weightUnit}</span>
-                  </span>
+              </fieldset>
+            )}
+            {message && loaded && (
+              <p role="status" className="mt-3 text-sm">
+                {message}
+              </p>
+            )}
+            {date > today && (
+              <p className="mt-3 text-sm text-muted">
+                训练完成后，再记录实际内容。
+              </p>
+            )}
+          </section>
+        )}
+        <section className="panel p-5">
+          <h2 className="mb-4 text-lg">训练历史</h2>
+          {!sessions.length ? (
+            <p className="text-sm text-muted">还没有训练记录。</p>
+          ) : (
+            <div className="divide-y divide-line">
+              {[...sessions]
+                .sort((a, b) => b.sessionDate.localeCompare(a.sessionDate))
+                .slice(0, historyOnly ? 90 : 7)
+                .map((s) => (
+                  <Link
+                    key={s.sessionDate}
+                    href={`/records?tab=training&date=${s.sessionDate}`}
+                    className="flex min-h-16 w-full items-center justify-between gap-4 py-3 text-left"
+                    onClick={(event) => {
+                      if (!historyOnly) {
+                        event.preventDefault();
+                        selectDate(s.sessionDate);
+                      }
+                    }}
+                  >
+                    <span>
+                      <strong className="text-sm">
+                        {s.splitLabel || "训练记录"}
+                      </strong>
+                      <span className="mt-1 block text-xs text-muted">
+                        {formatDateKey(s.sessionDate, locale, {
+                          month: "short",
+                          day: "numeric",
+                          weekday: "short",
+                        })}
+                      </span>
+                    </span>
+                    <span className="text-right text-xs text-muted">
+                      {s.sets.filter((v) => v.completed === true).length} 组完成
+                      <span className="mt-1 block tabular-nums">
+                        {Number(
+                          displayWeight(sessionTonnage(s), unitSystem).toFixed(
+                            1,
+                          ),
+                        )}{" "}
+                        {unitSystem === "imperial" ? "lb" : "kg"} 总负重
+                      </span>
+                    </span>
+                  </Link>
                 ))}
-              </div>
             </div>
-          ) : null}
-
-          <NumericDraftNotice className="mt-3" />
-          {notice ? <p className="mt-3 rounded border border-accent/25 bg-accent/10 px-3 py-2 text-xs text-accent-text" role="status">{notice}</p> : null}
-          {error ? <p className="mt-3 rounded border border-rose/35 bg-rose/10 px-3 py-2 text-xs text-danger" role="alert">{error}</p> : null}
-
-          <div className="mt-4 flex gap-2">
-            <button className="btn-primary flex-1" type="button" onClick={handleSave} disabled={saving}>
-              <Save size={16} /> {saving ? "保存中…" : "保存到 Supabase"}
-            </button>
-            {draft.id ? (
-              <button className="btn-danger px-4" type="button" onClick={handleDelete} disabled={saving}>
-                <Trash2 size={16} /> 删除
-              </button>
-            ) : null}
-          </div>
+          )}
         </section>
-      </div>
-
-      {/* 参考：强度区间 + RIR 自动调节 */}
-      <ReferencePanel />
-    </div>
+        <Dialog
+          open={deleteOpen}
+          title="删除这一天的训练记录"
+          onClose={() => setDeleteOpen(false)}
+        >
+          <p className="mb-4 text-sm">将删除 {date} 的全部训练组。</p>
+          <button
+            className="btn-danger"
+            disabled={saving}
+            type="button"
+            onClick={async () => {
+              setSaving(true);
+              try {
+                await deleteWorkoutSession(date, user);
+                setSessions((rows) =>
+                  rows.filter((s) => s.sessionDate !== date),
+                );
+                setDraft(blankSession(date));
+                setDirty(false);
+                dirtyRef.current = false;
+                setDeleteOpen(false);
+                setMessage("当日记录已删除。");
+              } catch {
+                setMessage("删除失败，请重试。");
+              } finally {
+                setSaving(false);
+              }
+            }}
+          >
+            确认删除
+          </button>
+        </Dialog>
+        <Dialog
+          open={pendingDate !== null}
+          title="当前记录尚未保存"
+          onClose={() => setPendingDate(null)}
+        >
+          <p className="mb-4 text-sm">切换日期会放弃本次修改。</p>
+          <div className="flex gap-2">
+            <button
+              className="btn-primary"
+              onClick={() => setPendingDate(null)}
+              type="button"
+            >
+              继续编辑
+            </button>
+            <button
+              className="btn-secondary"
+              type="button"
+              onClick={() => {
+                if (pendingDate) {
+                  dirtyRef.current = false;
+                  setDirty(false);
+                  setDate(pendingDate);
+                }
+                setPendingDate(null);
+              }}
+            >
+              放弃修改并切换
+            </button>
+          </div>
+        </Dialog>
+      </section>
     </NumericDraftProvider>
-  );
-}
-
-function ReferencePanel() {
-  const [targetRir, setTargetRir] = useState(2);
-  const [actualRir, setActualRir] = useState(2);
-  const suggestion = autoregulate(targetRir, actualRir);
-
-  return (
-    <section className="panel p-4">
-      <h2 className="mb-3 text-base font-semibold text-ink">训练强度参考与自动调节</h2>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <div>
-          <h3 className="mb-2 text-sm font-semibold text-ink">%1RM ↔ 次数 ↔ 目标（NSCA）</h3>
-          <div className="overflow-hidden rounded-lg border border-line">
-            <table className="w-full text-xs">
-              <thead className="bg-panel text-muted">
-                <tr><th className="px-3 py-2 text-left">目标</th><th className="px-3 py-2">%1RM</th><th className="px-3 py-2">次数</th></tr>
-              </thead>
-              <tbody>
-                {intensityZones.map((zone) => (
-                  <tr key={zone.goal} className="border-t border-line text-ink">
-                    <td className="px-3 py-2">{zone.goal}</td>
-                    <td className="px-3 py-2 text-center">{zone.pctMin === 0 ? `<${zone.pctMax}` : `${zone.pctMin}–${zone.pctMax}`}%</td>
-                    <td className="px-3 py-2 text-center">{zone.repMin}–{zone.repMax}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-        <div>
-          <h3 className="mb-2 text-sm font-semibold text-ink">RIR 自动调节（下次负荷建议）</h3>
-          <div className="flex items-end gap-3">
-            <label className="flex min-w-0 flex-1 flex-col gap-1">
-              <span className="metric-label">目标 RIR</span>
-              <NumericInput className="field w-full min-w-0" inputMode="numeric" integer label="目标 RIR" min={0} max={5} registerInScope={false} required value={targetRir} onValueChange={(value) => setTargetRir(value as number)} />
-            </label>
-            <label className="flex min-w-0 flex-1 flex-col gap-1">
-              <span className="metric-label">实际 RIR</span>
-              <NumericInput className="field w-full min-w-0" inputMode="numeric" integer label="实际 RIR" min={0} max={5} registerInScope={false} required value={actualRir} onValueChange={(value) => setActualRir(value as number)} />
-            </label>
-          </div>
-          <div className="mt-3 rounded-lg border border-accent/30 bg-accent/[0.07] p-3 text-sm text-ink">
-            <div className="text-xs text-muted">建议(RPE {rpeFromRir(actualRir)})</div>
-            <div className="mt-0.5 font-medium">
-              {suggestion.loadPct > 0 ? `▲ +${suggestion.loadPct}%` : suggestion.loadPct < 0 ? `▼ ${suggestion.loadPct}%` : "维持"} · {suggestion.note}
-            </div>
-          </div>
-          <p className="mt-2 text-[11px] text-muted">证据：1–3 RIR 与练到力竭在容量相等时肥大几乎无差异；大复合动作不建议练到力竭。</p>
-        </div>
-      </div>
-    </section>
   );
 }

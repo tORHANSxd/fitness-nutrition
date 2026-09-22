@@ -1,5 +1,2 @@
-import { OverviewDashboard } from "@/components/workspaces/OverviewDashboard";
-
-export default function OverviewPage() {
-  return <OverviewDashboard />;
-}
+import { redirect } from "next/navigation";
+export default function OverviewPage() { redirect("/today"); }

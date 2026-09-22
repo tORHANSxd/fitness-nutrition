@@ -1,6 +1,8 @@
 import { createCustomFood, sortFoods } from "@/lib/foods";
 import { foodFromSnapshot, foodSnapshotFromFood, parseFoodSnapshot } from "@/lib/foodSnapshots";
 import { getDefaultMealEntrySettings } from "@/lib/nutrition";
+import { edibleSelection } from "@/lib/foodWeights";
+import { assertMealAllocations, mealMetadata } from "@/lib/planProtocol";
 import {
   foodCategories,
   type CustomFoodDraft,
@@ -63,6 +65,7 @@ export function templateRefsFromEntries(
     const foodSnapshot = entry.foodSnapshot ?? (liveFood ? foodSnapshotFromFood(liveFood) : undefined);
     return {
       foodId: entry.foodId,
+      ...edibleSelection({ ...entry }),
       ...(foodSnapshot ? { foodSnapshot } : {}),
       ...(entry.customFood ? { customFood: entry.customFood } : {}),
     };
@@ -99,7 +102,7 @@ export function materializeTemplateEntries(
   return refs.map((ref): MealFoodEntry => {
     const food = resolveTemplateFood(ref, foodsById);
     if (!food) {
-      return { id: crypto.randomUUID(), foodId: ref.foodId, grams: 0, locked: true };
+      return { id: crypto.randomUUID(), foodId: ref.foodId, grams: 0, locked: true, ...edibleSelection({ ...ref }) };
     }
     const defaults = getDefaultMealEntrySettings(food, meal);
     return {
@@ -110,6 +113,7 @@ export function materializeTemplateEntries(
       minGrams: defaults.minGrams,
       maxGrams: defaults.maxGrams,
       foodSnapshot: foodSnapshotFromFood(food),
+      ...edibleSelection({ ...ref }),
       ...(ref.customFood ? { customFood: ref.customFood } : {})
     };
   });
@@ -118,6 +122,7 @@ export function materializeTemplateEntries(
 /** 应用全天模板：物化每餐条目，比例沿用模板记录的餐次占比。 */
 export function materializeDayTemplate(template: DayTemplate, foodsById: Map<string, FoodItem>): MealPlan[] {
   return template.meals.map((meal) => ({
+    ...mealMetadata(meal),
     id: meal.id,
     name: meal.name,
     ratio: meal.ratio,
@@ -145,6 +150,7 @@ interface TemplateRow {
 }
 
 function supportsTemplatePayload(row: TemplateRow, payload: Record<string, unknown>) {
+  if (payload.version === 4 && (row.schema_version == null || row.schema_version === 4)) return true;
   if (payload.version === 3) return true;
   return payload.version == null && (row.schema_version == null || row.schema_version <= 2);
 }
@@ -161,8 +167,11 @@ function parseFoodRefs(value: unknown): TemplateFoodRef[] | null {
     const foodSnapshot = parseFoodSnapshot(item.foodSnapshot);
     const customFood = item.customFood == null ? undefined : parseTemplateCustomFood(item.customFood);
     if ((item.foodSnapshot != null && !foodSnapshot) || (item.customFood != null && !customFood)) return null;
+    let selection;
+    try { selection = edibleSelection(item); } catch { return null; }
     refs.push({
       foodId: item.foodId,
+      ...selection,
       ...(foodSnapshot ? { foodSnapshot } : {}),
       ...(customFood ? { customFood } : {}),
     });
@@ -178,6 +187,7 @@ export function mealTemplateFromRow(row: TemplateRow): MealTemplate | null {
     return null; // 旧格式（entries 制）或损坏载荷：丢弃
   }
   return {
+    ...mealMetadata(payload),
     id: String(row.id),
     name: String(row.name),
     foods,
@@ -190,20 +200,30 @@ export function dayTemplateFromRow(row: TemplateRow): DayTemplate | null {
   if (!supportsTemplatePayload(row, payload) || !Array.isArray(payload.meals)) {
     return null;
   }
+  if (payload.includesMealLayout != null && typeof payload.includesMealLayout !== "boolean") return null;
   const meals: DayTemplateMeal[] = [];
   for (const item of payload.meals as Array<Record<string, unknown>>) {
+    if (payload.includesMealLayout === true && (!isRecord(item) || typeof item.id !== "string" || typeof item.name !== "string" || typeof item.ratio !== "number")) return null;
     const foods = parseFoodRefs(item?.foods ?? item?.entries);
     if (!foods) {
       return null; // 任一餐仍是旧 entries 制 → 整个模板按旧格式丢弃
     }
     meals.push({
+      ...mealMetadata(item),
       id: String(item.id ?? crypto.randomUUID()),
       name: String(item.name ?? "餐"),
       ratio: typeof item.ratio === "number" ? item.ratio : 0,
       foods
     });
   }
+  if (payload.includesMealLayout === true) {
+    try {
+      assertMealAllocations(meals);
+      if (meals.some(meal => !Number.isFinite(meal.ratio) || meal.ratio < 0 || meal.ratio > 1)) return null;
+    } catch { return null; }
+  }
   return {
+    ...(payload.includesMealLayout === true ? { includesMealLayout: true } : {}),
     id: String(row.id),
     name: String(row.name),
     meals,

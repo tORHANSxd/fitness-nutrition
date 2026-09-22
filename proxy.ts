@@ -19,7 +19,7 @@ export async function proxy(request: NextRequest) {
     const nextPath = request.nextUrl.searchParams.get("next");
     const safeNextPath = nextPath?.startsWith("/") && !nextPath.startsWith("//") && !nextPath.startsWith("/\\")
       ? nextPath
-      : "/overview";
+      : "/today";
     const destination = request.nextUrl.clone();
     destination.pathname = safeNextPath.split("?")[0];
     destination.search = safeNextPath.includes("?") ? `?${safeNextPath.split("?").slice(1).join("?")}` : "";

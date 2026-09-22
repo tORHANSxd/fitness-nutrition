@@ -36,13 +36,13 @@ describe("versioned storage documents", () => {
       profile: defaultProfile,
       meals,
       result,
-      schema_version: 3
+      schema_version: 99
     })).toThrow("不支持的每日计划版本");
     expect(() => parsePlannerDraftRow({
       profile_snapshot: defaultProfile,
       meals,
       revision: 1,
-      schema_version: 3
+      schema_version: 99
     })).toThrow("云端草稿版本无效");
   });
 
@@ -61,7 +61,7 @@ describe("versioned storage documents", () => {
       habits: { waterLiters: 2.5, steps: 8000 }
     });
     expect(actual).not.toHaveProperty("unknown");
-    expect(() => parseDailyCheckinActual({ version: 3 }, {}, "2026-08-26")).toThrow("不支持的每日实际记录版本");
+    expect(() => parseDailyCheckinActual({ version: 99 }, {}, "2026-08-26")).toThrow("不支持的每日实际记录版本");
   });
 
   it("does not merge obsolete columns into an already-versioned v2 check-in", () => {

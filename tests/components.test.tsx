@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { AuthPanel } from "@/components/AuthPanel";
+import type { SupabaseClient, User } from "@supabase/supabase-js";
+import * as supabaseModule from "@/lib/supabase";
 import { FoodPickerDialog } from "@/components/FoodPickerDialog";
 import { MealSplitView } from "@/components/MealSplitView";
 import { PlannerProfileView } from "@/components/PlannerProfileView";
@@ -35,6 +37,7 @@ function makeController(profileOverrides: Partial<UserProfile> = {}, controllerO
     setActiveMealId: vi.fn(),
     updateProfile: vi.fn(),
     updateMeal: vi.fn(),
+    updateMealLayout: vi.fn().mockReturnValue(true),
     addFoodToMeal: vi.fn(),
     addCustomFoodToMeal: vi.fn(),
     updateEntry: vi.fn(),
@@ -99,7 +102,7 @@ describe("FoodPickerDialog（先选分类，再选食物）", () => {
     render(<FoodPickerDialog open foods={foods} onSelect={onSelect} onClose={onClose} />);
 
     // 分类标签：全部 + 主食/水果/肉类（按 foodCategories 顺序）。
-    expect(screen.getByRole("button", { name: "全部" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "全部分类" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "主食" })).toBeInTheDocument();
 
     // 列表顺序：主食(白米饭<燕麦片) → 水果(苹果) → 肉类(鸡胸肉)。
@@ -127,18 +130,53 @@ describe("FoodPickerDialog（先选分类，再选食物）", () => {
 });
 
 describe("AuthPanel（账户登录面板）", () => {
-  it("renders the login form with email/password, primary action and a register link", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  it("defaults to login only and explains that registration is paused", () => {
+    vi.stubEnv("NEXT_PUBLIC_ENABLE_SIGNUP", undefined);
     render(<AuthPanel user={null} onSignedIn={vi.fn()} />);
 
     expect(screen.getByRole("heading", { name: "登录" })).toBeInTheDocument();
     expect(screen.getByPlaceholderText("name@example.com")).toBeInTheDocument();
     expect(screen.getByPlaceholderText("至少 6 位")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "登录" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "注册" })).not.toBeInTheDocument();
+    expect(screen.getByText("注册暂时关闭，请使用已有账号登录。")).toBeInTheDocument();
+  });
+
+  it("restores the register link when registration is explicitly enabled", () => {
+    vi.stubEnv("NEXT_PUBLIC_ENABLE_SIGNUP", "true");
+    render(<AuthPanel user={null} onSignedIn={vi.fn()} />);
 
     // 模式切换是文字链接式按钮，而不是第二个大按钮。
     fireEvent.click(screen.getByRole("button", { name: "注册" }));
     expect(screen.getByRole("heading", { name: "注册" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "登录" })).toBeInTheDocument(); // 切回链接
+  });
+
+  it("still signs existing users in while registration is disabled", async () => {
+    vi.stubEnv("NEXT_PUBLIC_ENABLE_SIGNUP", "false");
+    const user = { id: "existing-user", email: "existing@example.test" } as User;
+    const signInWithPassword = vi.fn().mockResolvedValue({ data: { session: { user } }, error: null });
+    const signUp = vi.fn();
+    vi.spyOn(supabaseModule, "isSupabaseConfigured").mockReturnValue(true);
+    vi.spyOn(supabaseModule, "getSupabaseClient").mockReturnValue({
+      auth: { signInWithPassword, signUp }
+    } as unknown as SupabaseClient);
+    const onSignedIn = vi.fn();
+    render(<AuthPanel user={null} onSignedIn={onSignedIn} />);
+
+    fireEvent.change(screen.getByPlaceholderText("name@example.com"), { target: { value: user.email } });
+    fireEvent.change(screen.getByPlaceholderText("至少 6 位"), { target: { value: "existing-password" } });
+    fireEvent.click(screen.getByRole("button", { name: "登录" }));
+
+    expect(await screen.findByText("登录成功。")).toBeInTheDocument();
+    expect(signInWithPassword).toHaveBeenCalledWith({ email: user.email, password: "existing-password" });
+    expect(signUp).not.toHaveBeenCalled();
+    expect(onSignedIn).toHaveBeenCalledWith(user);
   });
 });
 
@@ -325,16 +363,18 @@ describe("MealSplitView（分餐单独页含应用推荐/保存计划 + 弹出�
     render(<MealSplitView controller={controller} foods={builtinFoods} templates={templates} />);
 
     expect(screen.queryByRole("combobox", { name: "当前餐次" })).not.toBeInTheDocument();
-    expect(screen.getByTestId("meal-entry-list")).not.toHaveClass("md:hidden", "overflow-x-auto");
+    expect(screen.getAllByRole("article")).toHaveLength(controller.meals[0].entries.length);
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /归一比例/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "餐食更多操作" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /保存计划/ })).toBeInTheDocument();
 
     const nextMeal = controller.meals[1];
-    fireEvent.click(screen.getByRole("button", { name: new RegExp(`^${nextMeal.name}`) }));
+    fireEvent.click(screen.getByRole("tab", { name: new RegExp(`^${nextMeal.name}`) }));
     expect(controller.setActiveMealId).toHaveBeenCalledWith(nextMeal.id);
 
-    fireEvent.click(screen.getByRole("button", { name: /应用推荐/ }));
+    fireEvent.click(screen.getByRole("button", { name: "调整分量" }));
+    expect(controller.applyRecommendations).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "确认调整" }));
     expect(controller.applyRecommendations).toHaveBeenCalledTimes(1);
   });
 
@@ -354,8 +394,8 @@ describe("MealSplitView（分餐单独页含应用推荐/保存计划 + 弹出�
 
     render(<MealSplitView controller={controller} foods={builtinFoods} templates={templates} />);
 
-    expect(screen.getByText("推荐受锁定限制")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /应用推荐/ })).toBeDisabled();
+    expect(screen.getByText("3 项食物 · 已固定整餐分量")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "调整分量" })).toBeDisabled();
   });
 
   it("shows an unavailable state instead of a locked state when the plan has no food", () => {
@@ -370,23 +410,21 @@ describe("MealSplitView（分餐单独页含应用推荐/保存计划 + 弹出�
 
     render(<MealSplitView controller={controller} foods={builtinFoods} templates={templates} />);
 
-    expect(screen.getByText("暂时无法生成推荐")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /为早餐添加第一项食物/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", {name:"调整分量"})).toBeDisabled();
     expect(screen.queryByText("推荐受锁定限制")).not.toBeInTheDocument();
   });
 
-  it("applies and locks one food recommendation", () => {
+  it("sets a manual serving and keeps it fixed during recommendations", () => {
     const controller = makeController();
     const meal = controller.meals[0];
-    const entry = meal.entries.find((item) => item.foodId === "public-oats-raw")!;
-    const recommendedGrams = controller.recommendationsByMeal.get(meal.id)!.recommendedEntries[entry.id];
-
-    render(<MealSplitView controller={controller} foods={builtinFoods} templates={templates} />);
-    fireEvent.click(screen.getByRole("button", { name: "采用燕麦片推荐克重" }));
-
-    expect(controller.updateEntry).toHaveBeenCalledTimes(1);
-    const [, calledEntryId, mapper] = vi.mocked(controller.updateEntry).mock.calls[0];
-    expect(calledEntryId).toBe(entry.id);
-    expect(mapper(entry)).toEqual({ ...entry, grams: recommendedGrams, locked: true });
+    const entry = meal.entries.find(item => item.foodId === "public-oats-raw")!;
+    render(<MealSplitView controller={controller} foods={builtinFoods} templates={templates}/>);
+    fireEvent.change(screen.getByLabelText("燕麦片克重"), {target:{value:"120"}});
+    const [mealId, entryId, mapper] = vi.mocked(controller.updateEntry).mock.calls[0];
+    expect(mealId).toBe(meal.id);
+    expect(entryId).toBe(entry.id);
+    expect(mapper(entry)).toEqual({...entry,grams:120,locked:true});
   });
 
   it("keeps a negative serving weight as a visible draft without overwriting the plan", () => {
@@ -437,7 +475,9 @@ describe("MealSplitView（分餐单独页含应用推荐/保存计划 + 弹出�
     expect(dialog).toBeInTheDocument();
 
     // 面板内选「白米饭」（早餐默认没有它，不与行内选食按钮歧义）。
-    fireEvent.click(within(dialog).getByText("白米饭"));
-    expect(controller.addFoodToMeal).toHaveBeenCalledWith(controller.activeMealId, "public-rice-cooked");
+    fireEvent.click(within(dialog).getByLabelText("包含中国食物成分表"));
+    fireEvent.change(within(dialog).getByLabelText("搜索食物"), { target: { value: "012401x" } });
+    fireEvent.click(within(dialog).getByText("米饭（蒸，代表值）"));
+    expect(controller.addFoodToMeal).toHaveBeenCalledWith(controller.activeMealId, "public-cfcd6-012401x");
   });
 });

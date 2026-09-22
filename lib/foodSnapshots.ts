@@ -1,4 +1,5 @@
 import { foodCategories, type FoodItem, type FoodSnapshotV1, type MealFoodEntry, type MealPlan, type WeightBasis } from "@/lib/types";
+import { isEdiblePercent } from "@/lib/foodWeights";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -22,6 +23,7 @@ export function parseFoodSnapshot(value: unknown): FoodSnapshotV1 | null {
     || !isNonNegativeNumber(value.proteinPer100g)
     || !isNonNegativeNumber(value.fatPer100g)
     || !isWeightBasis(value.weightBasis)
+    || (value.ediblePercent != null && !isEdiblePercent(value.ediblePercent))
     || !(value.cookedRawRatio == null || (typeof value.cookedRawRatio === "number" && Number.isFinite(value.cookedRawRatio) && value.cookedRawRatio > 0))) {
     return null;
   }
@@ -36,6 +38,7 @@ export function parseFoodSnapshot(value: unknown): FoodSnapshotV1 | null {
     fatPer100g: value.fatPer100g,
     weightBasis: value.weightBasis,
     cookedRawRatio: value.cookedRawRatio ?? null,
+    ...(isEdiblePercent(value.ediblePercent) ? { ediblePercent: value.ediblePercent } : {}),
   };
 }
 
@@ -50,6 +53,7 @@ export function foodSnapshotFromFood(food: FoodItem): FoodSnapshotV1 {
     fatPer100g: food.fatPer100g,
     weightBasis: food.weightBasis,
     cookedRawRatio: food.cookedRawRatio ?? null,
+    ...(isEdiblePercent(food.ediblePercent) ? { ediblePercent: food.ediblePercent } : {}),
   };
 }
 
@@ -65,6 +69,7 @@ export function foodFromSnapshot(foodId: string, snapshot: FoodSnapshotV1): Food
     weightBasis: snapshot.weightBasis,
     cookedRawRatio: snapshot.cookedRawRatio,
     source: "user",
+    ...(isEdiblePercent(snapshot.ediblePercent) ? { ediblePercent: snapshot.ediblePercent } : {}),
   };
 }
 

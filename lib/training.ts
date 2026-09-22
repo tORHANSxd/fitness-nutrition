@@ -1,4 +1,5 @@
 import { round } from "@/lib/nutrition";
+import { rptRecoveryTemplate } from "@/lib/trainingCycle";
 import { addDays, dateKeyFromInstant, resolveTimeZone, startOfWeek } from "@/lib/dateTime";
 import type {
   ExperienceLevel,
@@ -43,6 +44,7 @@ export const muscleGroupOrder: MuscleGroup[] = [
 ];
 
 export const splitLabels: Record<TrainingSplit, string> = {
+  rptAlternate8DayV4: "8天交替倒金字塔·恢复",
   fiveDayV2: "v2 五分化 5天（周一~五）",
   pplLumbarSafe: "推/拉/腿 5天（腰突）",
   upperLower: "上下分化 4天",
@@ -144,7 +146,7 @@ export function rpeFromRir(rir: number): number {
 
 /** 单组容量（重量×次数）。热身组不计。 */
 export function setTonnage(set: WorkoutSet): number {
-  if (set.isWarmup) {
+  if (set.isWarmup || set.completed !== true || set.loadType !== "external" || set.weightKg == null || set.reps == null) {
     return 0;
   }
   return round(set.weightKg * set.reps, 1);
@@ -161,11 +163,12 @@ export function sessionTonnage(session: WorkoutSession): number {
 export function bestE1RMByExercise(session: WorkoutSession): Array<{ exercise: string; e1rm: number }> {
   const best = new Map<string, number>();
   for (const set of session.sets) {
-    if (set.isWarmup) {
+    if (set.isWarmup || set.completed !== true || set.loadType !== "external" || !set.exerciseId || !set.equipmentId || set.reps == null || set.weightKg == null || set.reps > 10) {
       continue;
     }
     const e1rm = autoEstimate1RM(set.weightKg, set.reps);
-    best.set(set.exercise, Math.max(best.get(set.exercise) ?? 0, e1rm));
+    const key = `${set.exercise} · ${set.exerciseId} / ${set.equipmentId}`;
+    best.set(key, Math.max(best.get(key) ?? 0, e1rm));
   }
   return Array.from(best.entries())
     .map(([exercise, e1rm]) => ({ exercise, e1rm }))
@@ -185,13 +188,15 @@ export function toDateKey(date: Date, timeZone = resolveTimeZone()): string {
 export function weeklyWorkingSets(sessions: WorkoutSession[], weekStart: string): Record<MuscleGroup, number> {
   const counts = Object.fromEntries(muscleGroupOrder.map((m) => [m, 0])) as Record<MuscleGroup, number>;
   const end = addDays(weekStart, 7);
+  const counted = new Set<string>();
   for (const session of sessions) {
     if (session.sessionDate < weekStart || session.sessionDate >= end) {
       continue;
     }
     for (const set of session.sets) {
-      if (!set.isWarmup) {
+      if (!set.isWarmup && set.completed === true && !counted.has(set.id)) {
         counts[set.muscleGroup] += 1;
+        counted.add(set.id);
       }
     }
   }
@@ -262,6 +267,8 @@ export function applyDeloadToDay(day: ProgramDay): ProgramDay {
 
 /** 整个模板的减载版（5–7 天全部转换），名字标注避免与正常周混淆。 */
 export function applyDeloadToTemplate(template: ProgramTemplate): ProgramTemplate {
+  // 恢复循环已经降低容量；旧自然周标记只保留提示，不再二次减半。
+  if (template.phase === "recovery") return structuredClone(template);
   return {
     ...template,
     name: `${template.name} · 减载周`,
@@ -302,6 +309,7 @@ export function deloadSignals(input: {
 // ---------------------------------------------------------------------------
 
 export const programTemplates: Record<TrainingSplit, ProgramTemplate> = {
+  rptAlternate8DayV4: rptRecoveryTemplate,
   // v2 计划（2026-07-10《训练与营养计划》）：PPL+UL 五分化，周一~周五对应推/拉/腿(股四头)/上肢/腿(后链)，
   // 周六日完全休息。核心原则：拉长位动作优先、单次每肌群 ≤6–8 有效组、每肌群每周 2 次；
   // 周四是刻意的"下肢主动恢复日"，不要改成第三个腿日。

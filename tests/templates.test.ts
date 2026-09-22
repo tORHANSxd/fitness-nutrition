@@ -97,8 +97,8 @@ describe("template row parsing", () => {
       id: "future",
       template_type: "meal",
       name: "未来版",
-      payload: { version: 4, foods: [] },
-      schema_version: 4
+      payload: { version: 99, foods: [] },
+      schema_version: 99
     })).toBeNull();
   });
 

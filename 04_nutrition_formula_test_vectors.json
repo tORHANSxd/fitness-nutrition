@@ -1,0 +1,523 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Codex验收向量；不是现版应用可导入数据，也不是完整临床验证",
+  "policyVersion": "nutrition-goals-v5.0",
+  "mathTolerance": 1e-06,
+  "roundingRules": {
+    "automaticEnergy": "nearest 25; positive half up",
+    "automaticProtein": "nearest 5; positive half up",
+    "automaticFat": "ceil to 5 after explicit min 20% energy rule",
+    "manualValues": "never auto round",
+    "carbs": "residual without intermediate rounding"
+  },
+  "numericCases": [
+    {
+      "id": "F01",
+      "kind": "formula",
+      "description": "合成测试数据，不是用户真实档案",
+      "input": {
+        "weightKg": 90,
+        "heightCm": 180,
+        "ageYears": 30,
+        "calculationSex": "male",
+        "rmrMethod": "mifflin_st_jeor",
+        "tdeeMethod": "pal_total",
+        "activityMultiplier": 1.5,
+        "presetId": "cut_recomp",
+        "energyDeltaRatio": -0.15,
+        "proteinMethod": "body_weight",
+        "proteinCoefficient": 1.9,
+        "fatMethod": "body_weight",
+        "fatCoefficient": 0.7,
+        "minimumFatEnergyShare": 0.2,
+        "rounding": {
+          "autoEnergyStepKcal": 25,
+          "autoProteinStepG": 5,
+          "autoFatStepG": 5
+        }
+      },
+      "expected": {
+        "rmrKcal": 1880.0,
+        "tdeeKcal": 2820.0,
+        "rawEnergyKcal": 2397.0,
+        "energyKcal": 2400.0,
+        "proteinG": 170.0,
+        "fatG": 65.0,
+        "carbsG": 283.75,
+        "rawProteinG": 171.0,
+        "rawFatG": 63.0,
+        "fatFloorApplied": false
+      }
+    },
+    {
+      "id": "F02",
+      "kind": "formula",
+      "description": "合成测试数据，不是用户真实档案",
+      "input": {
+        "weightKg": 70,
+        "heightCm": 175,
+        "ageYears": 30,
+        "calculationSex": "male",
+        "rmrMethod": "mifflin_st_jeor",
+        "tdeeMethod": "pal_total",
+        "activityMultiplier": 1.6,
+        "presetId": "cut_lean",
+        "energyDeltaRatio": -0.1,
+        "proteinMethod": "body_weight",
+        "proteinCoefficient": 2.2,
+        "fatMethod": "body_weight",
+        "fatCoefficient": 0.8,
+        "minimumFatEnergyShare": 0.2,
+        "rounding": {
+          "autoEnergyStepKcal": 25,
+          "autoProteinStepG": 5,
+          "autoFatStepG": 5
+        }
+      },
+      "expected": {
+        "rmrKcal": 1648.75,
+        "tdeeKcal": 2638.0,
+        "rawEnergyKcal": 2374.2,
+        "energyKcal": 2375.0,
+        "proteinG": 155.0,
+        "fatG": 60.0,
+        "carbsG": 303.75,
+        "rawProteinG": 154.0,
+        "rawFatG": 56.0,
+        "fatFloorApplied": false
+      }
+    },
+    {
+      "id": "F03",
+      "kind": "formula",
+      "description": "合成测试数据，不是用户真实档案",
+      "input": {
+        "weightKg": 75,
+        "heightCm": 178,
+        "ageYears": 28,
+        "calculationSex": "male",
+        "rmrMethod": "mifflin_st_jeor",
+        "tdeeMethod": "pal_total",
+        "activityMultiplier": 1.5,
+        "presetId": "recomp",
+        "energyDeltaRatio": 0,
+        "proteinMethod": "body_weight",
+        "proteinCoefficient": 2.0,
+        "fatMethod": "body_weight",
+        "fatCoefficient": 0.8,
+        "minimumFatEnergyShare": 0.2,
+        "rounding": {
+          "autoEnergyStepKcal": 25,
+          "autoProteinStepG": 5,
+          "autoFatStepG": 5
+        }
+      },
+      "expected": {
+        "rmrKcal": 1727.5,
+        "tdeeKcal": 2591.25,
+        "rawEnergyKcal": 2591.25,
+        "energyKcal": 2600.0,
+        "proteinG": 150.0,
+        "fatG": 60.0,
+        "carbsG": 365.0,
+        "rawProteinG": 150.0,
+        "rawFatG": 60.0,
+        "fatFloorApplied": false
+      }
+    },
+    {
+      "id": "F04",
+      "kind": "formula",
+      "description": "合成测试数据，不是用户真实档案",
+      "input": {
+        "weightKg": 65,
+        "heightCm": 178,
+        "ageYears": 25,
+        "calculationSex": "male",
+        "rmrMethod": "mifflin_st_jeor",
+        "tdeeMethod": "pal_total",
+        "activityMultiplier": 1.55,
+        "presetId": "lean_gain",
+        "energyDeltaRatio": 0.05,
+        "proteinMethod": "body_weight",
+        "proteinCoefficient": 1.8,
+        "fatMethod": "body_weight",
+        "fatCoefficient": 0.8,
+        "minimumFatEnergyShare": 0.2,
+        "rounding": {
+          "autoEnergyStepKcal": 25,
+          "autoProteinStepG": 5,
+          "autoFatStepG": 5
+        }
+      },
+      "expected": {
+        "rmrKcal": 1642.5,
+        "tdeeKcal": 2545.875,
+        "rawEnergyKcal": 2673.16875,
+        "energyKcal": 2675.0,
+        "proteinG": 115.0,
+        "fatG": 60.0,
+        "carbsG": 418.75,
+        "rawProteinG": 117.0,
+        "rawFatG": 52.0,
+        "fatFloorApplied": true
+      }
+    },
+    {
+      "id": "F05",
+      "kind": "formula",
+      "description": "合成测试数据，不是用户真实档案",
+      "input": {
+        "weightKg": 70,
+        "heightCm": 175,
+        "ageYears": 30,
+        "calculationSex": "male",
+        "rmrMethod": "mifflin_st_jeor",
+        "tdeeMethod": "pal_total",
+        "activityMultiplier": 1.5,
+        "presetId": "maintain",
+        "energyDeltaRatio": 0,
+        "proteinMethod": "body_weight",
+        "proteinCoefficient": 1.6,
+        "fatMethod": "body_weight",
+        "fatCoefficient": 0.8,
+        "minimumFatEnergyShare": 0.2,
+        "rounding": {
+          "autoEnergyStepKcal": 25,
+          "autoProteinStepG": 5,
+          "autoFatStepG": 5
+        }
+      },
+      "expected": {
+        "rmrKcal": 1648.75,
+        "tdeeKcal": 2473.125,
+        "rawEnergyKcal": 2473.125,
+        "energyKcal": 2475.0,
+        "proteinG": 110.0,
+        "fatG": 60.0,
+        "carbsG": 373.75,
+        "rawProteinG": 112.0,
+        "rawFatG": 56.0,
+        "fatFloorApplied": false
+      }
+    },
+    {
+      "id": "F06",
+      "kind": "formula",
+      "description": "合成测试数据，不是用户真实档案",
+      "input": {
+        "weightKg": 60,
+        "heightCm": 165,
+        "ageYears": 28,
+        "calculationSex": "female",
+        "rmrMethod": "mifflin_st_jeor",
+        "tdeeMethod": "pal_total",
+        "activityMultiplier": 1.55,
+        "presetId": "lean_gain",
+        "energyDeltaRatio": 0.05,
+        "proteinMethod": "body_weight",
+        "proteinCoefficient": 1.8,
+        "fatMethod": "body_weight",
+        "fatCoefficient": 0.8,
+        "minimumFatEnergyShare": 0.2,
+        "rounding": {
+          "autoEnergyStepKcal": 25,
+          "autoProteinStepG": 5,
+          "autoFatStepG": 5
+        }
+      },
+      "expected": {
+        "rmrKcal": 1330.25,
+        "tdeeKcal": 2061.8875,
+        "rawEnergyKcal": 2164.981875,
+        "energyKcal": 2175.0,
+        "proteinG": 110.0,
+        "fatG": 50.0,
+        "carbsG": 321.25,
+        "rawProteinG": 108.0,
+        "rawFatG": 48.0,
+        "fatFloorApplied": true
+      }
+    },
+    {
+      "id": "F07",
+      "kind": "formula",
+      "description": "合成测试数据，不是用户真实档案",
+      "input": {
+        "weightKg": 50,
+        "heightCm": 160,
+        "ageYears": 30,
+        "calculationSex": "female",
+        "rmrMethod": "mifflin_st_jeor",
+        "tdeeMethod": "pal_total",
+        "activityMultiplier": 1.4,
+        "presetId": "maintain",
+        "energyDeltaRatio": 0,
+        "proteinMethod": "body_weight",
+        "proteinCoefficient": 1.6,
+        "fatMethod": "body_weight",
+        "fatCoefficient": 0.8,
+        "minimumFatEnergyShare": 0.2,
+        "rounding": {
+          "autoEnergyStepKcal": 25,
+          "autoProteinStepG": 5,
+          "autoFatStepG": 5
+        }
+      },
+      "expected": {
+        "rmrKcal": 1189.0,
+        "tdeeKcal": 1664.6,
+        "rawEnergyKcal": 1664.6,
+        "energyKcal": 1675.0,
+        "proteinG": 80.0,
+        "fatG": 40.0,
+        "carbsG": 248.75,
+        "rawProteinG": 80.0,
+        "rawFatG": 40.0,
+        "fatFloorApplied": false
+      }
+    },
+    {
+      "id": "F08",
+      "kind": "rmr",
+      "input": {
+        "rmrMethod": "cunningham_1980",
+        "weightKg": 80,
+        "bodyFatPct": 20
+      },
+      "expected": {
+        "ffmKg": 64,
+        "rmrKcal": 1908
+      }
+    },
+    {
+      "id": "F09",
+      "kind": "manual_energy_formula_macros",
+      "input": {
+        "weightKg": 90,
+        "targetKcal": 2200,
+        "proteinMethod": "body_weight",
+        "proteinCoefficient": 1.9,
+        "fatMethod": "body_weight",
+        "fatCoefficient": 0.7
+      },
+      "expected": {
+        "energyKcal": 2200,
+        "proteinG": 170,
+        "fatG": 65,
+        "carbsG": 233.75
+      }
+    },
+    {
+      "id": "F10",
+      "kind": "manual_energy_manual_macros",
+      "input": {
+        "targetKcal": 2200,
+        "proteinG": 175,
+        "fatG": 65
+      },
+      "expected": {
+        "energyKcal": 2200,
+        "proteinG": 175,
+        "fatG": 65,
+        "carbsG": 228.75
+      }
+    },
+    {
+      "id": "F11",
+      "kind": "from_macros",
+      "input": {
+        "proteinG": 175,
+        "fatG": 65,
+        "carbsG": 230
+      },
+      "expected": {
+        "energyKcal": 2205,
+        "proteinG": 175,
+        "fatG": 65,
+        "carbsG": 230
+      }
+    },
+    {
+      "id": "F12",
+      "kind": "tdee_component",
+      "input": {
+        "rmrKcal": 1800,
+        "nonExerciseMultiplier": 1.3,
+        "cycleDays": 8,
+        "plannedNetExerciseKcal": [
+          300,
+          300,
+          300,
+          300
+        ]
+      },
+      "expected": {
+        "averageExerciseKcalPerDay": 150,
+        "tdeeKcal": 2490
+      }
+    },
+    {
+      "id": "F13",
+      "kind": "tdee_manual",
+      "input": {
+        "tdeeKcal": 2600,
+        "energyDeltaRatio": -0.15,
+        "proteinG": 175,
+        "fatG": 65,
+        "energyRoundingStep": 25
+      },
+      "expected": {
+        "rawEnergyKcal": 2210,
+        "energyKcal": 2200,
+        "proteinG": 175,
+        "fatG": 65,
+        "carbsG": 228.75
+      }
+    },
+    {
+      "id": "F14",
+      "kind": "manual_only_missing_demographics",
+      "input": {
+        "targetKcal": 2205,
+        "proteinG": 175,
+        "fatG": 65,
+        "adultScopeAttested": true
+      },
+      "expected": {
+        "rmrKcal": null,
+        "tdeeKcal": null,
+        "energyKcal": 2205,
+        "proteinG": 175,
+        "fatG": 65,
+        "carbsG": 230
+      }
+    },
+    {
+      "id": "F15",
+      "kind": "manual_percent_fat",
+      "input": {
+        "targetKcal": 2400,
+        "proteinG": 150,
+        "fatMethod": "energy_share",
+        "fatShare": 0.25
+      },
+      "expected": {
+        "energyKcal": 2400,
+        "proteinG": 150,
+        "fatG": 70,
+        "carbsG": 292.5
+      }
+    },
+    {
+      "id": "F16",
+      "kind": "ffm_protein",
+      "input": {
+        "weightKg": 80,
+        "bodyFatPct": 15,
+        "proteinCoefficientFfm": 2.6,
+        "leanResistanceCutConfirmed": true,
+        "targetKcal": 2200,
+        "fatG": 65
+      },
+      "expected": {
+        "ffmKg": 68,
+        "rawProteinG": 176.8,
+        "proteinG": 175,
+        "fatG": 65,
+        "carbsG": 228.75,
+        "energyKcal": 2200
+      }
+    },
+    {
+      "id": "F17",
+      "kind": "rounding",
+      "input": {
+        "proteinRawG": 172.5,
+        "fatRawG": 64.4,
+        "energyRawKcal": 2212.5
+      },
+      "expected": {
+        "proteinG": 175,
+        "fatG": 65,
+        "energyKcal": 2225
+      }
+    }
+  ],
+  "contractCases": [
+    {
+      "id": "X01",
+      "inputCase": "energy=1600; P=300; F=60",
+      "expectedState": "infeasible",
+      "expectedCode": "MACROS_EXCEED_ENERGY",
+      "note": "4P+9F=1740；不能抬高E或将C截成0假装成功"
+    },
+    {
+      "id": "X02",
+      "inputCase": "Cunningham或FFM蛋白方法，体脂和直接FFM都缺失",
+      "expectedState": "needs_input",
+      "expectedCode": "FFM_REQUIRED"
+    },
+    {
+      "id": "X03",
+      "inputCase": "pal_total同时试图添加exerciseKcal=400",
+      "expectedState": "infeasible",
+      "expectedCode": "DOUBLE_COUNTED_EXERCISE"
+    },
+    {
+      "id": "X04",
+      "inputCase": "新模式，旧carbTaperSteps合计-300；输入fixed E=2205 P175 F65",
+      "expectedState": "valid",
+      "expectedEnergyKcal": 2205,
+      "note": "旧步进保留但不参与新版本"
+    },
+    {
+      "id": "X05",
+      "inputCase": "preset=maintain，energy delta=0",
+      "expectedState": "valid",
+      "note": "0是有效值，不回退旧默认-600"
+    },
+    {
+      "id": "X06",
+      "inputCase": "18岁以下、孕哺期或明确超出一般成人运动营养范围",
+      "expectedState": "out_of_scope",
+      "note": "不生成自助推荐；仍能记实际摄入"
+    },
+    {
+      "id": "X07",
+      "inputCase": "MSJ所需年龄/身高/计算分支缺失，且无手动TDEE或热量路径",
+      "expectedState": "needs_input"
+    },
+    {
+      "id": "X08",
+      "inputCase": "手动E=2200，同时锁定P175 F65 C230但没有选择能量优先/宏量优先",
+      "expectedState": "infeasible",
+      "expectedCode": "OVERDETERMINED_TARGET"
+    },
+    {
+      "id": "X09",
+      "inputCase": "任何数值为NaN/Infinity/空字符串被当0",
+      "expectedState": "infeasible",
+      "expectedCode": "INVALID_NUMBER"
+    },
+    {
+      "id": "X10",
+      "inputCase": "数学可行但自动目标<=1200kcal",
+      "expectedState": "requires_review",
+      "expectedCode": "LOW_ENERGY_POLICY_REVIEW",
+      "note": "1200为产品复核阈值，不是通用安全线；不得自动抬到1200"
+    },
+    {
+      "id": "X11",
+      "inputCase": "新BIA从20.1变19.9，但蛋白方法是固定g/kg体重",
+      "expectedState": "valid",
+      "note": "同一体重下P不应因20%阈值突然跳升"
+    },
+    {
+      "id": "X12",
+      "inputCase": "激活协议后的最新体测更新",
+      "expectedState": "valid",
+      "note": "生成候选，不自动改已生效目标和历史快照"
+    }
+  ]
+}

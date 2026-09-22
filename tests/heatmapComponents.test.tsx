@@ -76,6 +76,7 @@ function controller(): PlannerController {
     setActiveMealId: vi.fn(),
     updateProfile: vi.fn(),
     updateMeal: vi.fn(),
+    updateMealLayout: vi.fn().mockReturnValue(true),
     addFoodToMeal: vi.fn(),
     addCustomFoodToMeal: vi.fn(),
     updateEntry: vi.fn(),
@@ -165,7 +166,7 @@ describe("DailyCheckinPanel", () => {
 });
 
 describe("HeatmapView", () => {
-  it("loads every meal in today's latest planner draft", async () => {
+  it("keeps confirmed intake when today's latest planner draft adds another meal", async () => {
     appMock.value = { ...appMock.value, foods: [food, dinnerFood] };
     storageMocks.loadPlannerDraft.mockResolvedValue({
       profile,
@@ -186,7 +187,8 @@ describe("HeatmapView", () => {
 
     render(<HeatmapView />);
 
-    expect(await screen.findByRole("button", { name: /热力图项目：晚餐三文鱼.*重量 180 g/ })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /热力图项目：苹果.*重量 100 g/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /热力图项目：晚餐三文鱼/ })).not.toBeInTheDocument();
     expect(storageMocks.loadPlannerDraft).toHaveBeenCalledWith(user);
   });
 
@@ -194,7 +196,7 @@ describe("HeatmapView", () => {
     render(<HeatmapView />);
 
     const appleTile = await screen.findByRole("button", { name: /热力图项目：苹果/ });
-    expect(appleTile).toHaveAccessibleName(/绝对贡献占比/);
+    expect(appleTile).toHaveAccessibleName(/占图中总量/);
     expect(appleTile).toHaveAccessibleName(/重量 100 g/);
     expect(appleTile).toHaveAttribute("data-share");
     expect(Number(appleTile.getAttribute("data-intensity"))).toBeLessThan(100);
@@ -205,7 +207,7 @@ describe("HeatmapView", () => {
     expect(basalTile).toHaveAttribute("data-intensity", "100.0");
     expect(basalFillAlpha - appleFillAlpha).toBeGreaterThan(0.5);
     const exerciseIndexItem = screen.getByRole("button", { name: /项目索引：跑步/ });
-    expect(exerciseIndexItem).toHaveAccessibleName(/绝对贡献占比/);
+    expect(exerciseIndexItem).toHaveAccessibleName(/占图中总量/);
     expect(screen.getByRole("button", { name: /项目索引：苹果/ })).toHaveAccessibleName(/重量 100 g/);
     fireEvent.click(exerciseIndexItem);
     expect(screen.getByRole("heading", { name: "跑步" })).toBeInTheDocument();

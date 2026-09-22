@@ -160,9 +160,9 @@ function JellyTile({
     "--jelly-depth-alpha": (0.05 + intensity * 0.31).toFixed(3),
     "--jelly-shadow-alpha": (0.15 + intensity * 0.7).toFixed(3)
   };
-  const direction = tile.value >= 0 ? "盈" : "亏";
+  const direction = tile.kind === "food" ? "摄入" : tile.kind === "target" ? "目标" : "消耗";
   const weight = formatWeight(tile.weightGrams);
-  const tooltip = `${kindLabels[tile.kind]} · ${tile.label}${weight ? ` · 重量 ${weight}` : ""} · ${formatValue(tile.value, metric, energyUnit)} · 绝对贡献 ${formatShare(tile.share)}`;
+  const tooltip = `${kindLabels[tile.kind]} · ${tile.label}${weight ? ` · 重量 ${weight}` : ""} · ${formatValue(tile.value, metric, energyUnit)} · 占图中总量 ${formatShare(tile.share)}`;
 
   return (
     <button
@@ -172,7 +172,7 @@ function JellyTile({
       tabIndex={labelMode === "is-small" ? -1 : 0}
       onClick={onSelect}
       aria-pressed={selected}
-      aria-label={`热力图项目：${tile.label}，${direction}${weight ? `，重量 ${weight}` : ""}，${formatValue(tile.value, metric, energyUnit)}，绝对贡献占比 ${formatShare(tile.share)}`}
+      aria-label={`热力图项目：${tile.label}，${direction}${weight ? `，重量 ${weight}` : ""}，${formatValue(tile.value, metric, energyUnit)}，占图中总量 ${formatShare(tile.share)}`}
       title={tooltip}
       data-share={tile.share}
       data-intensity={(intensity * 100).toFixed(1)}
@@ -261,7 +261,7 @@ function HeatmapItemIndex({
       </header>
       <ol className="heatmap-item-index-list">
         {tiles.map((tile, index) => {
-          const direction = tile.value >= 0 ? "盈" : "亏";
+          const direction = tile.kind === "food" ? "摄入" : tile.kind === "target" ? "目标" : "消耗";
           const weight = formatWeight(tile.weightGrams);
           return (
             <li key={tile.id}>
@@ -269,7 +269,7 @@ function HeatmapItemIndex({
                 className={`heatmap-index-item ${selectedTileId === tile.id ? "is-selected" : ""}`}
                 type="button"
                 aria-pressed={selectedTileId === tile.id}
-                aria-label={`项目索引：${tile.label}，${direction}${weight ? `，重量 ${weight}` : ""}，${formatValue(tile.value, metric, energyUnit)}，绝对贡献占比 ${formatShare(tile.share)}`}
+                aria-label={`项目索引：${tile.label}，${direction}${weight ? `，重量 ${weight}` : ""}，${formatValue(tile.value, metric, energyUnit)}，占图中总量 ${formatShare(tile.share)}`}
                 onClick={() => onSelect(tile.id)}
               >
                 <span className="heatmap-index-rank">{index + 1}</span>
@@ -405,8 +405,8 @@ export function HeatmapView() {
     <section className="heatmap-workspace animate-view space-y-5" data-palette={preferences.heatmapPalette}>
       <div className="flex flex-col gap-4 border-b border-line pb-5 xl:flex-row xl:items-end xl:justify-between">
         <div>
-          <p className="eyebrow">ENERGY LEDGER</p>
-          <h2 className="mt-1 text-2xl text-ink">热量与营养素收支</h2>
+
+          <h2 className="mt-1 text-2xl text-ink">营养分布</h2>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <div className="palette-switch-wrap" aria-label="热力图颜色映射">
@@ -463,7 +463,7 @@ export function HeatmapView() {
         ) : null}
         <label className="heatmap-check-control">
           <input type="checkbox" checked={includeIncomplete} onChange={(event) => setIncludeIncomplete(event.target.checked)} />
-          包含未完成日期
+          同时查看未确认的计划
         </label>
       </div>
 
@@ -471,6 +471,7 @@ export function HeatmapView() {
         {metricOptions.map((option) => {
           const Icon = option.icon;
           const value = datasets[option.id].net;
+          const unknownExpenditure = datasets[option.id].expenditureIncomplete;
           return (
             <button
               key={option.id}
@@ -483,8 +484,8 @@ export function HeatmapView() {
               }}
             >
               <span className="flex items-center gap-2 metric-label"><Icon size={15} />{option.label}</span>
-              <strong className="metric-number mt-2 block text-2xl text-ink">{formatValue(value, option.id, preferences.energyUnit)}</strong>
-              <span className={`heatmap-sign mt-1 block text-xs font-semibold ${value >= 0 ? "is-positive" : "is-negative"}`}>{value >= 0 ? "盈" : "亏"}</span>
+              <strong className="metric-number mt-2 block text-2xl text-ink">{unknownExpenditure ? "未知" : formatValue(value, option.id, preferences.energyUnit)}</strong>
+              <span className={`heatmap-sign mt-1 block text-xs font-semibold ${value >= 0 ? "is-positive" : "is-negative"}`}>{unknownExpenditure ? "缺少消耗依据，保留摄入明细" : option.id === "kcal" ? value >= 0 ? "摄入多于消耗" : "摄入少于消耗" : value >= 0 ? "高于目标" : "低于目标"}</span>
             </button>
           );
         })}
@@ -496,8 +497,8 @@ export function HeatmapView() {
           <p className="mt-1 text-sm font-semibold text-ink">{completeDays}/{totalDays} 天完成 · {recordedDays} 天有记录</p>
         </div>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-semibold text-muted">
-          <span className="flex items-center gap-1.5"><i className="heatmap-legend-dot is-positive" />正值 · 盈</span>
-          <span className="flex items-center gap-1.5"><i className="heatmap-legend-dot is-negative" />负值 · 亏</span>
+          <span className="flex items-center gap-1.5"><i className="heatmap-legend-dot is-positive" />摄入</span>
+          <span className="flex items-center gap-1.5"><i className="heatmap-legend-dot is-negative" />{metric === "kcal" ? "消耗" : "目标"}</span>
           <span>颜色越深 · 绝对值越大</span>
         </div>
       </div>
@@ -514,7 +515,7 @@ export function HeatmapView() {
           <div className="panel flex min-h-56 flex-col items-center justify-center gap-3 p-6 text-center">
             <Flame size={26} className="text-muted-soft" />
             <p className="text-sm font-semibold text-ink">当前范围没有可统计记录</p>
-            <Link className="btn-secondary" href={`/today?date=${today}`}>前往今日计划</Link>
+            <Link className="btn-secondary" href={`/records?date=${today}`}>去记录饮食</Link>
           </div>
         ) : (
           <div className="space-y-4">
@@ -547,7 +548,7 @@ export function HeatmapView() {
             <div className="text-left sm:text-right">
               <strong className="metric-number text-2xl text-ink">{formatValue(selectedTile.value, metric, preferences.energyUnit)}</strong>
               <span className="metric-label mt-1 block">
-                {formatWeight(selectedTile.weightGrams) ? `${formatWeight(selectedTile.weightGrams)} · ` : ""}{formatShare(selectedTile.share)} 绝对贡献
+                {formatWeight(selectedTile.weightGrams) ? `可食重量 ${formatWeight(selectedTile.weightGrams)} · ` : ""}{formatShare(selectedTile.share)} 占图中总量
               </span>
             </div>
           </header>

@@ -1,8 +1,10 @@
 import { hierarchy, treemap, treemapSquarify } from "d3-hierarchy";
+import { edibleGrams } from "@/lib/foodWeights";
 import { daysBetween, isDateKey, monthKey, startOfWeek, toDateKey, toPlainDate } from "@/lib/dateTime";
 import { customFoodsFromMeals } from "@/lib/foods";
 import { foodFromSnapshot, parseFoodSnapshot } from "@/lib/foodSnapshots";
 import { calculateFoodKcalPer100g, getCalorieDeficit } from "@/lib/nutrition";
+import { actualTotals } from "@/lib/actualIntake";
 import type {
   DailyCheckin,
   DailyCheckinActual,
@@ -26,6 +28,7 @@ export interface HeatmapDateRange {
 }
 
 export interface HeatmapDay {
+  expenditure?: { rmrKcal: number | null; tdeeKcal: number | null; source: string };
   date: string;
   completed: boolean;
   actual: DailyCheckinActual;
@@ -51,6 +54,7 @@ export interface HeatmapTile {
 }
 
 export interface HeatmapDataset {
+  expenditureIncomplete?: boolean;
   tiles: HeatmapTile[];
   net: number;
   positiveTotal: number;
@@ -89,7 +93,8 @@ export function buildDailyActual(
       if (!food || !Number.isFinite(entry.grams) || entry.grams <= 0) {
         return;
       }
-      const factor = entry.grams / 100;
+      const edibleWeight = edibleGrams(entry.grams, entry);
+      const factor = edibleWeight / 100;
       const contribution: MacroTotals = {
         kcal: calculateFoodKcalPer100g(food) * factor,
         carbs: food.carbsPer100g * factor,
@@ -98,7 +103,7 @@ export function buildDailyActual(
       };
       const current = foods.get(entry.foodId);
       if (current) {
-        current.grams = roundValue(current.grams + entry.grams);
+        current.grams = roundValue(current.grams + edibleWeight);
         current.totals = {
           kcal: roundValue(current.totals.kcal + contribution.kcal),
           carbs: roundValue(current.totals.carbs + contribution.carbs),
@@ -110,7 +115,7 @@ export function buildDailyActual(
       foods.set(entry.foodId, {
         foodId: entry.foodId,
         name: food.name,
-        grams: roundValue(entry.grams),
+        grams: roundValue(edibleWeight),
         totals: {
           kcal: roundValue(contribution.kcal),
           carbs: roundValue(contribution.carbs),
@@ -164,15 +169,15 @@ export function buildHeatmapDays({
     const plan = plansByDate.get(date);
     const checkin = checkinsByDate.get(date);
     const completed = checkin?.completed ?? false;
-    if (!completed && date !== today && !includeIncomplete) {
+    if (!completed && !includeIncomplete) {
       return [];
     }
 
     const livePlan = date === today ? plan : undefined;
-    const actual = livePlan
-      ? buildActualFromSavedPlan(livePlan, foods, checkin?.actual.exercises ?? [])
-      : completed && checkin
-        ? checkin.actual
+    const actual = completed && checkin
+      ? checkin.actual
+      : livePlan
+        ? buildActualFromSavedPlan(livePlan, foods, checkin?.actual.exercises ?? [])
         : plan
           ? buildActualFromSavedPlan(plan, foods, checkin?.actual.exercises ?? [])
           : checkin?.actual;
@@ -181,11 +186,13 @@ export function buildHeatmapDays({
     }
 
     return [{
+      ...(completed ? actual.version === 3 && actual.targetProtocolSnapshot?.nutrition ? { expenditure: actual.targetProtocolSnapshot.nutrition.result.expenditure } : {}
+        : plan?.profile.protocolSnapshot?.nutrition ? { expenditure: plan.profile.protocolSnapshot.nutrition.result.expenditure } : {}),
       date,
-      completed: completed && date !== today,
+      completed,
       actual,
-      target: livePlan ? livePlan.result.dailyTarget : checkin?.target ?? plan?.result.dailyTarget ?? zeroTotals(),
-      plannedCalorieDeficitKcal: plan && plan.result.dailyTarget.kcal > 0 ? getCalorieDeficit(plan.profile) : 0,
+      target: completed && checkin ? checkin.target ?? plan?.result.dailyTarget ?? zeroTotals() : livePlan ? livePlan.result.dailyTarget : checkin?.target ?? plan?.result.dailyTarget ?? zeroTotals(),
+      plannedCalorieDeficitKcal: plan && plan.profile.targetMode !== "calibrated" && plan.result.dailyTarget.kcal > 0 ? getCalorieDeficit(plan.profile) : 0,
       plannedExerciseKcal: plan ? Math.max(0, plan.profile.exerciseKcal ?? 0) : 0
     }];
   });
@@ -220,6 +227,8 @@ export function aggregateHeatmap(days: HeatmapDay[], metric: HeatmapMetric): Hea
   };
 
   days.forEach((day) => {
+    const unitemized = actualTotals(day.actual)[metric] - day.actual.foods.reduce((sum,food)=>sum+food.totals[metric],0);
+    if (Math.abs(unitemized)>0.0001) add("food:legacy-total", "food", "历史全天合计（未分食品）", unitemized, day.date);
     day.actual.foods.forEach((food) => {
       const label = normalizeFoodLabel(food.name);
       const normalizedName = label.toLocaleLowerCase("zh-CN");
@@ -232,6 +241,10 @@ export function aggregateHeatmap(days: HeatmapDay[], metric: HeatmapMetric): Hea
       add(bucketId, "food", label || food.name, food.totals[metric], day.date, food.grams);
     });
     if (metric === "kcal") {
+      if (day.expenditure) {
+        if (day.expenditure.tdeeKcal != null) add("expenditure:protocol", "activity", "协议估计TDEE（含所选活动口径）", -day.expenditure.tdeeKcal, day.date);
+        return; // Recorded exercise stays in the log; it is not subtracted again from total PAL/TDEE.
+      }
       let hasRecordedExercise = false;
       day.actual.exercises.forEach((exercise) => {
         const normalizedName = exercise.name.trim().toLocaleLowerCase("zh-CN");
@@ -279,6 +292,7 @@ export function aggregateHeatmap(days: HeatmapDay[], metric: HeatmapMetric): Hea
   const negativeTotal = netTiles.reduce((sum, tile) => sum + Math.min(0, tile.value), 0);
 
   return {
+    ...(metric === "kcal" && days.some(day => day.expenditure?.tdeeKcal === null) ? { expenditureIncomplete: true } : {}),
     tiles,
     net: roundValue(positiveTotal + negativeTotal),
     positiveTotal: roundValue(positiveTotal),

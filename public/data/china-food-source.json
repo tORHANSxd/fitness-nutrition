@@ -1,0 +1,321 @@
+{
+  "repository": "https://github.com/Sanotsu/china-food-composition-data",
+  "commit": "d15675c27582748307023b7ee7aca2a63fc52756",
+  "directory": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en",
+  "foodCount": 1677,
+  "categoryCount": 61,
+  "englishNameCount": 1242,
+  "giCount": 259,
+  "files": [
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_乳类及其制品-其他.json",
+      "sha256": "3794910af24fb77f8b741bf2e7a8bb11ea4e71ac0917d1c16092d5c8da964ef3",
+      "records": 9
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_乳类及其制品-奶油.json",
+      "sha256": "e2207534b6c8880a5f14f997154c3496fedd56862660329b6dd02d725fafaf3a",
+      "records": 10
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_乳类及其制品-奶粉.json",
+      "sha256": "701f28af5b51eefe93ecb58d5f69be0e51a77700cf11ecb0c56e1298a1e7e4ef",
+      "records": 82
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_乳类及其制品-奶酪.json",
+      "sha256": "3452e978b82cfd0bc9fa85bc8fe7ab67eb06a4459ef3be2b9a3d866ba350a199",
+      "records": 24
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_乳类及其制品-液态乳.json",
+      "sha256": "53d694d288e0b7e6f12bcf2bd9c0c679a6e5347d865b2e06d9951590bec62f00",
+      "records": 99
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_乳类及其制品-酸奶.json",
+      "sha256": "453d0729defc7f8d962a64baed850de99c087921348a492ed06752b70815b305",
+      "records": 16
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_其他类-其他.json",
+      "sha256": "893bf303d1e00e6241180f5a9bff7270aa0acb5cb7513ddbcaf1200cbe40d7f5",
+      "records": 21
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_动物油脂类-动物油脂.json",
+      "sha256": "a181de1eb1a8829e73f4d6e88c2de1111ffe8798fc25f5cf7a27f9a08f360c33",
+      "records": 7
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_坚果种子类-树坚果.json",
+      "sha256": "d46e6e12ca13d2f925c45c22ea358a7619a411278546bf6a15d53448b6b78de4",
+      "records": 38
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_坚果种子类-种子.json",
+      "sha256": "26f18277dd244b366043c02d71af55181a61125ff02e5d31ad79e35af9c7e6bb",
+      "records": 26
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_干豆类及其制品-其他.json",
+      "sha256": "54c22b73082aa6deec307066cc5106aae542a3a960080f54398f7938df9e3f3f",
+      "records": 12
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_干豆类及其制品-大豆.json",
+      "sha256": "386e368ddc6010036812f0cf8d20b75abe2ebeea0217e752085e407046393d18",
+      "records": 48
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_干豆类及其制品-绿豆.json",
+      "sha256": "35d935faa18b4753d2f1e6f9b336a99dd212e6b311afa30b06f2f891f9bf7c1f",
+      "records": 3
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_干豆类及其制品-芸豆.json",
+      "sha256": "559b86efb2d1ea9092d1ffd230b18720a13688bb4e88a0970c4a235edbdf19ac",
+      "records": 6
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_干豆类及其制品-蚕豆.json",
+      "sha256": "3e9197014cd1c79c62b6211f9a22ebd5dd1597289cdef69ab45d96a6d1cf64ea",
+      "records": 8
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_干豆类及其制品-赤豆.json",
+      "sha256": "32ba847eb81ee80d9169a870c52daf71d85e010519c10701f6d6001dc8538a92",
+      "records": 4
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_植物油-植物油.json",
+      "sha256": "69b8c98d2c56473014e44996d82f2f8369d467aecbc7d533454a076beb0e7986",
+      "records": 19
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_水果类及其制品-仁果类.json",
+      "sha256": "3ebc1690801f100f19a64986bff19c067bde42b6bcb8cfc3ce9e750dc66a920e",
+      "records": 57
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_水果类及其制品-柑橘类.json",
+      "sha256": "5fe6e6eedc497fcd6cff617d5ada5fe53a6ee71d581b35a4657e7748d2f74351",
+      "records": 15
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_水果类及其制品-核果类.json",
+      "sha256": "e2c567d3b66cb18b27d308785af2e2e8516a375badad383420685e5b7e8a6ad7",
+      "records": 37
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_水果类及其制品-浆果类.json",
+      "sha256": "55a5eb10fe4470a4b4bf8f953f85302e7a749e53fbc09412c4976d151f4e88fd",
+      "records": 27
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_水果类及其制品-热带亚热带水果.json",
+      "sha256": "4a5958e5a31cff37be443eca714f9b6adf2fe9769af903a5410c487188e9d0a3",
+      "records": 32
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_水果类及其制品-瓜果类.json",
+      "sha256": "db0148bf4fd57793174cc4fdb593cae9bf4602e2deb7e168e7bc4b981ff022a1",
+      "records": 14
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_畜肉类及其制品-其他.json",
+      "sha256": "f3d8317c9cb6d7294d4bc48628815de7c273daea2d54c7b2d1dba365bddb794d",
+      "records": 6
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_畜肉类及其制品-牛.json",
+      "sha256": "d6bf04893bb6282c721e1ceab67b6ea68199c2d510d48918af8d501f3943cb1d",
+      "records": 43
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_畜肉类及其制品-猪.json",
+      "sha256": "92458109c5f07a498bc024d9d0b055e08140131c5383dfcecc8c3b7d1860a14e",
+      "records": 102
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_畜肉类及其制品-羊.json",
+      "sha256": "215bbed67cd586f95d84051a4dc462427d7ede43dfe691410b6282f4eee93771",
+      "records": 36
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_畜肉类及其制品-马.json",
+      "sha256": "dff7c8d209d9714e357a37e6e92aea35ecd7037d4607fba0012dbda9571c8f57",
+      "records": 3
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_畜肉类及其制品-驴.json",
+      "sha256": "8ad7c307cc5a895662db580a38bb21ba7fb15d74702a54026fa4ed8f57d44220",
+      "records": 6
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_禽肉类及其制品-其他.json",
+      "sha256": "3e1ec5a227d9b37b302ee6d71e38b54564a6c0fd5c56295d2b1f8d578c8df4b5",
+      "records": 4
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_禽肉类及其制品-火鸡.json",
+      "sha256": "297bc88a7133a33c2835d23338dec484faea8546e7bf7b49e517e21ad81a9d0b",
+      "records": 5
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_禽肉类及其制品-鸡.json",
+      "sha256": "0fe422384f96f95e71432caa050a76d436349fa88194044e52d5667e5c0d2992",
+      "records": 27
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_禽肉类及其制品-鸭.json",
+      "sha256": "57c24974db5eec43962538d18c458ce71461af680e5221ef0f93258652a958bc",
+      "records": 29
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_禽肉类及其制品-鹅.json",
+      "sha256": "0b7719c9e60a1d767321bf7af523e63dd0a1db566ddca7fe3498c5e391d31881",
+      "records": 6
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_菌藻类-菌类.json",
+      "sha256": "193c1ecacc5f885b649fcd68fab3e44adc3738fbc5dbc131015ee051d9fdb214",
+      "records": 55
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_菌藻类-藻类.json",
+      "sha256": "606c15071cfa9a04aa08f476320a8ac0b0a762c3f06ff8da3891337aae459abe",
+      "records": 11
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_蔬菜类及其制品-嫩茎叶花菜类.json",
+      "sha256": "35ce14ed19f049e4855a868190cdea7d164adbe29bd9c77bb35b632628ed107b",
+      "records": 92
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_蔬菜类及其制品-根菜类.json",
+      "sha256": "0ca339165e3e7da8c1060d35b0cc0ae48a0b1c84bef0acb26ea4af1af430f3ef",
+      "records": 21
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_蔬菜类及其制品-水生蔬菜类.json",
+      "sha256": "6ba182c4e2f1db2fc137352163b17ba6628071da91fca23ccd5730ab82341a97",
+      "records": 10
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_蔬菜类及其制品-茄果瓜菜类.json",
+      "sha256": "0780bd857fdd313de25487dc8da4235e16a4bc01a05e83c27e038e62715d8e6f",
+      "records": 47
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_蔬菜类及其制品-葱蒜类.json",
+      "sha256": "1dd7aae6acda36ce8eef4e791ac9ca6f292a9067e882ac3de0b80b2e46f1ffba",
+      "records": 20
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_蔬菜类及其制品-薯芋类.json",
+      "sha256": "93e40e9b7a3a4ffc5d1a3dd35711ea6c0a821a3e5dc3eb61a551519f53dcae21",
+      "records": 12
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_蔬菜类及其制品-野生蔬菜类.json",
+      "sha256": "706a335e5a42134951be5b9d3fc282df273e94a05d37e5c45b401fec5ad4c080",
+      "records": 84
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_蔬菜类及其制品-鲜豆类.json",
+      "sha256": "18b6e20675aa21206497a81df2cac28d3e9ccef1c9cee7a4eab62496ff335c47",
+      "records": 27
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_薯类淀粉及其制品-淀粉类.json",
+      "sha256": "e58bc8359049d8dadeb5570719c2218ce427c61827210b6a927f13a11fe4b83f",
+      "records": 15
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_薯类淀粉及其制品-薯类.json",
+      "sha256": "3d5444ae3e71b3ff02da7074d2959eaf1c3b180ace14d373b70937c92759eef6",
+      "records": 11
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_蛋类及其制品-鸡蛋.json",
+      "sha256": "ed9ce92d13ebc2f1e5c11602b870d184b02a182129d689cb749c4b32f118414c",
+      "records": 17
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_蛋类及其制品-鸭蛋.json",
+      "sha256": "e32f445d18dce72c5b7719db363d77de4f514e07fd94f5c1c331ff0ab2dfc743",
+      "records": 7
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_蛋类及其制品-鹅蛋.json",
+      "sha256": "04915d6e405d2c6dd303fc72856eb76b36b2cc59cdf9d113131297c2bc0f1d98",
+      "records": 4
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_蛋类及其制品-鹌鹑蛋.json",
+      "sha256": "998238d9b3a5da43e9d9fb78d7d58d88ce0231be8476148a5efd230583117501",
+      "records": 2
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_谷类及其制品-其他.json",
+      "sha256": "312ebf09ec4e02893430ce8c0be7ad0564d09253c8b29d3cc134862188169da6",
+      "records": 14
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_谷类及其制品-大麦.json",
+      "sha256": "8bd61fc0b5e7c3a3ba7f7c659ca0d0c302fd897182151c164141460a521c0f56",
+      "records": 4
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_谷类及其制品-小米黄米.json",
+      "sha256": "d75c6101f29b8cf15f014d57309c8575d5ebda138b6f5f5e43752f61b7f25af6",
+      "records": 6
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_谷类及其制品-小麦.json",
+      "sha256": "478bd1733e39d26119d221dde2ed1ba3232caa4da6c57d54f1f8e66f739b3f52",
+      "records": 37
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_谷类及其制品-玉米.json",
+      "sha256": "301c631fb6944d6dfebad651eb60e16cfd63d9fc3db400920c28fc98832b430a",
+      "records": 10
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_谷类及其制品-稻米.json",
+      "sha256": "466f39288104fb3cee964dfd0f032bbd3ff702968cfada5fc4e043aecc48fce0",
+      "records": 41
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_鱼虾蟹贝类-其他.json",
+      "sha256": "cf371875c89dea61f1cad0a1edb73458d14b77bd02bbcf30061ff6a1b27b3264",
+      "records": 24
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_鱼虾蟹贝类-虾.json",
+      "sha256": "dede28f2bf041442ebeffe647e7abb8f37b33d33910682107ef3b823d6110361",
+      "records": 29
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_鱼虾蟹贝类-蟹.json",
+      "sha256": "014833c71b6087b00dcfbf88bfe828caf02bd78984c800ff6aa4b76fed3db2fa",
+      "records": 18
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_鱼虾蟹贝类-贝.json",
+      "sha256": "a659a791f3f38b2cb25ad3c1d3804af43d9595838ce6b8ed4f62a7cde2f43b64",
+      "records": 41
+    },
+    {
+      "path": "json_data_v3_20260825_qwen38max_kimi_k3_fixed_en/merged_鱼虾蟹贝类-鱼.json",
+      "sha256": "047dbbd62d298cbeb7947bd9f25dec2b1f087d47a5b5c5933913c67b55dce8d9",
+      "records": 137
+    },
+    {
+      "path": "json_gi_of_foods/glycemic_index_of_foods.json",
+      "sha256": "50fd9b0a9d5dea76e1aac2706c1d3ebeb6a3b3fed939ebd04bad059c7ee21d7b",
+      "records": 11
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+# Local dependencies and tool caches never enter version control.
+/node_modules
+/.next
+/.gitnexus
+/.vercel
+/.claude
+/.codex-git.toml
+/.trellis-lite
+/.verification
+/supabase/.temp
+/supabase/.branches
+
+# Generated output belongs in the external runtime directory.
+/out/
+/dist/
+/coverage/
+/artifacts/
+/test-results/
+/.playwright/
+*.tsbuildinfo
+*.log
+
+# Keep connection templates, never credentials or personal exports.
+.env*
+!.env.example
+/01_personal_cutting_plan.md
+/private-data/
+/health-exports/
+.DS_Store
+Thumbs.db

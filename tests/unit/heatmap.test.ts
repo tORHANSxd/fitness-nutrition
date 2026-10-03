@@ -1,0 +1,423 @@
+import { describe, expect, it } from "vitest";
+import { buildNutritionResult } from "@/lib/nutrition";
+import {
+  aggregateHeatmap,
+  buildActualFromSavedPlan,
+  buildDailyActual,
+  buildHeatmapDays,
+  layoutHeatmapTiles,
+  rangeForPreset,
+  validateHeatmapRange,
+  type HeatmapDay
+} from "@/lib/heatmap";
+import { foodSnapshotFromFood } from "@/lib/foodSnapshots";
+import type { DailyCheckin, FoodItem, MealPlan, SavedPlan, UserProfile } from "@/lib/types";
+
+const profile: UserProfile = {
+  sex: "male",
+  age: 30,
+  heightCm: 180,
+  weightKg: 80,
+  activityFactor: 1.25,
+  exerciseKcal: 0,
+  trainingTime: "rest",
+  planDate: "2026-08-25"
+};
+
+const food: FoodItem = {
+  id: "food-apple",
+  name: "苹果",
+  category: "水果",
+  kcalPer100g: 165,
+  carbsPer100g: 20,
+  proteinPer100g: 10,
+  fatPer100g: 5,
+  weightBasis: "raw",
+  source: "public"
+};
+
+const meals: MealPlan[] = [{
+  id: "meal-1",
+  name: "早餐",
+  ratio: 1,
+  locked: false,
+  entries: [
+    { id: "entry-1", foodId: food.id, grams: 100, locked: false },
+    { id: "entry-2", foodId: food.id, grams: 50, locked: false }
+  ]
+}];
+
+function savedPlanMetadata(date: string) {
+  const timestamp = `${date}T00:00:00.000Z`;
+  return {
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    schemaVersion: 2,
+    algorithmVersion: "nutrition-v2.3",
+    integrityFlags: [],
+  };
+}
+
+function savedPlan(date: string): SavedPlan {
+  const datedProfile = { ...profile, planDate: date };
+  return {
+    id: `plan-${date}`,
+    planDate: date,
+    profile: datedProfile,
+    meals,
+    result: buildNutritionResult(datedProfile, meals, [food]),
+    ...savedPlanMetadata(date),
+  };
+}
+
+describe("heatmap ledger", () => {
+  it("snapshots and merges repeated foods while separating daily activity from exercise", () => {
+    const result = buildNutritionResult(profile, meals, [food]);
+    const actual = buildDailyActual(profile, meals, result, new Map([[food.id, food]]));
+
+    expect(actual.foods).toHaveLength(1);
+    expect(actual.foods[0]).toMatchObject({ foodId: food.id, grams: 150 });
+    expect(actual.foods[0].totals).toMatchObject({ kcal: 247.5, carbs: 30, protein: 15, fat: 7.5 });
+    expect(actual.bmrKcal).toBe(result.bmr);
+    expect(actual.activityKcal).toBeCloseTo(result.bmr * 0.25, 2);
+  });
+
+  it("uses saved food snapshots instead of changed live nutrition values", () => {
+    const plan = savedPlan("2026-08-24");
+    plan.meals = plan.meals.map((meal) => ({
+      ...meal,
+      entries: meal.entries.map((entry) => ({ ...entry, foodSnapshot: foodSnapshotFromFood(food) }))
+    }));
+    const changedFood = { ...food, name: "已修改苹果", kcalPer100g: 999, carbsPer100g: 99 };
+    const actual = buildActualFromSavedPlan(plan, [changedFood]);
+
+    expect(actual.foods[0]).toMatchObject({ name: "苹果", grams: 150 });
+    expect(actual.foods[0].totals).toMatchObject({ kcal: 247.5, carbs: 30 });
+  });
+
+  it("aggregates same foods and exercises across days with correct ledger signs", () => {
+    const days: HeatmapDay[] = ["2026-08-24", "2026-08-25"].map((date) => ({
+      date,
+      completed: true,
+      actual: {
+        version: 2,
+        foods: [{ foodId: food.id, name: food.name, grams: 100, totals: { kcal: 100, carbs: 20, protein: 10, fat: 5 } }],
+        exercises: [{ id: `exercise-${date}`, name: "跑步", kcal: 200 }],
+        bmrKcal: 1500,
+        activityKcal: 500
+      },
+      target: { kcal: 2000, carbs: 200, protein: 20, fat: 60 }
+    }));
+
+    const calories = aggregateHeatmap(days, "kcal");
+    expect(calories.tiles.find((tile) => tile.id === `food:${food.id}`)).toMatchObject({ value: 200 });
+    expect(calories.tiles.find((tile) => tile.id === "exercise:跑步")).toMatchObject({ value: -400 });
+    expect(calories.tiles.find((tile) => tile.id === "basal")).toMatchObject({ value: -3000 });
+    expect(calories.net).toBe(-4200);
+    expect(calories.absoluteTotal).toBe(4600);
+    expect(calories.tiles.reduce((sum, tile) => sum + tile.share, 0)).toBeCloseTo(1, 10);
+
+    const protein = aggregateHeatmap(days, "protein");
+    expect(protein.tiles.find((tile) => tile.id === `food:${food.id}`)).toMatchObject({ value: 20 });
+    expect(protein.tiles.find((tile) => tile.id === "target:protein")).toMatchObject({ value: -40 });
+    expect(protein.net).toBe(-20);
+  });
+
+  it("merges same-named planned foods with different ids and sums every metric", () => {
+    const days: HeatmapDay[] = [
+      {
+        date: "2026-08-24",
+        completed: true,
+        actual: {
+          version: 2,
+          foods: [
+            {
+              foodId: "custom-breakfast",
+              name: "自制蛋白饼",
+              grams: 100,
+              totals: { kcal: 100, carbs: 10, protein: 20, fat: 2 }
+            },
+            {
+              foodId: "custom-dinner",
+              name: "  自制蛋白饼  ",
+              grams: 50,
+              totals: { kcal: 50, carbs: 5, protein: 10, fat: 1 }
+            }
+          ],
+          exercises: [],
+          bmrKcal: 0,
+          activityKcal: 0
+        },
+        target: { kcal: 0, carbs: 0, protein: 0, fat: 0 }
+      },
+      {
+        date: "2026-08-25",
+        completed: true,
+        actual: {
+          version: 2,
+          foods: [{
+            foodId: "custom-next-day",
+            name: "自制蛋白饼",
+            grams: 75,
+            totals: { kcal: 75, carbs: 8, protein: 7, fat: 3 }
+          }],
+          exercises: [],
+          bmrKcal: 0,
+          activityKcal: 0
+        },
+        target: { kcal: 0, carbs: 0, protein: 0, fat: 0 }
+      }
+    ];
+
+    const expected = { kcal: 225, carbs: 23, protein: 37, fat: 6 };
+    (Object.keys(expected) as Array<keyof typeof expected>).forEach((metric) => {
+      const foodTiles = aggregateHeatmap(days, metric).tiles.filter((tile) => tile.kind === "food");
+      expect(foodTiles).toHaveLength(1);
+      expect(foodTiles[0]).toMatchObject({ label: "自制蛋白饼", value: expected[metric], weightGrams: 225 });
+    });
+
+    expect(aggregateHeatmap(days, "kcal").tiles[0].details).toEqual([
+      { date: "2026-08-25", value: 75, weightGrams: 75 },
+      { date: "2026-08-24", value: 150, weightGrams: 150 }
+    ]);
+  });
+
+  it("keeps the planned calorie deficit as a reference without counting it twice", () => {
+    const dataset = aggregateHeatmap([{
+      date: "2026-08-27",
+      completed: false,
+      actual: {
+        version: 2,
+        foods: [{
+          foodId: "planned-intake",
+          name: "计划饮食",
+          grams: 1000,
+          totals: { kcal: 1987, carbs: 0, protein: 0, fat: 0 }
+        }],
+        exercises: [],
+        bmrKcal: 1898,
+        activityKcal: 189
+      },
+      target: { kcal: 1987, carbs: 0, protein: 0, fat: 0 },
+      plannedCalorieDeficitKcal: 400,
+      plannedExerciseKcal: 300
+    }], "kcal");
+
+    expect(dataset.tiles.find((tile) => tile.id === "target:calorie-deficit")).toMatchObject({ value: -400 });
+    expect(dataset.positiveTotal).toBe(1987);
+    expect(dataset.negativeTotal).toBe(-2387);
+    expect(dataset.net).toBe(-400);
+    expect(dataset.absoluteTotal).toBe(4774);
+  });
+
+  it("allocates treemap area in exact proportion to each absolute contribution", () => {
+    const dataset = aggregateHeatmap([{
+      date: "2026-08-25",
+      completed: true,
+      actual: {
+        version: 2,
+        foods: [
+          { foodId: "large", name: "大项目", grams: 100, totals: { kcal: 600, carbs: 0, protein: 0, fat: 0 } },
+          { foodId: "small", name: "小项目", grams: 100, totals: { kcal: 100, carbs: 0, protein: 0, fat: 0 } }
+        ],
+        exercises: [{ id: "exercise", name: "运动", kcal: 300 }],
+        bmrKcal: 0,
+        activityKcal: 0
+      },
+      target: { kcal: 0, carbs: 0, protein: 0, fat: 0 }
+    }], "kcal");
+    const width = 1600;
+    const height = 1000;
+    const canvasArea = width * height;
+    const layout = layoutHeatmapTiles(dataset.tiles, width, height);
+
+    expect(layout).toHaveLength(3);
+    expect(layout.reduce((sum, item) => sum + item.width * item.height, 0)).toBeCloseTo(canvasArea, 6);
+    layout.forEach((item) => {
+      expect(item.width * item.height / canvasArea).toBeCloseTo(item.tile.share, 6);
+    });
+    expect(layoutHeatmapTiles(dataset.tiles, 0, height)).toEqual([]);
+  });
+
+  it("adds the planned calorie deficit and falls back to planned exercise before completion", () => {
+    const plannedProfile = { ...profile, exerciseKcal: 450, calorieDeficit: 600 };
+    const plan: SavedPlan = {
+      id: "plan-with-energy-targets",
+      planDate: plannedProfile.planDate,
+      profile: plannedProfile,
+      meals,
+      result: buildNutritionResult(plannedProfile, meals, [food]),
+      ...savedPlanMetadata("2026-08-25"),
+    };
+    const [day] = buildHeatmapDays({
+      plans: [plan],
+      checkins: [],
+      foods: [food],
+      today: "2026-08-25",
+      includeIncomplete: true
+    });
+    const dataset = aggregateHeatmap([day], "kcal");
+
+    expect(dataset.tiles.find((tile) => tile.id === "target:calorie-deficit")).toMatchObject({
+      label: "计划热量缺口",
+      value: -600
+    });
+    expect(dataset.tiles.find((tile) => tile.id === "exercise:planned")).toMatchObject({
+      label: "计划运动消耗",
+      value: -450
+    });
+  });
+
+  it("excludes all unconfirmed plans, including today, unless explicitly requested", () => {
+    const yesterdayPlan = savedPlan("2026-08-24");
+    const todayPlan = savedPlan("2026-08-25");
+    const hiddenHistory = buildHeatmapDays({
+      plans: [yesterdayPlan, todayPlan],
+      checkins: [],
+      foods: [food],
+      today: "2026-08-25",
+      includeIncomplete: false
+    });
+    expect(hiddenHistory).toEqual([]);
+    expect(buildHeatmapDays({ plans: [yesterdayPlan,todayPlan], checkins: [], foods: [food], today: "2026-08-25", includeIncomplete: true })).toHaveLength(2);
+
+    const completedCheckin: DailyCheckin = {
+      id: "checkin-1",
+      planDate: "2026-08-24",
+      actual: buildDailyActual(yesterdayPlan.profile, meals, yesterdayPlan.result, new Map([[food.id, food]])),
+      target: yesterdayPlan.result.dailyTarget,
+      completed: true,
+      createdAt: "",
+      updatedAt: ""
+    };
+    expect(buildHeatmapDays({
+      plans: [yesterdayPlan, todayPlan],
+      checkins: [completedCheckin],
+      foods: [food],
+      today: "2026-08-25",
+      includeIncomplete: false
+    }).map((day) => day.date)).toEqual(["2026-08-24"]);
+  });
+
+  it("keeps today's confirmed snapshot when the plan changes", () => {
+    const dinnerFood: FoodItem = {
+      ...food,
+      id: "food-dinner",
+      name: "晚餐三文鱼",
+      kcalPer100g: 208,
+      carbsPer100g: 0,
+      proteinPer100g: 20,
+      fatPer100g: 13
+    };
+    const fullDayMeals: MealPlan[] = [
+      ...meals,
+      {
+        id: "dinner",
+        name: "晚餐",
+        ratio: 0.3,
+        locked: false,
+        entries: [{ id: "dinner-entry", foodId: dinnerFood.id, grams: 180, locked: false }]
+      }
+    ];
+    const result = buildNutritionResult(profile, fullDayMeals, [food, dinnerFood]);
+    const plan: SavedPlan = {
+      id: "today-full-plan",
+      planDate: profile.planDate,
+      profile,
+      meals: fullDayMeals,
+      result,
+      ...savedPlanMetadata("2026-08-25"),
+    };
+    const staleCheckin: DailyCheckin = {
+      id: "early-snapshot",
+      planDate: profile.planDate,
+      actual: {
+        ...buildDailyActual(profile, meals, buildNutritionResult(profile, meals, [food]), new Map([[food.id, food]])),
+        exercises: [{ id: "exercise-1", name: "跑步", kcal: 300 }]
+      },
+      target: { kcal: 1, carbs: 1, protein: 1, fat: 1 },
+      completed: true,
+      createdAt: "",
+      updatedAt: ""
+    };
+
+    const [day] = buildHeatmapDays({
+      plans: [plan],
+      checkins: [staleCheckin],
+      foods: [food, dinnerFood],
+      today: profile.planDate,
+      includeIncomplete: false
+    });
+
+    expect(day.actual.foods.find((item) => item.foodId === dinnerFood.id)).toBeUndefined();
+    expect(day.actual).toEqual(staleCheckin.actual);
+    expect(day.actual.exercises).toEqual(staleCheckin.actual.exercises);
+    expect(day.target).toEqual(staleCheckin.target);
+    expect(day.completed).toBe(true);
+  });
+
+  it("does not substitute planned exercise for missing actual exercise after confirmation", () => {
+    const plannedProfile = { ...profile, exerciseKcal: 450 };
+    const result = buildNutritionResult(plannedProfile, meals, [food]);
+    const plan: SavedPlan = {
+      id: "today-with-planned-exercise",
+      planDate: plannedProfile.planDate,
+      profile: plannedProfile,
+      meals,
+      result,
+      ...savedPlanMetadata("2026-08-25"),
+    };
+    const earlyCheckin: DailyCheckin = {
+      id: "early-completion-without-exercise",
+      planDate: plannedProfile.planDate,
+      actual: buildDailyActual(plannedProfile, meals, result, new Map([[food.id, food]])),
+      target: result.dailyTarget,
+      completed: true,
+      createdAt: "",
+      updatedAt: ""
+    };
+
+    const [day] = buildHeatmapDays({
+      plans: [plan],
+      checkins: [earlyCheckin],
+      foods: [food],
+      today: plannedProfile.planDate,
+      includeIncomplete: false
+    });
+    const dataset = aggregateHeatmap([day], "kcal");
+
+    expect(day.completed).toBe(true);
+    expect(dataset.tiles.find((tile) => tile.id === "exercise:planned")).toBeUndefined();
+  });
+
+  it("falls back to the saved plan target for completed legacy check-ins", () => {
+    const plan = savedPlan("2026-08-24");
+    const checkin: DailyCheckin = {
+      id: "legacy-checkin",
+      planDate: plan.planDate,
+      actual: buildDailyActual(plan.profile, meals, plan.result, new Map([[food.id, food]])),
+      target: null,
+      completed: true,
+      createdAt: "",
+      updatedAt: ""
+    };
+
+    const [day] = buildHeatmapDays({
+      plans: [plan],
+      checkins: [checkin],
+      foods: [food],
+      today: "2026-08-25",
+      includeIncomplete: false
+    });
+
+    expect(day.target).toEqual(plan.result.dailyTarget);
+  });
+
+  it("builds timezone-ready presets and caps a query at 366 days", () => {
+    expect(rangeForPreset("week", "2026-08-25", 1)).toEqual({ from: "2026-08-24", to: "2026-08-25" });
+    expect(rangeForPreset("month", "2026-08-25", 1)).toEqual({ from: "2026-08-01", to: "2026-08-25" });
+    expect(rangeForPreset("year", "2026-08-25", 1)).toEqual({ from: "2026-01-01", to: "2026-08-25" });
+    expect(validateHeatmapRange({ from: "2024-01-01", to: "2024-12-31" })).toBeNull();
+    expect(validateHeatmapRange({ from: "2024-01-01", to: "2025-01-01" })).toBe("单次最多查看 366 天。");
+  });
+});

@@ -1,0 +1,16 @@
+# Only application sources and build configuration are uploaded to Vercel.
+# Private documents, environment files, database exports and test artifacts stay local.
+/*
+!src
+!src/**
+!public
+!public/**
+!/package.json
+!/package-lock.json
+!/next.config.mjs
+!/next-env.d.ts
+!/tsconfig.json
+!/tailwind.config.ts
+!/postcss.config.mjs
+!/eslint.config.mjs
+!/LICENSE

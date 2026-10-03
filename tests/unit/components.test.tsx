@@ -1,0 +1,483 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { AuthPanel } from "@/components/AuthPanel";
+import type { SupabaseClient, User } from "@supabase/supabase-js";
+import * as supabaseModule from "@/lib/supabase";
+import { FoodPickerDialog } from "@/components/FoodPickerDialog";
+import { MealSplitView } from "@/components/MealSplitView";
+import { PlannerProfileView } from "@/components/PlannerProfileView";
+import type { PlannerController } from "@/components/usePlanner";
+import { createStarterMeals, defaultProfile } from "@/lib/demoState";
+import { builtinFoods } from "@/lib/foods";
+import { buildNutritionResult } from "@/lib/nutrition";
+import { toDateKey } from "@/lib/training";
+import type { FoodItem, UserProfile } from "@/lib/types";
+
+// MacroBars 依赖 recharts + window.matchMedia，在 jsdom 里与本用例无关，打桩掉避免噪音。
+vi.mock("@/components/MacroBars", () => ({ MacroBars: () => null }));
+
+afterEach(cleanup);
+
+function makeController(profileOverrides: Partial<UserProfile> = {}, controllerOverrides: Partial<PlannerController> = {}): PlannerController {
+  const profile: UserProfile = { ...defaultProfile, planDate: "2026-05-22", ...profileOverrides };
+  const meals = createStarterMeals(profile);
+  const result = buildNutritionResult(profile, meals, builtinFoods);
+  const foodsById = new Map(builtinFoods.map((food) => [food.id, food]));
+  const recommendationsByMeal = new Map(result.mealRecommendations.map((recommendation) => [recommendation.mealId, recommendation]));
+  return {
+    profile,
+    meals,
+    activeMealId: meals[0]?.id ?? "",
+    message: "",
+    saving: false,
+    draftState: "ready",
+    result,
+    foodsById,
+    recommendationsByMeal,
+    setActiveMealId: vi.fn(),
+    updateProfile: vi.fn(),
+    updateMeal: vi.fn(),
+    updateMealLayout: vi.fn().mockReturnValue(true),
+    addFoodToMeal: vi.fn(),
+    addCustomFoodToMeal: vi.fn(),
+    updateEntry: vi.fn(),
+    removeEntry: vi.fn(),
+    applyRecommendations: vi.fn(),
+    persistPlan: vi.fn(),
+    normalizeRatios: vi.fn(),
+    saveMealTemplate: vi.fn(),
+    applyMealTemplate: vi.fn(),
+    saveDayTemplate: vi.fn(),
+    applyDayTemplate: vi.fn(),
+    ...controllerOverrides
+  };
+}
+
+const pick = (id: string) => builtinFoods.find((food) => food.id === id)!;
+const isBefore = (a: Element, b: Element) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+
+describe("FoodPickerDialog（先选分类，再选食物）", () => {
+  const foods: FoodItem[] = [
+    pick("public-oats-raw"), // 燕麦片 主食
+    pick("public-apple-raw"), // 苹果 水果
+    pick("public-rice-cooked"), // 白米饭 主食
+    pick("public-chicken-breast-cooked") // 鸡胸肉 肉类
+  ];
+
+  it("renders nothing when closed", () => {
+    const { container } = render(<FoodPickerDialog open={false} foods={foods} onSelect={vi.fn()} onClose={vi.fn()} />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("portals the open picker to the viewport and centers it at every breakpoint", () => {
+    render(
+      <div style={{ transform: "translateY(120px)" }}>
+        <FoodPickerDialog open foods={foods} onSelect={vi.fn()} onClose={vi.fn()} />
+      </div>
+    );
+
+    const dialog = screen.getByRole("dialog");
+    expect(dialog.parentElement).toBe(document.body);
+    expect(dialog).toHaveClass("items-center");
+    expect(dialog).not.toHaveClass("items-end");
+  });
+
+  it("locks page scrolling while open and restores it after closing", () => {
+    document.body.style.overflow = "auto";
+    const { rerender, unmount } = render(
+      <FoodPickerDialog open foods={foods} onSelect={vi.fn()} onClose={vi.fn()} />
+    );
+
+    expect(document.body.style.overflow).toBe("hidden");
+
+    rerender(<FoodPickerDialog open={false} foods={foods} onSelect={vi.fn()} onClose={vi.fn()} />);
+    expect(document.body.style.overflow).toBe("auto");
+
+    unmount();
+  });
+
+  it("lists foods sorted by category then pinyin and reports the picked food", () => {
+    const onSelect = vi.fn();
+    const onClose = vi.fn();
+    render(<FoodPickerDialog open foods={foods} onSelect={onSelect} onClose={onClose} />);
+
+    // 分类标签：全部 + 主食/水果/肉类（按 foodCategories 顺序）。
+    expect(screen.getByRole("button", { name: "全部分类" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "主食" })).toBeInTheDocument();
+
+    // 列表顺序：主食(白米饭<燕麦片) → 水果(苹果) → 肉类(鸡胸肉)。
+    const rice = screen.getByText("白米饭");
+    const oats = screen.getByText("燕麦片");
+    const apple = screen.getByText("苹果");
+    const chicken = screen.getByText("鸡胸肉");
+    expect(isBefore(rice, oats)).toBe(true);
+    expect(isBefore(oats, apple)).toBe(true);
+    expect(isBefore(apple, chicken)).toBe(true);
+
+    fireEvent.click(rice);
+    expect(onSelect).toHaveBeenCalledWith("public-rice-cooked");
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("filters the list to a single category when its chip is clicked", () => {
+    render(<FoodPickerDialog open foods={foods} onSelect={vi.fn()} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "水果" }));
+
+    expect(screen.getByText("苹果")).toBeInTheDocument();
+    expect(screen.queryByText("白米饭")).not.toBeInTheDocument();
+    expect(screen.queryByText("鸡胸肉")).not.toBeInTheDocument();
+  });
+});
+
+describe("AuthPanel（账户登录面板）", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  it("defaults to login only and explains that registration is paused", () => {
+    vi.stubEnv("NEXT_PUBLIC_ENABLE_SIGNUP", undefined);
+    render(<AuthPanel user={null} onSignedIn={vi.fn()} />);
+
+    expect(screen.getByRole("heading", { name: "登录" })).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("name@example.com")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("至少 6 位")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "登录" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "注册" })).not.toBeInTheDocument();
+    expect(screen.getByText("注册暂时关闭，请使用已有账号登录。")).toBeInTheDocument();
+  });
+
+  it("restores the register link when registration is explicitly enabled", () => {
+    vi.stubEnv("NEXT_PUBLIC_ENABLE_SIGNUP", "true");
+    render(<AuthPanel user={null} onSignedIn={vi.fn()} />);
+
+    // 模式切换是文字链接式按钮，而不是第二个大按钮。
+    fireEvent.click(screen.getByRole("button", { name: "注册" }));
+    expect(screen.getByRole("heading", { name: "注册" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "登录" })).toBeInTheDocument(); // 切回链接
+  });
+
+  it("still signs existing users in while registration is disabled", async () => {
+    vi.stubEnv("NEXT_PUBLIC_ENABLE_SIGNUP", "false");
+    const user = { id: "existing-user", email: "existing@example.test" } as User;
+    const signInWithPassword = vi.fn().mockResolvedValue({ data: { session: { user } }, error: null });
+    const signUp = vi.fn();
+    vi.spyOn(supabaseModule, "isSupabaseConfigured").mockReturnValue(true);
+    vi.spyOn(supabaseModule, "getSupabaseClient").mockReturnValue({
+      auth: { signInWithPassword, signUp }
+    } as unknown as SupabaseClient);
+    const onSignedIn = vi.fn();
+    render(<AuthPanel user={null} onSignedIn={onSignedIn} />);
+
+    fireEvent.change(screen.getByPlaceholderText("name@example.com"), { target: { value: user.email } });
+    fireEvent.change(screen.getByPlaceholderText("至少 6 位"), { target: { value: "existing-password" } });
+    fireEvent.click(screen.getByRole("button", { name: "登录" }));
+
+    expect(await screen.findByText("登录成功。")).toBeInTheDocument();
+    expect(signInWithPassword).toHaveBeenCalledWith({ email: user.email, password: "existing-password" });
+    expect(signUp).not.toHaveBeenCalled();
+    expect(onSignedIn).toHaveBeenCalledWith(user);
+  });
+});
+
+describe("PlannerProfileView v2 固定目标 / 训练时间", () => {
+  function fieldInput(labelText: string) {
+    return screen.getByText(labelText).closest("label")!.querySelector("input") as HTMLInputElement;
+  }
+  function timeSelect() {
+    return screen.getByText("训练时间").closest("label")!.querySelector("select") as HTMLSelectElement;
+  }
+
+  it("keeps the command center metrics legible in the desktop split layout", () => {
+    render(<PlannerProfileView controller={makeController()} />);
+
+    const commandHeading = screen.getByRole("heading", { name: "今日指挥台" });
+    const profileLayout = commandHeading.closest("section")!.parentElement!.parentElement!;
+    expect(profileLayout).toHaveClass("planner-profile-layout");
+    expect(profileLayout).not.toHaveClass("xl:grid-cols-[340px_minmax(280px,1fr)]");
+
+    const bmrLabel = screen.getByText("BMR");
+    const metricValue = bmrLabel.nextElementSibling!;
+    const metricGrid = bmrLabel.closest(".relative")!.parentElement!.parentElement!;
+    expect(metricGrid).toHaveClass("grid-cols-2");
+    expect(metricGrid).not.toHaveClass("xl:grid-cols-4");
+    expect(metricValue).toHaveClass("flex", "flex-wrap");
+    expect(metricValue).not.toHaveClass("whitespace-nowrap");
+
+    const weeklyPlanGrid = screen.getByTestId("weekly-plan-grid");
+    expect(weeklyPlanGrid).toHaveClass("planner-week-grid");
+    expect(weeklyPlanGrid).not.toHaveClass("overflow-x-auto");
+    expect(weeklyPlanGrid.firstElementChild).not.toHaveClass("shrink-0", "min-w-[76px]");
+  });
+
+  it("shows formula-derived targets as placeholders (demo profile → 2295/175/61) and no carb-day picker", () => {
+    render(<PlannerProfileView controller={makeController({ trainingTime: "afternoon" })} />);
+    expect(screen.queryByText("碳循环日")).not.toBeInTheDocument();
+    // 覆盖字段默认留空 = 用公式；placeholder 展示公式值（demo 档案 93.2kg/26%）。
+    expect(fieldInput("每日目标 kcal")).toHaveValue("");
+    expect(fieldInput("每日目标 kcal").placeholder).toBe("自动 2295");
+    expect(fieldInput("蛋白目标 g").placeholder).toBe("自动 175");
+    expect(fieldInput("脂肪目标 g").placeholder).toBe("自动 61");
+    // 体脂率与赤字字段就位。
+    expect(fieldInput("体脂率 %")).toHaveValue("26");
+    expect(fieldInput("减脂赤字 kcal/天")).toHaveValue("");
+    expect(fieldInput("减脂赤字 kcal/天").placeholder).toBe("默认 600");
+  });
+
+  it("keeps daily macro targets, calorie deficit and exercise expenditure directly visible and editable", () => {
+    const controller = makeController({
+      exerciseKcal: 600,
+      calorieDeficit: 450,
+      proteinTargetG: 135,
+      fatTargetG: 60
+    });
+    render(<PlannerProfileView controller={controller} />);
+
+    expect(screen.getByRole("heading", { name: "每日目标与消耗" })).toBeInTheDocument();
+    expect(screen.queryByText("高级目标设置")).not.toBeInTheDocument();
+    expect(fieldInput("运动消耗 kcal")).toBeVisible();
+    expect(fieldInput("运动消耗 kcal")).toHaveValue("600");
+    expect(fieldInput("减脂赤字 kcal/天")).toBeVisible();
+    expect(fieldInput("减脂赤字 kcal/天")).toHaveValue("450");
+    expect(fieldInput("蛋白目标 g")).toBeVisible();
+    expect(fieldInput("蛋白目标 g")).toHaveValue("135");
+    expect(fieldInput("脂肪目标 g")).toBeVisible();
+    expect(fieldInput("脂肪目标 g")).toHaveValue("60");
+
+    fireEvent.change(fieldInput("蛋白目标 g"), { target: { value: "140" } });
+    expect(controller.updateProfile).toHaveBeenCalledWith("proteinTargetG", 140);
+  });
+
+  it("shows the guidance banner and generic placeholders on an empty new-account profile", () => {
+    render(<PlannerProfileView controller={makeController({ age: 0, heightCm: 0, weightKg: 0, bodyFatPct: null })} />);
+    expect(screen.getByText(/先填写年龄、身高、体重/)).toBeInTheDocument();
+    expect(fieldInput("每日目标 kcal").placeholder).toBe("自动");
+    expect(fieldInput("体重 kg")).toHaveValue("");
+  });
+
+  it("treats a rest day like any other day (no carb-day badge or forced low carb)", () => {
+    render(<PlannerProfileView controller={makeController({ trainingTime: "rest" })} />);
+    expect(screen.queryByText("休息日固定低碳。")).not.toBeInTheDocument();
+    // 碳循环概念已整体移除：不再有任何碳日徽章/文案。
+    expect(screen.queryByText(/碳日|高碳|低碳|标准日/)).not.toBeInTheDocument();
+  });
+
+  it("adds a rest-day option to training time", () => {
+    render(<PlannerProfileView controller={makeController()} />);
+    expect(within(timeSelect()).getAllByRole("option").map((option) => option.textContent)).toContain("休息日");
+  });
+
+  it("renders the weekly-plan panel with live formula targets, not hardcoded numbers", () => {
+    render(<PlannerProfileView controller={makeController()} />);
+    // demo 档案 93.2kg/26% → 2295 kcal / P175 / F61 / C261.5，全部实时测算。
+    expect(screen.getByText(/每日目标 2295 kcal · 蛋白 175g · 脂肪 61g · 碳水 261\.5g/)).toBeInTheDocument();
+    expect(screen.queryByText(/固定 2300/)).not.toBeInTheDocument();
+  });
+
+  it("weekly-plan panel prompts for the profile instead of showing zero targets", () => {
+    render(<PlannerProfileView controller={makeController({ age: 0, heightCm: 0, weightKg: 0, bodyFatPct: null })} />);
+    expect(screen.getByText(/填好身体档案后自动测算/)).toBeInTheDocument();
+    expect(screen.queryByText(/每日目标 0 kcal/)).not.toBeInTheDocument();
+  });
+});
+
+describe("PlannerProfileView 碳水渐降面板（全手动步进，系统不自动降）", () => {
+  it("starts at stage 0 with undo disabled and an explicit manual-only note", () => {
+    render(<PlannerProfileView controller={makeController()} />);
+    expect(screen.getByText("第 0 步 · 未开始（完整碳水基线）")).toBeInTheDocument();
+    expect(screen.getByText(/只随你手动操作，系统不会自动降/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "撤销上一步" })).toBeDisabled();
+  });
+
+  it("pushes a −100 kcal step dated today when 降一步 is clicked", () => {
+    const controller = makeController();
+    render(<PlannerProfileView controller={controller} />);
+    fireEvent.click(screen.getByRole("button", { name: /降一步 −100 kcal/ }));
+    expect(controller.updateProfile).toHaveBeenCalledWith("carbTaperSteps", [
+      { date: toDateKey(new Date()), deltaKcal: -100 }
+    ]);
+  });
+
+  it("respects a custom step amount for both directions (降/回升)", () => {
+    const controller = makeController();
+    render(<PlannerProfileView controller={controller} />);
+    const amount = screen.getByText("本步幅度").closest("label")!.querySelector("input") as HTMLInputElement;
+    fireEvent.change(amount, { target: { value: "150" } });
+    fireEvent.click(screen.getByRole("button", { name: /回升一步 \+150 kcal/ }));
+    expect(controller.updateProfile).toHaveBeenCalledWith("carbTaperSteps", [
+      { date: toDateKey(new Date()), deltaKcal: 150 }
+    ]);
+  });
+
+  it("shows the cumulative stage line, appends after existing steps and undoes the last one", () => {
+    const steps = [
+      { date: "2026-06-15", deltaKcal: -100 },
+      { date: "2026-06-29", deltaKcal: -150 }
+    ];
+    const controller = makeController({ carbTaperSteps: steps });
+    render(<PlannerProfileView controller={controller} />);
+    // 状态行：Σ=−250 kcal ≈ 碳水 −62.5g；上次调整已满 2 周 → 提示可评估。
+    expect(screen.getByText("第 2 步 · 累计 -250 kcal ≈ 碳水 -62.5g")).toBeInTheDocument();
+    expect(screen.getByText(/上次调整 2026-06-29/)).toBeInTheDocument();
+    expect(screen.getByText(/已满 2 周，可按周均降幅评估下一步/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /降一步 −100 kcal/ }));
+    expect(controller.updateProfile).toHaveBeenCalledWith("carbTaperSteps", [
+      ...steps,
+      { date: toDateKey(new Date()), deltaKcal: -100 }
+    ]);
+
+    fireEvent.click(screen.getByRole("button", { name: "撤销上一步" }));
+    expect(controller.updateProfile).toHaveBeenCalledWith("carbTaperSteps", [steps[0]]);
+  });
+
+  it("feeds the tapered target through the whole view (demo profile 2295 → 2195, carbs 236.5)", () => {
+    render(<PlannerProfileView controller={makeController({ carbTaperSteps: [{ date: "2026-06-29", deltaKcal: -100 }] })} />);
+    // 周计划面板与当日目标全部实时联动渐降后的值；蛋白/脂肪不动。
+    expect(screen.getByText(/每日目标 2195 kcal · 蛋白 175g · 脂肪 61g · 碳水 236\.5g/)).toBeInTheDocument();
+  });
+
+  it("presents the week-1 baseline carbs with g/kg as the taper starting point (残差法显式化)", () => {
+    render(<PlannerProfileView controller={makeController()} />);
+    // 第 0 步：首周目标 = 基线碳水 261.5g（2.8 g/kg 体重），由蛋白/脂肪锚定后的剩余热量 ÷4 实时得出。
+    expect(screen.getByText(/首周碳水目标 261\.5g · 2\.8 g\/kg 体重/)).toBeInTheDocument();
+  });
+
+  it("shows the current-week target alongside the fixed baseline after taper steps", () => {
+    render(<PlannerProfileView controller={makeController({ carbTaperSteps: [{ date: "2026-06-29", deltaKcal: -100 }] })} />);
+    expect(screen.getByText(/本周碳水目标 236\.5g · 2\.5 g\/kg · 基线 261\.5g/)).toBeInTheDocument();
+  });
+
+  it("warns when carb density is below the 2 g/kg performance floor (档案参数交叉校验)", () => {
+    // 小 TDEE 档案：活动系数 1.1 + 运动消耗 200 → 基线碳水 ≈111.5g ≈ 1.2 g/kg（<2 触发表现风险提示）。
+    render(<PlannerProfileView controller={makeController({ exerciseKcal: 200 })} />);
+    expect(screen.getByText(/低于 2 g\/kg/)).toBeInTheDocument();
+  });
+});
+
+describe("MealSplitView（分餐单独页含应用推荐/保存计划 + 弹出选食）", () => {
+  const templates = { mealTemplates: [], dayTemplates: [] };
+
+  it("surfaces the apply/save/normalize actions moved onto this page", () => {
+    const controller = makeController();
+    render(<MealSplitView controller={controller} foods={builtinFoods} templates={templates} />);
+
+    expect(screen.queryByRole("combobox", { name: "当前餐次" })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("article")).toHaveLength(controller.meals[0].entries.length);
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "餐食更多操作" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /保存计划/ })).toBeInTheDocument();
+
+    const nextMeal = controller.meals[1];
+    fireEvent.click(screen.getByRole("tab", { name: new RegExp(`^${nextMeal.name}`) }));
+    expect(controller.setActiveMealId).toHaveBeenCalledWith(nextMeal.id);
+
+    fireEvent.click(screen.getByRole("button", { name: "调整分量" }));
+    expect(controller.applyRecommendations).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "确认调整" }));
+    expect(controller.applyRecommendations).toHaveBeenCalledTimes(1);
+  });
+
+  it("disables applying recommendations when every food is locked", () => {
+    const base = makeController();
+    const meals = base.meals.map((meal) => ({
+      ...meal,
+      locked: true,
+      entries: meal.entries.map((entry) => ({ ...entry, locked: true }))
+    }));
+    const result = buildNutritionResult(base.profile, meals, builtinFoods);
+    const controller = makeController({}, {
+      meals,
+      result,
+      recommendationsByMeal: new Map(result.mealRecommendations.map((recommendation) => [recommendation.mealId, recommendation]))
+    });
+
+    render(<MealSplitView controller={controller} foods={builtinFoods} templates={templates} />);
+
+    expect(screen.getByRole("button", { name: "锁定整餐" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "调整分量" })).toBeDisabled();
+  });
+
+  it("shows an unavailable state instead of a locked state when the plan has no food", () => {
+    const base = makeController();
+    const meals = base.meals.map((meal) => ({ ...meal, entries: [] }));
+    const result = buildNutritionResult(base.profile, meals, builtinFoods);
+    const controller = makeController({}, {
+      meals,
+      result,
+      recommendationsByMeal: new Map(result.mealRecommendations.map((recommendation) => [recommendation.mealId, recommendation]))
+    });
+
+    render(<MealSplitView controller={controller} foods={builtinFoods} templates={templates} />);
+
+    expect(screen.getByRole("button", { name: /为早餐添加第一项食物/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", {name:"调整分量"})).toBeDisabled();
+    expect(screen.queryByText("推荐受锁定限制")).not.toBeInTheDocument();
+  });
+
+  it("sets a manual serving and keeps it fixed during recommendations", () => {
+    const controller = makeController();
+    const meal = controller.meals[0];
+    const entry = meal.entries.find(item => item.foodId === "public-oats-raw")!;
+    render(<MealSplitView controller={controller} foods={builtinFoods} templates={templates}/>);
+    fireEvent.change(screen.getByLabelText("燕麦片克重"), {target:{value:"120"}});
+    const [mealId, entryId, mapper] = vi.mocked(controller.updateEntry).mock.calls[0];
+    expect(mealId).toBe(meal.id);
+    expect(entryId).toBe(entry.id);
+    expect(mapper(entry)).toEqual({...entry,grams:120,locked:true});
+  });
+
+  it("keeps a negative serving weight as a visible draft without overwriting the plan", () => {
+    const controller = makeController();
+    const meal = controller.meals[0];
+    const entry = meal.entries.find((item) => item.foodId === "public-oats-raw")!;
+
+    render(<MealSplitView controller={controller} foods={builtinFoods} templates={templates} />);
+    const input = screen.getByRole("textbox", { name: "燕麦片克重" });
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "-20" } });
+    expect(controller.updateEntry).not.toHaveBeenCalled();
+    expect(input).toHaveValue("-20");
+    fireEvent.blur(input);
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByText("燕麦片克重不能小于 0")).toBeInTheDocument();
+  });
+
+  it("lets the user define an ad-hoc custom food with auto-calculated kcal", () => {
+    const controller = makeController();
+    render(<MealSplitView controller={controller} foods={builtinFoods} templates={templates} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /添加食物/ }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: /自定义食物/ }));
+
+    // 填三大营养素：碳30/蛋20/脂5 → 热量自动 245 kcal/100g。
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "净碳水 g/100g" }), { target: { value: "30" } });
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "蛋白 g/100g" }), { target: { value: "20" } });
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "脂肪 g/100g" }), { target: { value: "5" } });
+    expect(within(dialog).getByText(/245/)).toBeInTheDocument();
+
+    fireEvent.change(within(dialog).getByPlaceholderText("自定义食物"), { target: { value: "自制蛋白饼" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: /添加此食物/ }));
+
+    expect(controller.addCustomFoodToMeal).toHaveBeenCalledWith(
+      controller.activeMealId,
+      expect.objectContaining({ name: "自制蛋白饼", carbsPer100g: 30, proteinPer100g: 20, fatPer100g: 5 })
+    );
+  });
+
+  it("opens the food picker from 添加食物 and reports the chosen food id", () => {
+    const controller = makeController();
+    render(<MealSplitView controller={controller} foods={builtinFoods} templates={templates} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /添加食物/ }));
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toBeInTheDocument();
+
+    // 面板内选「白米饭」（早餐默认没有它，不与行内选食按钮歧义）。
+    fireEvent.click(within(dialog).getByLabelText("包含中国食物成分表"));
+    fireEvent.change(within(dialog).getByLabelText("搜索食物"), { target: { value: "012401x" } });
+    fireEvent.click(within(dialog).getByText("米饭（蒸，代表值）"));
+    expect(controller.addFoodToMeal).toHaveBeenCalledWith(controller.activeMealId, "public-cfcd6-012401x");
+  });
+});

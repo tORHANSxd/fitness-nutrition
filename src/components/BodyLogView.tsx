@@ -347,6 +347,7 @@ export function BodyLogView({
                     </label>
                   ))}
                 </div>
+                <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={form.morningWeightConfirmed === true} onChange={event => setForm(current => ({ ...current, morningWeightConfirmed: event.target.checked }))} />确认这是起床后、进食前、相近条件测得的晨重（仅影响复盘资格）</label>
                 <NumericDraftNotice />
                 <button
                   className="btn-primary h-11"

@@ -159,6 +159,10 @@ describe("DailyCheckinPanel", () => {
     expect(exerciseWrite.actual.exercises[0]).toMatchObject({ name: "跑步", kcal: 320 });
     expect(exerciseWrite.completed).toBe(false);
 
+    expect(storageMocks.completeDailyRecord).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "早餐按计划吃了" }));
+    fireEvent.click(screen.getByRole("button", { name: "保存饮食记录" }));
+    await waitFor(() => expect(storageMocks.saveDailyCheckin).toHaveBeenCalledTimes(2));
     fireEvent.click(screen.getByRole("button", { name: "完成记录" }));
     await waitFor(() => expect(storageMocks.completeDailyRecord).toHaveBeenCalledOnce());
     expect(storageMocks.completeDailyRecord.mock.calls[0][3].exercises[0]).toMatchObject({ name: "跑步", kcal: 320 });

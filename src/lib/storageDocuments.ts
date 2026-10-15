@@ -11,6 +11,7 @@ import {
   type SavedPlan,
   type UserProfile,
 } from "@/lib/types";
+import { dailyTargetForDate } from "@/lib/nutritionStrategy";
 import { parseFoodSnapshot } from "@/lib/foodSnapshots";
 import { edibleSelection, weightInputSelection } from "@/lib/foodWeights";
 import { assertDocument, assertMealAllocations, boundedNumber, mealMetadata, parseMealSchedule, parsePlanProtocol, record, UnsupportedDocumentError, validTime } from "@/lib/planProtocol";
@@ -246,7 +247,7 @@ function parseNutritionResult(value: unknown): NutritionResult {
     const expenditure = record(resolution.expenditure);
     for (const key of ["rmrKcal", "tdeeKcal"] as const) if (expenditure[key] !== null && (typeof expenditure[key] !== "number" || !Number.isFinite(expenditure[key]) || expenditure[key] <= 0)) throw new Error("营养消耗快照无效。");
     if (resolution.status !== "valid" || typeof resolution.inputFingerprint !== "string" || !Array.isArray(resolution.trace)
-      || nutritionInputFingerprint(resolution.resolvedTarget) !== nutritionInputFingerprint(dailyTarget)) throw new Error("目标结果与冻结目标不一致。");
+      || nutritionInputFingerprint(resolution.resolvedTarget) !== nutritionInputFingerprint(cycleAverageTarget)) throw new Error("目标结果与冻结目标不一致。");
     targetResolution = structuredClone(resolution) as unknown as NutritionTargetResolution;
   }
   if (bmr == null || tdee == null || plannedCalorieDelta == null || !cycleAverageTarget || !dailyTarget
@@ -288,7 +289,8 @@ export function parseSavedPlanRow(row: Record<string, unknown>): SavedPlan {
   if (profile.allocationMode === "explicitMacros") assertMealAllocations(meals);
   const result = parseNutritionResult(row.result);
   if (profile.protocolSnapshot?.nutrition && (nutritionInputFingerprint(result.targetResolution) !== nutritionInputFingerprint(profile.protocolSnapshot.nutrition.result)
-    || nutritionInputFingerprint(result.dailyTarget) !== nutritionInputFingerprint(profile.protocolSnapshot.dailyTarget))) throw new UnsupportedDocumentError("每日计划与执行协议冻结结果不一致。", row);
+    || nutritionInputFingerprint(result.dailyTarget) !== nutritionInputFingerprint(dailyTargetForDate(profile.protocolSnapshot, profile.planDate))
+    || nutritionInputFingerprint(result.cycleAverageTarget) !== nutritionInputFingerprint(profile.protocolSnapshot.dailyTarget))) throw new UnsupportedDocumentError("每日计划与执行协议冻结结果不一致。", row);
   return {
     id: String(row.id),
     planDate: String(row.plan_date),
@@ -363,7 +365,7 @@ function parseExercises(value: unknown, planDate: string) {
 
 function optionalHabit(value: unknown): number | undefined {
   const number = finiteNumber(value);
-  return number == null ? undefined : Math.max(0, number);
+  return number == null || number < 0 ? undefined : number;
 }
 
 export function parseDailyCheckinActual(
@@ -392,7 +394,7 @@ export function parseDailyCheckinActual(
     ?? parseMacroTotals(value.totals)
     ?? parseMacroTotals(value);
   const sourceHabits = isRecord(value.habits) ? value.habits : {};
-  const legacyRow = version === 1 ? row : {};
+  const legacyRow = version === 1 ? Object.fromEntries(Object.entries(row).filter(([, n]) => n !== 0)) : {};
   const habits = {
     vegetableGrams: optionalHabit(sourceHabits.vegetableGrams ?? legacyRow.vegetable_grams),
     waterLiters: optionalHabit(sourceHabits.waterLiters ?? legacyRow.water_liters),

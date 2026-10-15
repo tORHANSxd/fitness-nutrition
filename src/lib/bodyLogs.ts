@@ -11,6 +11,7 @@ import { StorageAuthError } from "@/lib/storage";
 export interface BodyLog {
   logDate: string; // YYYY-MM-DD（对应 body_logs.plan_date）
   weightKg?: number | null;
+  morningWeightConfirmed?: boolean | null;
   bodyFatPct?: number | null;
   waistCm?: number | null;
   chestCm?: number | null;
@@ -21,7 +22,7 @@ export interface BodyLog {
   calfCm?: number | null;
 }
 
-export type BodyMetricKey = Exclude<keyof BodyLog, "logDate">;
+export type BodyMetricKey = Exclude<keyof BodyLog, "logDate" | "morningWeightConfirmed">;
 
 export interface BodyMetricField {
   key: BodyMetricKey;
@@ -54,7 +55,7 @@ const rowFieldByKey: Record<BodyMetricKey, string> = {
   thighCm: "thigh_cm",
   calfCm: "calf_cm"
 };
-const bodyLogColumns = "plan_date,weight_kg,body_fat_pct,waist_cm,chest_cm,hip_cm,shoulder_cm,upper_arm_cm,thigh_cm,calf_cm" as const;
+const bodyLogColumns = "morning_weight_confirmed,plan_date,weight_kg,body_fat_pct,waist_cm,chest_cm,hip_cm,shoulder_cm,upper_arm_cm,thigh_cm,calf_cm" as const;
 
 function toNumberOrNull(value: unknown): number | null {
   if (value == null || value === "") {
@@ -65,7 +66,7 @@ function toNumberOrNull(value: unknown): number | null {
 }
 
 export function mapBodyLogRow(row: Record<string, unknown>): BodyLog {
-  const log: BodyLog = { logDate: String(row.plan_date ?? "") };
+  const log: BodyLog = { logDate: String(row.plan_date ?? ""), morningWeightConfirmed: typeof row.morning_weight_confirmed === "boolean" ? row.morning_weight_confirmed : null };
   for (const field of bodyMetricFields) {
     log[field.key] = toNumberOrNull(row[rowFieldByKey[field.key]]);
   }
@@ -75,7 +76,8 @@ export function mapBodyLogRow(row: Record<string, unknown>): BodyLog {
 export function bodyLogToRow(userId: string, log: BodyLog) {
   const row: Record<string, unknown> = {
     user_id: userId,
-    plan_date: log.logDate
+    plan_date: log.logDate,
+    morning_weight_confirmed: log.morningWeightConfirmed ?? null
   };
   for (const field of bodyMetricFields) {
     row[rowFieldByKey[field.key]] = log[field.key] ?? null;

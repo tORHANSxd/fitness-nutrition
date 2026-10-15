@@ -23,7 +23,7 @@ export function PlanProtocolPanel({
   const [error, setError] = useState("");
   useEffect(() => {
     let cancelled = false;
-    Promise.all([protocolSchemaReady(user, 2), loadPlanProtocols(user)])
+    Promise.all([protocolSchemaReady(user, 3), loadPlanProtocols(user)])
       .then(([available, versions]) => {
         if (!cancelled) {
           setReady(available);

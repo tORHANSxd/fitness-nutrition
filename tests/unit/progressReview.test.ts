@@ -1,12 +1,12 @@
 import { describe,expect,it } from "vitest";
 import { createTreProtocol } from "@/lib/planPresets";
 import { addDays } from "@/lib/dateTime";
-import { emptyActualV3 } from "@/lib/actualIntake";
+import { confirmedSyntheticActual } from "../fixtures/actualIntakeFixture";
 import { reviewProgress } from "@/lib/progressReview";
 import type { BodyLog } from "@/lib/bodyLogs";
 import type { DailyCheckin } from "@/lib/types";
 const protocol=createTreProtocol({id:"40000000-0000-4000-8000-000000000001",effectiveFrom:"2026-01-01",cycleAnchorDate:"2026-01-01",timeZone:"Asia/Shanghai"});
-function synthetic(days:number,weeklyLoss=0.1){const logs:BodyLog[]=[];const checkins:DailyCheckin[]=[];for(let i=0;i<days;i++){const date=addDays(protocol.effectiveFrom,i);logs.push({logDate:date,weightKg:80-i*weeklyLoss/7,waistCm:90});checkins.push({id:`test-${i}`,planDate:date,target:protocol.dailyTarget,completed:true,createdAt:"",updatedAt:"",actual:{...emptyActualV3({version:2,foods:[],exercises:[],bmrKcal:0,activityKcal:0,totalsSnapshot:protocol.dailyTarget}),intakeComplete:true,habits:{sleepHours:8},recovery:{fatigue:1,footPain:0,trainingTolerance:"good",persistentSymptoms:false}}});}return {logs,checkins,end:addDays(protocol.effectiveFrom,days-1)};}
+function synthetic(days:number,weeklyLoss=0.1){const logs:BodyLog[]=[];const checkins:DailyCheckin[]=[];for(let i=0;i<days;i++){const date=addDays(protocol.effectiveFrom,i);logs.push({logDate:date,weightKg:80-i*weeklyLoss/7,waistCm:90,morningWeightConfirmed:true});checkins.push({id:`test-${i}`,planDate:date,target:protocol.dailyTarget,completed:true,createdAt:"",updatedAt:"",actual:{...confirmedSyntheticActual(protocol.dailyTarget),intakeComplete:true,habits:{sleepHours:8},recovery:{fatigue:1,footPain:0,trainingTolerance:"good",persistentSymptoms:false}}});}return {logs,checkins,end:addDays(protocol.effectiveFrom,days-1)};}
 describe("quality-gated progress review",()=>{
   it("D05 needs 21 days for two week-on-week comparisons",()=>{const d=synthetic(14);const r=reviewProgress(protocol,d.end,d.logs,d.checkins);expect(r.status).toBe("insufficient_data");expect(r.weeklyLoss).toHaveLength(1);expect(r.adjustmentKcal).toBeNull();});
   it("D04 reports actual sample counts without treating missing days as zero",()=>{const d=synthetic(21);const r=reviewProgress(protocol,d.end,d.logs.slice(0,15),d.checkins.slice(0,15));expect(r.status).toBe("insufficient_data");expect(r.windows[2]).toMatchObject({weightSamples:1,intakeDays:1});expect(r.windows[2].meanIntake).toBe(2205);});

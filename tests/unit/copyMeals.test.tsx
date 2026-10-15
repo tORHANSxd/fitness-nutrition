@@ -6,7 +6,7 @@ import { DailyCheckinPanel } from "@/components/DailyCheckinPanel";
 import { usePlanner } from "@/components/usePlanner";
 import { emptyProfile } from "@/lib/demoState";
 import { buildNutritionResult, createDefaultMeals } from "@/lib/nutrition";
-import { completeDailyRecord, loadPlansInRange } from "@/lib/storage";
+import { completeDailyRecord, loadPlansInRange, loadDailyCheckin } from "@/lib/storage";
 import type { SavedPlan } from "@/lib/types";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }) }));
@@ -32,7 +32,7 @@ async function openCopy() {
   fireEvent.click(screen.getByRole("button", { name: "预览" }));
 }
 
-beforeEach(() => { vi.clearAllMocks(); vi.mocked(loadPlansInRange).mockResolvedValue([structuredClone(source)]); });
+beforeEach(() => { vi.clearAllMocks(); vi.mocked(loadDailyCheckin).mockResolvedValue(null); vi.mocked(loadPlansInRange).mockResolvedValue([structuredClone(source)]); });
 afterEach(cleanup);
 
 it("预览不修改当前餐食，确认复制后使用独立条目并可撤销", async () => {
@@ -96,6 +96,7 @@ it.each([true, false])("复制后保存计划=%s，完成记录再撤销也不�
     if (minimumSchemaVersion !== 3) throw new Error("unsupported_plan_schema");
     return { id: "completed-copy", planDate: p.planDate, actual, target, completed: true, createdAt: "", updatedAt: "" };
   });
+  vi.mocked(loadDailyCheckin).mockImplementation(async date => ({ id: "explicit-actual", planDate: date, target: null, completed: false, createdAt: "", updatedAt: "", actual: { version: 3, foods: [], exercises: [], bmrKcal: 0, activityKcal: 0, intakeComplete: false, mealEvents: [{ id: "event", timeZone: "Asia/Shanghai", entryMethod: "measured", containsCalories: false, actualFoodEntries: [] }] } }));
   await act(async () => { render(<Planner showCheckin />); });
   fireEvent.click(screen.getByRole("button", { name: /复制其他日期/ }));
   fireEvent.change(screen.getByLabelText("复制来源日期"), { target: { value: source.planDate } });

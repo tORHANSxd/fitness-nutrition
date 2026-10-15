@@ -616,6 +616,7 @@ function FoodEntryRow({
     ? calculateFoodTotals(food, entry.grams, entry)
     : { kcal: 0, carbs: 0, protein: 0, fat: 0 };
   const name = food?.name ?? "未找到食物";
+  const fixedDose = food?.category === "补剂" || food?.portionPolicy === "fixed_dose";
   const unit = energyUnit === "kj" ? "kJ" : "kcal";
   const basis = food ? getWeightInputBasis(food, entry) : "none";
   const cookedRawRatio = food ? getCookedRawRatio(food, entry) : null;
@@ -672,15 +673,15 @@ function FoodEntryRow({
           <span className="text-xs text-muted">g</span>
           <button
             type="button"
-            className={`portion-lock ${mealLocked || entry.locked ? "is-locked" : ""}`}
+            className={`portion-lock ${mealLocked || entry.locked || fixedDose ? "is-locked" : ""}`}
             data-tour="food-lock"
             aria-label={`锁定${name}分量`}
-            aria-pressed={mealLocked || entry.locked}
-            disabled={mealLocked}
-            title={mealLocked ? "整餐已锁定，请先解锁整餐" : entry.locked ? "已锁定分量；点击允许自动调整" : "点击锁定，自动调整会保留这项分量"}
+            aria-pressed={mealLocked || entry.locked || fixedDose}
+            disabled={mealLocked || fixedDose}
+            title={fixedDose ? "剂量由你记录，配餐推荐不调整" : mealLocked ? "整餐已锁定，请先解锁整餐" : entry.locked ? "已锁定分量；点击允许自动调整" : "点击锁定，自动调整会保留这项分量"}
             onClick={() => { onChange(v => ({ ...v, locked: !v.locked })); tutorialAction("food-lock-changed"); }}
           >
-            {mealLocked || entry.locked ? <Lock size={17} /> : <LockOpen size={17} />}
+            {mealLocked || entry.locked || fixedDose ? <Lock size={17} /> : <LockOpen size={17} />}
           </button>
         </div>
         <div className="min-w-0 text-right">
@@ -839,7 +840,7 @@ function FoodEntryRow({
               blankValue={undefined}
               value={entry.inputCookedRawRatio ?? food.cookedRawRatio}
               placeholder="待实测"
-              onValueChange={(value) => onChange((current) => ({ ...current, inputCookedRawRatio: value ?? undefined }))}
+              onValueChange={(value) => onChange((current) => ({ ...current, inputCookedRawRatio: value ?? undefined, ...((value == null && food.cookedRawRatio == null) ? { inputWeightBasis: food.weightBasis as "raw" | "cooked" } : {}) }))}
             />
             <span className="mt-1 block">如 100g 生米煮成 250g 熟饭，填 2.5；100g 生肉煮成 66g，填 0.66。留空使用食物库比例。</span>
           </label>

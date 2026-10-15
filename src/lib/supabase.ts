@@ -1,6 +1,6 @@
 import { createBrowserClient } from "@supabase/ssr";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
-import { calculateFoodKcalPer100g } from "@/lib/nutrition";
+import { foodMetadataFromRow, foodMetadataToRow } from "@/lib/foodNutrition";
 import { parseSavedPlanRow } from "@/lib/storageDocuments";
 import { assertDocument, boundedNumber, UnsupportedDocumentError } from "@/lib/planProtocol";
 import { getPublicSupabaseConfig, isSupabaseConfigured as hasSupabaseConfig } from "@/lib/supabase/config";
@@ -37,6 +37,7 @@ function mapWeightBasis(value: unknown): WeightBasis {
 
 export function mapFoodRow(row: Record<string, unknown>): FoodItem {
   return {
+    ...foodMetadataFromRow(row),
     id: String(row.id),
     userId: row.user_id == null ? null : String(row.user_id),
     name: String(row.name),
@@ -55,6 +56,7 @@ export function mapFoodRow(row: Record<string, unknown>): FoodItem {
 
 export function mapFoodOverrideRow(row: Record<string, unknown>): FoodItem {
   return {
+    ...foodMetadataFromRow(row),
     id: String(row.base_food_id),
     userId: String(row.user_id),
     isUserOverride: true,
@@ -72,26 +74,29 @@ export function mapFoodOverrideRow(row: Record<string, unknown>): FoodItem {
 
 export function foodToRow(food: FoodItem, user: User | null) {
   return {
+    ...foodMetadataToRow(food),
     user_id: user?.id ?? food.userId ?? null,
     name: food.name,
     category: food.category,
-    kcal_per_100g: calculateFoodKcalPer100g(food),
+    kcal_per_100g: food.kcalPer100g,
     fat_per_100g: food.fatPer100g,
     carbs_per_100g: food.carbsPer100g,
     protein_per_100g: food.proteinPer100g,
     weight_basis: food.weightBasis,
     cooked_raw_ratio: food.cookedRawRatio ?? null,
-    source: food.source
+    source: food.source,
+    serving_description: food.servingDescription ?? null
   };
 }
 
 export function foodToOverrideRow(food: FoodItem, user: User) {
   return {
+    ...foodMetadataToRow(food),
     user_id: user.id,
     base_food_id: food.id,
     name: food.name,
     category: food.category,
-    kcal_per_100g: calculateFoodKcalPer100g(food),
+    kcal_per_100g: food.kcalPer100g,
     fat_per_100g: food.fatPer100g,
     carbs_per_100g: food.carbsPer100g,
     protein_per_100g: food.proteinPer100g,

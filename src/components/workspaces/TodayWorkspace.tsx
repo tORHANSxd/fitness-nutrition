@@ -4,6 +4,8 @@ import { Cloud, CloudOff, LoaderCircle } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { fiberSummary } from "@/lib/foodNutrition";
+import { resolveMealFood } from "@/lib/foodSnapshots";
 import { NutritionSummary } from "@/components/NutritionSummary";
 import { useEffect, useMemo, useState } from "react";
 import { MealSplitView } from "@/components/MealSplitView";
@@ -274,6 +276,7 @@ export function TodayWorkspace({
                   target={controller.result.dailyTarget}
                   energyUnit={preferences.energyUnit}
                 />
+                <p className="text-xs text-muted" aria-label="计划膳食纤维">{(() => { const fiber = fiberSummary(controller.meals, entry => resolveMealFood(entry, controller.foodsById).food); return `已知纤维 ${fiber.knownGrams.toFixed(1)} g${fiber.complete ? "" : ` · ${fiber.unknownItems} 项纤维未知，当前为部分合计`}`; })()}</p>
                 <MealSplitView
                   controller={controller}
                   foods={foods}

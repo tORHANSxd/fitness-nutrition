@@ -1,5 +1,6 @@
-import { foodCategories, type FoodItem, type FoodSnapshotV1, type MealFoodEntry, type MealPlan, type WeightBasis } from "@/lib/types";
+import { foodCategories, type FoodItem, type FoodSnapshot, type MealFoodEntry, type MealPlan, type WeightBasis } from "@/lib/types";
 import { isEdiblePercent } from "@/lib/foodWeights";
+import { foodNutritionMetadata, macroEnergyPer100g, parseFoodNutritionMetadata } from "@/lib/foodNutrition";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -13,9 +14,9 @@ function isWeightBasis(value: unknown): value is WeightBasis {
   return value === "raw" || value === "cooked" || value === "none";
 }
 
-export function parseFoodSnapshot(value: unknown): FoodSnapshotV1 | null {
+export function parseFoodSnapshot(value: unknown): FoodSnapshot | null {
   if (!isRecord(value)
-    || value.version !== 1
+    || (value.version !== 1 && value.version !== 2)
     || typeof value.name !== "string"
     || !(foodCategories as readonly unknown[]).includes(value.category)
     || !isNonNegativeNumber(value.kcalPer100g)
@@ -28,8 +29,7 @@ export function parseFoodSnapshot(value: unknown): FoodSnapshotV1 | null {
     return null;
   }
 
-  return {
-    version: 1,
+  const common = {
     name: value.name,
     category: value.category as FoodItem["category"],
     kcalPer100g: value.kcalPer100g,
@@ -37,14 +37,24 @@ export function parseFoodSnapshot(value: unknown): FoodSnapshotV1 | null {
     proteinPer100g: value.proteinPer100g,
     fatPer100g: value.fatPer100g,
     weightBasis: value.weightBasis,
-    cookedRawRatio: value.cookedRawRatio ?? null,
+    cookedRawRatio: value.cookedRawRatio as number | null ?? null,
     ...(isEdiblePercent(value.ediblePercent) ? { ediblePercent: value.ediblePercent } : {}),
   };
+  if (value.version === 1) return { ...common, version: 1 };
+  const metadata = parseFoodNutritionMetadata(value);
+  const macroKcalPer100g = macroEnergyPer100g(common);
+  if (!metadata || value.energyPolicyVersion !== "food-energy-v2" || typeof value.macroKcalPer100g !== "number"
+    || Math.abs(value.macroKcalPer100g - macroKcalPer100g) > 1e-6
+    || (metadata.effectiveEnergyBasis === "label" && metadata.sourceKcalPer100g !== common.kcalPer100g)) return null;
+  return { ...common, ...metadata, version: 2, energyPolicyVersion: "food-energy-v2", macroKcalPer100g };
 }
 
-export function foodSnapshotFromFood(food: FoodItem): FoodSnapshotV1 {
+export function foodSnapshotFromFood(food: FoodItem): FoodSnapshot {
   return {
-    version: 1,
+    version: 2,
+    energyPolicyVersion: "food-energy-v2",
+    ...foodNutritionMetadata(food),
+    macroKcalPer100g: macroEnergyPer100g(food),
     name: food.name,
     category: food.category,
     kcalPer100g: food.kcalPer100g,
@@ -57,7 +67,7 @@ export function foodSnapshotFromFood(food: FoodItem): FoodSnapshotV1 {
   };
 }
 
-export function foodFromSnapshot(foodId: string, snapshot: FoodSnapshotV1): FoodItem {
+export function foodFromSnapshot(foodId: string, snapshot: FoodSnapshot): FoodItem {
   return {
     id: foodId,
     name: snapshot.name,
@@ -69,6 +79,7 @@ export function foodFromSnapshot(foodId: string, snapshot: FoodSnapshotV1): Food
     weightBasis: snapshot.weightBasis,
     cookedRawRatio: snapshot.cookedRawRatio,
     source: "user",
+    ...foodNutritionMetadata(snapshot.version === 2 ? snapshot : {}),
     ...(isEdiblePercent(snapshot.ediblePercent) ? { ediblePercent: snapshot.ediblePercent } : {}),
   };
 }
@@ -91,11 +102,10 @@ function customFoodFromEntry(entry: MealFoodEntry): FoodItem | null {
 }
 
 export function resolveMealFood(entry: MealFoodEntry, foodsById: ReadonlyMap<string, FoodItem>) {
-  const liveFood = foodsById.get(entry.foodId) ?? customFoodFromEntry(entry);
-  if (liveFood) return { status: "live" as const, food: liveFood };
-
   const snapshot = parseFoodSnapshot(entry.foodSnapshot);
   if (snapshot) return { status: "snapshot" as const, food: foodFromSnapshot(entry.foodId, snapshot) };
+  const liveFood = foodsById.get(entry.foodId) ?? customFoodFromEntry(entry);
+  if (liveFood) return { status: "live" as const, food: liveFood };
 
   return { status: "unresolved" as const, food: null };
 }
@@ -104,6 +114,7 @@ export function attachFoodSnapshots(meals: MealPlan[], foodsById: ReadonlyMap<st
   return meals.map((meal) => ({
     ...meal,
     entries: meal.entries.map((entry) => {
+      if (parseFoodSnapshot(entry.foodSnapshot)) return entry;
       const resolved = resolveMealFood(entry, foodsById);
       return resolved.food
         ? { ...entry, foodSnapshot: foodSnapshotFromFood(resolved.food) }

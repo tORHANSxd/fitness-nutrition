@@ -3,7 +3,7 @@
 import type { User } from "@supabase/supabase-js";
 import { builtinFoods, customFoodsFromMeals } from "@/lib/foods";
 import { attachFoodSnapshots, unresolvedFoodFlags } from "@/lib/foodSnapshots";
-import { calculateFoodKcalPer100g } from "@/lib/nutrition";
+import { foodMetadataToRow, foodNutritionMetadata } from "@/lib/foodNutrition";
 import {
   DAILY_PLAN_SCHEMA_VERSION,
   NUTRITION_ALGORITHM_VERSION,
@@ -70,8 +70,9 @@ function mapDailyCheckinRow(row: Record<string, unknown>): DailyCheckin {
 
 const mealTemplateLimit = 24;
 const dayTemplateLimit = 12;
-const foodColumns = "id,user_id,name,category,kcal_per_100g,fat_per_100g,carbs_per_100g,protein_per_100g,weight_basis,cooked_raw_ratio,archived_at,serving_description";
-const foodOverrideColumns = "user_id,base_food_id,name,category,kcal_per_100g,fat_per_100g,carbs_per_100g,protein_per_100g,weight_basis,cooked_raw_ratio";
+const foodMetadataColumns = "source_kcal_per_100g,source_energy_method,effective_energy_basis,source_quality,carbohydrate_basis,source_carbs_per_100g,fiber_per_100g,portion_policy";
+const foodColumns = `id,user_id,name,category,kcal_per_100g,fat_per_100g,carbs_per_100g,protein_per_100g,weight_basis,cooked_raw_ratio,archived_at,serving_description,${foodMetadataColumns}`;
+const foodOverrideColumns = `user_id,base_food_id,name,category,kcal_per_100g,fat_per_100g,carbs_per_100g,protein_per_100g,weight_basis,cooked_raw_ratio,${foodMetadataColumns}`;
 const planColumns = "id,plan_date,profile,meals,result,created_at,updated_at,schema_version,algorithm_version,integrity_flags";
 const planSummaryColumns = "id,plan_date,created_at,updated_at,integrity_flags,training_time:profile->>trainingTime,daily_target:result->dailyTarget,actual_totals:result->actualTotals";
 const heatmapPlanColumns = "id,plan_date,profile,meals,schema_version,algorithm_version,integrity_flags,bmr:result->bmr,daily_target:result->dailyTarget";
@@ -415,7 +416,7 @@ function applyPublicOverrides(baseFoods: FoodItem[], overrides: FoodItem[]) {
 function withDerivedFoodEnergy(food: FoodItem): FoodItem {
   return {
     ...food,
-    kcalPer100g: calculateFoodKcalPer100g(food)
+    ...foodNutritionMetadata(food)
   };
 }
 
@@ -551,14 +552,16 @@ export async function importUserFoods(
 ): Promise<{ inserted: number; errors: Array<{ index: number; message: string }> }> {
   const { supabase } = requireClient(user);
   const rows = forms.map((food) => ({
+    ...foodMetadataToRow(food),
     name: food.name.trim(),
     category: food.category,
-    kcal_per_100g: calculateFoodKcalPer100g(food),
+    kcal_per_100g: food.kcalPer100g,
     fat_per_100g: food.fatPer100g,
     carbs_per_100g: food.carbsPer100g,
     protein_per_100g: food.proteinPer100g,
     weight_basis: food.weightBasis,
     cooked_raw_ratio: food.cookedRawRatio ?? null,
+    serving_description: food.servingDescription ?? null,
   }));
   const { data, error } = await supabase.rpc("import_user_foods_v1", {
     p_rows: rows,

@@ -1,6 +1,6 @@
 import { Temporal } from "@js-temporal/polyfill";
 import { edibleGrams } from "@/lib/foodWeights";
-import { foodSnapshotFromFood, parseFoodSnapshot } from "@/lib/foodSnapshots";
+import { foodSnapshotFromFood, parseFoodSnapshot, resolveMealFood } from "@/lib/foodSnapshots";
 import { assertDocument, boundedNumber, parsePlanProtocol, record, validZone } from "@/lib/planProtocol";
 import { addTotals, zeroTotals } from "@/lib/nutrition";
 import type { ActualFoodEntry, DailyCheckinActual, DailyCheckinActualV2, DailyCheckinActualV3, DailyFoodSnapshot, FoodItem, MacroTotals, MealEvent, MealPlan } from "@/lib/types";
@@ -17,8 +17,8 @@ export function actualTotals(actual: DailyCheckinActual): MacroTotals {
 }
 
 export function actualCoverageKnown(actual: DailyCheckinActual): boolean {
-  if (actual.version === 2) return actual.foods.length > 0 || actual.totalsSnapshot != null;
-  return actual.intakeComplete && (actual.mealEvents.length > 0 || (actual.legacyActual != null && actualCoverageKnown(actual.legacyActual))) && !actual.mealEvents.some((event) => event.containsCalories && event.actualFoodEntries.length === 0);
+  if (actual.version === 2 || actual.legacyActual != null) return false;
+  return actual.intakeComplete && actual.mealEvents.length > 0 && !actual.mealEvents.some((event) => event.containsCalories && event.actualFoodEntries.length === 0);
 }
 
 export function deriveActualFoods(events: MealEvent[], legacy?: DailyCheckinActualV2): DailyFoodSnapshot[] {
@@ -40,7 +40,8 @@ export function parseMealEvent(raw: unknown): MealEvent {
   const actualFoodEntries: ActualFoodEntry[] = e.actualFoodEntries.map((rawEntry) => {
     const item = record(rawEntry);
     const snapshot = parseFoodSnapshot(item.foodSnapshot);
-    if (typeof item.id !== "string" || !item.id || typeof item.foodId !== "string" || !snapshot || !["macros", "label"].includes(String(item.energyBasis))) throw new Error("实际食品快照无效。");
+    if (typeof item.id !== "string" || !item.id || typeof item.foodId !== "string" || !snapshot || !["macros", "label"].includes(String(item.energyBasis))
+      || (snapshot.version === 2 && snapshot.effectiveEnergyBasis !== item.energyBasis)) throw new Error("实际食品快照无效。");
     return { ...item, id: item.id, foodId: item.foodId, foodSnapshot: snapshot, grams: boundedNumber(item.grams, 0, 1000000, "实际克重"), energyBasis: item.energyBasis as "macros" | "label" };
   });
   if (new Set(actualFoodEntries.map((entry) => entry.id)).size !== actualFoodEntries.length) throw new Error("实际食品条目标识重复。");
@@ -94,10 +95,10 @@ export function confirmMealEvent(meal: MealPlan, foods: ReadonlyMap<string, Food
   if (!meal.entries.length) throw new Error("该餐尚无食品，不能确认成实际摄入。");
   return parseMealEvent({ ...input, linkedPlanMealId: meal.id, entryMethod: "confirmed_from_plan", containsCalories: true,
     actualFoodEntries: meal.entries.map((entry) => {
-      const food = foods.get(entry.foodId);
-      const snapshot = food ? foodSnapshotFromFood(food) : parseFoodSnapshot(entry.foodSnapshot);
+      const food = resolveMealFood(entry, foods).food;
+      const snapshot = parseFoodSnapshot(entry.foodSnapshot) ?? (food ? foodSnapshotFromFood(food) : null);
       if (!snapshot) throw new Error("该餐有缺失食品，请补全后确认。");
-      return { id: entry.id, foodId: entry.foodId, foodSnapshot: structuredClone(snapshot), grams: edibleGrams(entry.grams, entry), energyBasis: "macros" };
+      return { id: entry.id, foodId: entry.foodId, foodSnapshot: structuredClone(snapshot), grams: edibleGrams(entry.grams, entry), energyBasis: snapshot.version === 2 ? snapshot.effectiveEnergyBasis : "macros" };
     }),
   });
 }

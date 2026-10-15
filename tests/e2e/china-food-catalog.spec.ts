@@ -32,7 +32,7 @@ test("food search, pagination, personal override and saved snapshot @a11y", asyn
   await editor.getByLabel("蛋白质（g）", { exact: true }).fill("36");
   await editor.getByRole("button", { name: "保存食物", exact: true }).click();
   await expect.poll(async () => (await state()).food_overrides[0]).toMatchObject({
-    category: "豆类", protein_per_100g: 36,
+    category: "豆类", protein_per_100g: 36, source_quality: "unverified",
   });
   await page.reload();
   await library.getByLabel("搜索食物", { exact: true }).fill("031101");

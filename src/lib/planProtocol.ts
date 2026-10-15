@@ -1,3 +1,4 @@
+import { dailyTargetForDate, parseNutritionStrategy } from "@/lib/nutritionStrategy";
 import { Temporal } from "@js-temporal/polyfill";
 import { isDateKey } from "@/lib/dateTime";
 import { parseNutritionSnapshot } from "@/lib/nutritionGoals/snapshot";
@@ -76,7 +77,7 @@ export function targetFromKcal(kcal: number, protein: number, fat: number): Macr
 export function parsePlanProtocol(value: unknown): PlanProtocol {
   assertDocument(value, 65536);
   const item = record(value);
-  if (item.schemaVersion !== 1 && item.schemaVersion !== 2) throw new UnsupportedDocumentError("不支持的执行协议版本；原始内容已保留。", value);
+  if (item.schemaVersion !== 1 && item.schemaVersion !== 2 && item.schemaVersion !== 3) throw new UnsupportedDocumentError("不支持的执行协议版本；原始内容已保留。", value);
   if (typeof item.id !== "string" || !/^[0-9a-f-]{36}$/i.test(item.id)
     || item.presetId !== "eveningTreRptV4" || item.targetMode !== "calibrated" || item.allocationMode !== "explicitMacros"
     || !isDateKey(String(item.effectiveFrom))) throw new Error("执行协议标识、模式或生效日期无效。");
@@ -84,14 +85,22 @@ export function parsePlanProtocol(value: unknown): PlanProtocol {
   const dailyTarget = targetFromKcal(boundedNumber(daily.kcal, 1, 10000, "能量"), boundedNumber(daily.protein, 0, 1000, "蛋白"), boundedNumber(daily.fat, 0, 1000, "脂肪"));
   if (typeof daily.carbs !== "number" || Math.abs(daily.carbs - dailyTarget.carbs) > 0.000001) throw new Error("目标能量与宏量不一致。");
   let nutrition: PlanProtocol["nutrition"];
-  if (item.schemaVersion === 2) {
+  if (Number(item.schemaVersion) >= 2) {
     try { nutrition = parseNutritionSnapshot(item.nutrition); }
     catch (error) { throw new UnsupportedDocumentError(error instanceof Error ? error.message : "营养快照无效，原文已保留。", value); }
     if (item.requestId !== item.id || nutrition.body.calculationDate > String(item.effectiveFrom) || nutrition.body.timeZone !== item.timeZone
       || (Object.keys(dailyTarget) as Array<keyof MacroTotals>).some(k => Math.abs(dailyTarget[k] - nutrition!.result.resolvedTarget![k]) > 1e-6)) throw new Error("协议请求标识、日期或冻结营养目标不一致。");
   } else if (item.nutrition != null || item.requestId != null) throw new UnsupportedDocumentError("旧协议不能携带新营养策略，请保留原文并升级协议版本。", value);
+  if (item.reviewMode != null && (item.schemaVersion !== 3 || item.reviewMode !== "personal_standard_v1")) throw new Error("复盘规则版本无效。");
+  const nutritionStrategy = item.schemaVersion === 3 ? parseNutritionStrategy(item.nutritionStrategy, dailyTarget) : undefined;
+  if (Number(item.schemaVersion) < 3 && (item.nutritionStrategy != null || item.optionalCarbCycle != null)) throw new UnsupportedDocumentError("旧协议不支持日期营养策略，请升级协议并重新确认。", value);
   const cycle = record(item.trainingCycle);
-  if (cycle.id !== "rptAlternate8DayV4" || cycle.lengthDays !== 8 || cycle.phase !== "recovery" || !isDateKey(String(cycle.anchorDate))) throw new Error("训练循环配置无效。");
+  if (cycle.phase !== "recovery" || !isDateKey(String(cycle.anchorDate))) throw new Error("训练循环配置无效。");
+  let trainingCycle: PlanProtocol["trainingCycle"];
+  if (cycle.id === "rptAlternate8DayV4" && cycle.lengthDays === 8) trainingCycle = { id: cycle.id, lengthDays: 8, phase: "recovery", anchorDate: String(cycle.anchorDate) };
+  else if (item.schemaVersion === 3 && cycle.id === "weeklyStrengthV1" && cycle.lengthDays === 7 && Array.isArray(cycle.isoWeekdaysTraining) && cycle.isoWeekdaysTraining.length === 4 && new Set(cycle.isoWeekdaysTraining).size === 4 && cycle.isoWeekdaysTraining.every(d => Number.isInteger(d) && d >= 1 && d <= 7)) trainingCycle = { id: cycle.id, lengthDays: 7, phase: "recovery", anchorDate: String(cycle.anchorDate), isoWeekdaysTraining: [...cycle.isoWeekdaysTraining].sort((a,b) => a-b) };
+  else throw new Error("训练循环配置无效。");
+  if (nutritionStrategy?.mode === "weekly_cycle" && (trainingCycle.id !== "weeklyStrengthV1" || JSON.stringify(trainingCycle.isoWeekdaysTraining) !== JSON.stringify(nutritionStrategy.isoWeekdaysTraining))) throw new Error("营养周期与已确认的每周训练日不一致。");
   if (!Array.isArray(item.mealSlots) || item.mealSlots.length < 1 || item.mealSlots.length > 12) throw new Error("协议餐次无效。");
   const mealSlots = item.mealSlots.map((raw) => {
     const slot = record(raw);
@@ -120,7 +129,7 @@ export function parsePlanProtocol(value: unknown): PlanProtocol {
     if (!isDateKey(String(evidence.from)) || !isDateKey(String(evidence.to)) || String(evidence.from) > String(evidence.to)) throw new Error("复盘证据日期无效。");
     evidenceWindow = { from: String(evidence.from), to: String(evidence.to) };
   }
-  return { ...item, id: item.id, schemaVersion: item.schemaVersion, ...(nutrition ? { nutrition, requestId: item.id } : {}), presetId: "eveningTreRptV4", version, effectiveFrom: String(item.effectiveFrom), timeZone: validZone(item.timeZone), targetMode: "calibrated", allocationMode: "explicitMacros", dailyTarget, eatingWindow: parseMealSchedule(item.eatingWindow), trainingStartLocal: validTime(item.trainingStartLocal), preTrainingNoIntakeMinutes: minutes, mealSlots, trainingCycle: { id: "rptAlternate8DayV4", anchorDate: String(cycle.anchorDate), phase: "recovery", lengthDays: 8 }, reviewRules, supersedesId: item.supersedesId as string | null, changeReason: item.changeReason, ...(evidenceWindow ? { evidenceWindow } : {}) };
+  return { ...item, id: item.id, schemaVersion: item.schemaVersion, ...(nutrition ? { nutrition, requestId: item.id } : {}), presetId: "eveningTreRptV4", version, effectiveFrom: String(item.effectiveFrom), timeZone: validZone(item.timeZone), targetMode: "calibrated", allocationMode: "explicitMacros", dailyTarget, eatingWindow: parseMealSchedule(item.eatingWindow), trainingStartLocal: validTime(item.trainingStartLocal), preTrainingNoIntakeMinutes: minutes, mealSlots, trainingCycle, ...(nutritionStrategy ? { nutritionStrategy } : {}), reviewRules, supersedesId: item.supersedesId as string | null, changeReason: item.changeReason, ...(evidenceWindow ? { evidenceWindow } : {}) };
 }
 
 export function resolveProtocol(protocols: PlanProtocol[], date: string): PlanProtocol | null {
@@ -131,11 +140,12 @@ export function resolveProtocol(protocols: PlanProtocol[], date: string): PlanPr
 export function calibratedTarget(profile: UserProfile): MacroTotals | null {
   if (profile.targetMode !== "calibrated") return null;
   if (!profile.protocolSnapshot) throw new Error("校准模式缺少执行协议，已停止计算。");
-  return { ...profile.protocolSnapshot.dailyTarget };
+  return dailyTargetForDate(profile.protocolSnapshot, profile.planDate);
 }
 
-export function protocolMeals(protocol: PlanProtocol): MealPlan[] {
-  return protocol.mealSlots.map((slot) => ({ ...structuredClone(slot), ratio: targetForAllocation(protocol.dailyTarget, slot.targetAllocation).kcal / protocol.dailyTarget.kcal, locked: false, entries: [] }));
+export function protocolMeals(protocol: PlanProtocol, date = protocol.effectiveFrom): MealPlan[] {
+  const daily = dailyTargetForDate(protocol, date);
+  return protocol.mealSlots.map((slot) => ({ ...structuredClone(slot), ratio: targetForAllocation(daily, slot.targetAllocation).kcal / daily.kcal, locked: false, entries: [] }));
 }
 
 export function targetForAllocation(daily: MacroTotals, allocation: MacroRatio): MacroTotals {

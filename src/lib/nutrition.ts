@@ -12,6 +12,8 @@ import type {
 } from "@/lib/types";
 import { calibratedTarget, explicitMealTargets, protocolMeals } from "@/lib/planProtocol";
 import { edibleGrams } from "@/lib/foodWeights";
+import { energyPer100g, isFixedDose } from "@/lib/foodNutrition";
+import { resolveMealFood } from "@/lib/foodSnapshots";
 
 export const zeroTotals: MacroTotals = {
   kcal: 0,
@@ -273,16 +275,17 @@ export function calculateMacroKcalPer100g(food: Pick<FoodItem, "carbsPer100g" | 
   return food.carbsPer100g * 4 + food.proteinPer100g * 4 + food.fatPer100g * 9;
 }
 
-export function calculateFoodKcalPer100g(food: Pick<FoodItem, "carbsPer100g" | "proteinPer100g" | "fatPer100g">) {
-  return round(calculateMacroKcalPer100g(food), 1);
+export function calculateFoodKcalPer100g(food: Pick<FoodItem, "carbsPer100g" | "proteinPer100g" | "fatPer100g" | "sourceKcalPer100g" | "effectiveEnergyBasis">) {
+  return round(energyPer100g(food), 1);
 }
 
-export function getFoodEnergyMismatch(food: Pick<FoodItem, "kcalPer100g" | "carbsPer100g" | "proteinPer100g" | "fatPer100g">) {
+export function getFoodEnergyMismatch(food: Pick<FoodItem, "kcalPer100g" | "carbsPer100g" | "proteinPer100g" | "fatPer100g"> & Partial<Pick<FoodItem, "sourceKcalPer100g" | "sourceQuality">>) {
   const macroKcalPer100g = calculateMacroKcalPer100g(food);
   const difference = Math.abs(food.kcalPer100g - macroKcalPer100g);
   const warningLimit = Math.max(10, Math.abs(food.kcalPer100g) * 0.08);
   const errorLimit = Math.max(30, Math.abs(food.kcalPer100g) * 0.2);
-  const severity = difference <= warningLimit ? "ok" : difference <= errorLimit ? "warn" : "error";
+  const matchedSource = food.sourceKcalPer100g != null && (food.sourceQuality === "matched_reference" || food.sourceQuality === "verified_label");
+  const severity = difference <= warningLimit ? "ok" : difference <= errorLimit || matchedSource ? "warn" : "error";
 
   return {
     severity,
@@ -520,8 +523,9 @@ export function carbsPerKgBodyweight(profile: Pick<UserProfile, "weightKg">, car
 /** 低于此碳水密度（g/kg 体重）时提示抗阻训练表现风险——多半是活动系数/运动消耗填低或赤字过大。 */
 export const carbsPerKgPerformanceFloor = 2;
 
-// v2 无碳循环：周均即每日目标。保留导出以兼容 NutritionResult.cycleAverageTarget 展示。
+// 协议保留周均目标；当日目标由业务日期单独解析。
 export function calculateCycleAverageTarget(profile: UserProfile): MacroTotals {
+  if (profile.targetMode === "calibrated" && profile.protocolSnapshot) return { ...profile.protocolSnapshot.dailyTarget };
   return calculateDailyTarget(profile);
 }
 
@@ -541,7 +545,7 @@ export function calculateFoodTotals(food: FoodItem, grams: number, selection?: P
   const safeGrams = edibleGrams(Number.isFinite(grams) ? Math.max(grams, 0) : 0, selection);
   const ratio = safeGrams / 100;
   return {
-    kcal: calculateMacroKcalPer100g(food) * ratio,
+    kcal: energyPer100g(food) * ratio,
     carbs: food.carbsPer100g * ratio,
     protein: food.proteinPer100g * ratio,
     fat: food.fatPer100g * ratio
@@ -550,7 +554,7 @@ export function calculateFoodTotals(food: FoodItem, grams: number, selection?: P
 
 export function calculateMealTotals(meal: MealPlan, foodsById: Map<string, FoodItem>): MacroTotals {
   return meal.entries.reduce((total, entry) => {
-    const food = foodsById.get(entry.foodId);
+    const food = resolveMealFood(entry, foodsById).food;
     if (!food) {
       return total;
     }
@@ -564,7 +568,7 @@ export function calculateMealsTotals(meals: MealPlan[], foods: FoodItem[]) {
 }
 
 export function createDefaultMeals(profile: UserProfile): MealPlan[] {
-  if (profile.targetMode === "calibrated" && profile.protocolSnapshot) return protocolMeals(profile.protocolSnapshot);
+  if (profile.targetMode === "calibrated" && profile.protocolSnapshot) return protocolMeals(profile.protocolSnapshot, profile.planDate);
   // 休息日（训练时间选休息日）无训练前加餐，回退三餐结构。
   if (profile.trainingTime === "rest") {
     return [
@@ -710,7 +714,7 @@ export function assessNutritionRecommendation(result: NutritionResult, meals: Me
     }
     const recommendation = recommendationsByMeal.get(meal.id);
     for (const entry of meal.entries) {
-      if (entry.locked) {
+      if (entry.locked || entry.foodSnapshot?.category === "补剂" || (entry.foodSnapshot?.version === 2 && entry.foodSnapshot.portionPolicy === "fixed_dose")) {
         continue;
       }
       adjustableEntryCount += 1;
@@ -748,8 +752,8 @@ function buildMealSolverModels(
   }
 
   const baseModels = meal.entries.flatMap((entry) => {
-    const food = foodsById.get(entry.foodId);
-    if (!food || entry.locked) {
+    const food = resolveMealFood(entry, foodsById).food;
+    if (!food || entry.locked || isFixedDose(food)) {
       return [];
     }
     const bounds = entryBounds(entry, food, meal);
@@ -1029,7 +1033,7 @@ function calculateTotalsFromEntries(
   foodsById: Map<string, FoodItem>
 ): MacroTotals {
   return entries.reduce((total, entry) => {
-    const food = foodsById.get(entry.foodId);
+    const food = resolveMealFood(entry, foodsById).food;
     if (!food) {
       return total;
     }

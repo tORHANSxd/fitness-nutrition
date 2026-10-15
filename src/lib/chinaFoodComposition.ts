@@ -54,7 +54,13 @@ export function chinaFoodToFoodItem(row: ChinaFoodSummary): FoodItem | null {
   return {
     id: chinaFoodId(row.foodCode), name: row.foodName, category: row.category,
     carbsPer100g: carbs, proteinPer100g: protein, fatPer100g: fat,
-    kcalPer100g: Math.round((carbs * 4 + protein * 4 + fat * 9) * 10) / 10,
+    kcalPer100g: parseChinaNutrient(row.energyKCal) ?? Math.round((carbs * 4 + protein * 4 + fat * 9) * 10) / 10,
+    sourceKcalPer100g: parseChinaNutrient(row.energyKCal),
+    sourceEnergyMethod: "food_composition", sourceQuality: "matched_reference",
+    effectiveEnergyBasis: parseChinaNutrient(row.energyKCal) == null ? "macros" : "label",
+    carbohydrateBasis: "total_including_fiber", sourceCarbsPer100g: parseChinaNutrient(row.CHO),
+    fiberPer100g: parseChinaNutrient(row.dietaryFiber), portionPolicy: "food",
+    servingDescription: `中国食物成分表参考 ${row.foodCode}；来源碳水 ${row.CHO}g（含纤维），纤维 ${row.dietaryFiber}g，来源热量 ${row.energyKCal}kcal。Tr为微量近似，*为来源估计标记；4/4/9另列，不用于修改来源值。`,
     // The source gives food state in its name, not a universal raw/cooked conversion.
     weightBasis: "none", cookedRawRatio: null, source: "public",
     ...(isEdiblePercent(ediblePercent) ? { ediblePercent } : {}),

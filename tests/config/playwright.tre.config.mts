@@ -6,6 +6,7 @@ export default defineConfig({
   testMatch: [
     "tre-flow.spec.ts",
     "nutrition-goals.spec.ts",
+    "nutrition-standard.spec.ts",
     "custom-meals.spec.ts",
   ],
   testIgnore: [],

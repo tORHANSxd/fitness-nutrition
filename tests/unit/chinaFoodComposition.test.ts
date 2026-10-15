@@ -40,9 +40,9 @@ describe("China food composition integration", () => {
 
   it("subtracts fiber once, keeps edible weights and source energy separate, and scales a meal correctly", () => {
     const soy = chinaFoodToFoodItem(rowByCode("031101"))!;
-    expect(soy).toMatchObject({ carbsPer100g: 18.7, proteinPer100g: 35, fatPer100g: 16, kcalPer100g: 358.8, weightBasis: "none", cookedRawRatio: null });
+    expect(soy).toMatchObject({ carbsPer100g: 18.7, proteinPer100g: 35, fatPer100g: 16, kcalPer100g: 390, weightBasis: "none", cookedRawRatio: null });
     const meals: MealPlan[] = [{ id: "meal", name: "午餐", ratio: 1, locked: false, entries: [{ id: "entry", foodId: soy.id, grams: 200, locked: false }] }];
-    expect(calculateMealsTotals(meals, builtinFoods)).toEqual({ kcal: 717.6, carbs: 37.4, protein: 70, fat: 32 });
+    expect(calculateMealsTotals(meals, builtinFoods)).toEqual({ kcal: 780, carbs: 37.4, protein: 70, fat: 32 });
     const fruit = chinaFoodCatalog.find((row) => row.category === "水果" && Number(row.edible) < 100 && !chinaFoodUnavailableReason(row))!;
     expect(chinaFoodToFoodItem(fruit)!.proteinPer100g).toBe(parseChinaNutrient(fruit.protein));
     expect(chinaFoodToFoodItem({ ...rowByCode("031101"), dietaryFiber: "90" })).toBeNull();
@@ -51,7 +51,7 @@ describe("China food composition integration", () => {
 
   it("preserves stable legacy IDs and snapshots for every added category", () => {
     expect(builtinFoods[0].id).toBe("public-rice-cooked");
-    expect(builtinFoods.find((food) => food.id === "public-chicken-breast-cooked")).toMatchObject({ proteinPer100g: 31, weightBasis: "cooked" });
+    expect(builtinFoods.find((food) => food.id === "public-chicken-breast-cooked")).toMatchObject({ proteinPer100g: 31.02, weightBasis: "cooked" });
     expect(new Set(builtinFoods.map((food) => food.id)).size).toBe(builtinFoods.length);
     for (const category of ["豆类", "乳制品", "其他"] as const) {
       const food = chinaCompositionFoods.find((item) => item.category === category)!;

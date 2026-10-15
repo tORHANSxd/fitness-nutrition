@@ -1,3 +1,4 @@
+import { Temporal } from "@js-temporal/polyfill";
 import { addDays, daysBetween, isDateKey } from "@/lib/dateTime";
 import type { PlanProtocol, ProgramDay, ProgramExercise, ProgramTemplate, WorkoutSchedule, WorkoutSession, WorkoutSet } from "@/lib/types";
 
@@ -35,6 +36,11 @@ export function cycleDay(protocol: PlanProtocol, date: string): { index: number;
   if (!isDateKey(date)) throw new Error("训练日期无效。");
   const diff = daysBetween(protocol.trainingCycle.anchorDate, date);
   if (diff < 0 || date < protocol.effectiveFrom) return null;
+  if (protocol.trainingCycle.id === "weeklyStrengthV1") {
+    const weekday = Temporal.PlainDate.from(date).dayOfWeek;
+    const day = protocol.trainingCycle.isoWeekdaysTraining.indexOf(weekday);
+    return { index: weekday - 1, cycle: Math.floor(diff / 7) + 1, prescription: day >= 0 ? structuredClone(recoveryDays[day]) : null, reviewDue: diff >= 7 };
+  }
   const index = diff % 8;
   return { index, cycle: Math.floor(diff / 8) + 1, prescription: index % 2 === 0 ? structuredClone(recoveryDays[index / 2]) : null, reviewDue: diff >= 8 };
 }

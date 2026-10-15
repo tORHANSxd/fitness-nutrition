@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { syntheticGoalProtocol, syntheticPolicy } from "../fixtures/nutritionGoalFixture";
 import { reviewProgress } from "@/lib/progressReview";
-import { emptyActualV3 } from "@/lib/actualIntake";
+import { confirmedSyntheticActual } from "../fixtures/actualIntakeFixture";
 import { addDays } from "@/lib/dateTime";
 import type { GoalPresetId } from "@/lib/nutritionGoals/types";
 import type { BodyLog } from "@/lib/bodyLogs";
@@ -12,9 +12,9 @@ function data(preset: GoalPresetId, days: number, weeklyPct = 0) {
   const logs: BodyLog[] = [], checkins: DailyCheckin[] = [];
   for (let i = 0; i < days; i++) {
     const date = addDays(protocol.effectiveFrom, i);
-    logs.push({ logDate: date, weightKg: 80 * (1 + weeklyPct / 100) ** Math.floor(i / 7), waistCm: 90 });
+    logs.push({ logDate: date, weightKg: 80 * (1 + weeklyPct / 100) ** Math.floor(i / 7), waistCm: 90, morningWeightConfirmed: true });
     checkins.push({ id: `synthetic-${i}`, planDate: date, target: protocol.dailyTarget, completed: true, createdAt: "", updatedAt: "", actual: {
-      ...emptyActualV3({ version: 2, foods: [], exercises: [], bmrKcal: 0, activityKcal: 0, totalsSnapshot: protocol.dailyTarget }),
+      ...confirmedSyntheticActual(protocol.dailyTarget),
       targetProtocolSnapshot: protocol, intakeComplete: true, habits: { sleepHours: 8 }, recovery: { fatigue: 1, footPain: 0, trainingTolerance: "good", persistentSymptoms: false },
     } });
   }

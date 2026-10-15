@@ -32,6 +32,8 @@ export function toInputWeight(food: WeightFood, grams: number, selection?: Weigh
 }
 
 export function fromInputWeight(food: WeightFood, grams: number, selection?: WeightInput): number {
+  if (selection?.inputWeightBasis && food.weightBasis !== "none" && selection.inputWeightBasis !== food.weightBasis && getCookedRawRatio(food, selection) == null)
+    throw new Error("WEIGHT_BASIS_MISMATCH：称重口径与营养状态不同，请提供实测熟生比。");
   if (getWeightInputBasis(food, selection) === food.weightBasis) return grams;
   const ratio = getCookedRawRatio(food, selection)!;
   return food.weightBasis === "raw" ? grams / ratio : grams * ratio;

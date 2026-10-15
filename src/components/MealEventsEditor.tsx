@@ -49,7 +49,7 @@ export function MealEventsEditor({ controller, actual, date, timeZone, hourCycle
       {preview.actualFoodEntries.map((entry) => <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_110px_130px_auto]" key={entry.id}>
         <span className="break-words text-sm">{entry.foodSnapshot.name}</span>
         <label className="text-xs">食用重量 g<input type="number" min="0" step="any" className="field w-full" value={Number.isFinite(entry.grams) ? entry.grams : ""} onChange={(e) => setPreview({ ...preview, actualFoodEntries: preview.actualFoodEntries.map((f) => f.id === entry.id ? { ...f, grams: e.target.valueAsNumber } : f) })} /></label>
-        <label className="text-xs">热量计算<select className="field w-full" value={entry.energyBasis} onChange={(e) => setPreview({ ...preview, actualFoodEntries: preview.actualFoodEntries.map((f) => f.id === entry.id ? { ...f, energyBasis: e.target.value as "macros" | "label" } : f) })}><option value="macros">按营养素计算</option><option value="label">按食品标示</option></select></label>
+        <label className="text-xs">热量计算<select className="field w-full" disabled={entry.foodSnapshot.version === 2} value={entry.energyBasis} onChange={(e) => setPreview({ ...preview, actualFoodEntries: preview.actualFoodEntries.map((f) => f.id === entry.id ? { ...f, energyBasis: e.target.value as "macros" | "label" } : f) })}><option value="macros">按营养素计算</option><option value="label">按食品标示</option></select></label>
         <button type="button" className="btn-secondary" aria-label={`移除实际食品 ${entry.foodSnapshot.name}`} onClick={() => setPreview({ ...preview, actualFoodEntries: preview.actualFoodEntries.filter((f) => f.id !== entry.id) })}>移除</button>
       </div>)}
       <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_110px_auto]">
@@ -75,7 +75,7 @@ export function MealEventsEditor({ controller, actual, date, timeZone, hourCycle
       </div>
       <button type="button" className="btn-secondary mt-3" disabled={disabled} onClick={() => void onSave({ ...actual, habits: { ...actual.habits, ...habits }, recovery })}>保存恢复打卡</button>
     </details>
-    <FoodPickerDialog open={pickerOpen} title="选择实际食物" foods={[...controller.foodsById.values()]} energyUnit={energyUnit} onClose={() => setPickerOpen(false)} onSelect={foodId => { const food = controller.foodsById.get(foodId); if (food && preview && Number.isFinite(grams) && grams >= 0) setPreview({ ...preview, actualFoodEntries: [...preview.actualFoodEntries, { id: crypto.randomUUID(), foodId, foodSnapshot: foodSnapshotFromFood(food), grams, energyBasis: "macros" }] }); else setError("请填写有效的食用重量。"); }}/>
+    <FoodPickerDialog open={pickerOpen} title="选择实际食物" foods={[...controller.foodsById.values()]} energyUnit={energyUnit} onClose={() => setPickerOpen(false)} onSelect={foodId => { const food = controller.foodsById.get(foodId); if (food && preview && Number.isFinite(grams) && grams >= 0) setPreview({ ...preview, actualFoodEntries: [...preview.actualFoodEntries, { id: crypto.randomUUID(), foodId, foodSnapshot: foodSnapshotFromFood(food), grams, energyBasis: food.effectiveEnergyBasis ?? "macros" }] }); else setError("请填写有效的食用重量。"); }}/>
     {error && <p role="alert" className="text-sm text-danger">{error}</p>}
   </div>;
 }

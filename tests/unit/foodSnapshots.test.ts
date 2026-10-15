@@ -16,9 +16,9 @@ const food: FoodItem = {
 const entry: MealFoodEntry = { id: "entry-1", foodId: food.id, grams: 100, locked: false };
 
 describe("food snapshot resolution", () => {
-  it("prefers live food for editable plans and falls back to a valid snapshot", () => {
+  it("preserves the saved snapshot when current library food changes", () => {
     const snapshotEntry = { ...entry, foodSnapshot: foodSnapshotFromFood({ ...food, name: "保存时名称" }) };
-    expect(resolveMealFood(snapshotEntry, new Map([[food.id, food]]))).toMatchObject({ status: "live", food: { name: "原始食物" } });
+    expect(resolveMealFood(snapshotEntry, new Map([[food.id, food]]))).toMatchObject({ status: "snapshot", food: { name: "保存时名称" } });
     expect(resolveMealFood(snapshotEntry, new Map())).toMatchObject({ status: "snapshot", food: { name: "保存时名称" } });
   });
 

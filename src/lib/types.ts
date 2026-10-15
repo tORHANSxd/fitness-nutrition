@@ -80,7 +80,18 @@ export interface UserProfile {
   planDate: string;
 }
 
-export interface FoodItem {
+export interface FoodNutritionMetadata {
+  sourceKcalPer100g: number | null;
+  sourceEnergyMethod: "product_label" | "food_composition" | "recipe" | "macro_estimate" | "legacy_unknown";
+  effectiveEnergyBasis: "label" | "macros";
+  sourceQuality: "verified_label" | "matched_reference" | "recipe_estimate" | "unverified";
+  carbohydrateBasis: "available_excluding_fiber" | "total_including_fiber" | "net_declared" | "unknown";
+  sourceCarbsPer100g: number | null;
+  fiberPer100g: number | null;
+  portionPolicy: "food" | "fixed_dose";
+}
+
+export interface FoodItem extends Partial<FoodNutritionMetadata> {
   id: string;
   userId?: string | null;
   isUserOverride?: boolean;
@@ -113,6 +124,14 @@ export interface FoodSnapshotV1 {
   ediblePercent?: number;
 }
 
+export interface FoodSnapshotV2 extends Omit<FoodSnapshotV1, "version">, FoodNutritionMetadata {
+  version: 2;
+  energyPolicyVersion: "food-energy-v2";
+  macroKcalPer100g: number;
+}
+
+export type FoodSnapshot = FoodSnapshotV1 | FoodSnapshotV2;
+
 /** 分餐里临时自定义食物的营养定义（每 100g）：三大营养素自由填，热量由 4/4/9 自动推导。 */
 export interface CustomFoodDraft {
   name: string;
@@ -125,7 +144,7 @@ export interface CustomFoodDraft {
 export interface MealFoodEntry {
   id: string;
   foodId: string;
-  foodSnapshot?: FoodSnapshotV1;
+  foodSnapshot?: FoodSnapshot;
   grams: number;
   /** 输入可切换生熟重；grams 和范围始终保存食物营养基准的克重。 */
   inputWeightBasis?: "raw" | "cooked";
@@ -160,7 +179,9 @@ export interface MealSchedule {
 
 export interface PlanProtocol {
   id: string;
-  schemaVersion: 1 | 2;
+  schemaVersion: 1 | 2 | 3;
+  nutritionStrategy?: import("@/lib/nutritionStrategy").NutritionStrategy;
+  reviewMode?: "personal_standard_v1";
   /** v2 uses the protocol UUID as its persistent idempotency request key. */
   requestId?: string;
   nutrition?: NutritionSnapshotV1;
@@ -175,7 +196,7 @@ export interface PlanProtocol {
   trainingStartLocal: string;
   preTrainingNoIntakeMinutes: number;
   mealSlots: Array<Pick<MealPlan, "id" | "name"> & { kind: "main" | "snack"; schedule: MealSchedule; targetAllocation: MacroRatio }>;
-  trainingCycle: { id: "rptAlternate8DayV4"; anchorDate: string; phase: "recovery"; lengthDays: 8 };
+  trainingCycle: { id: "rptAlternate8DayV4"; anchorDate: string; phase: "recovery"; lengthDays: 8 } | { id: "weeklyStrengthV1"; anchorDate: string; phase: "recovery"; lengthDays: 7; isoWeekdaysTraining: number[] };
   reviewRules: { minWeightsPerWeek: number; minIntakeDaysPerWeek: number; stableTargetDays: number; firstReviewDays: number };
   supersedesId: string | null;
   changeReason: string;
@@ -282,7 +303,7 @@ export interface DailyCheckinActualV2 {
 export interface ActualFoodEntry {
   id: string;
   foodId: string;
-  foodSnapshot: FoodSnapshotV1;
+  foodSnapshot: FoodSnapshot;
   grams: number;
   energyBasis: "macros" | "label";
 }
@@ -340,7 +361,7 @@ export interface TemplateFoodRef {
   inputCookedRawRatio?: number;
   useEdiblePortion?: boolean;
   ediblePercent?: number;
-  foodSnapshot?: FoodSnapshotV1;
+  foodSnapshot?: FoodSnapshot;
   customFood?: CustomFoodDraft;
 }
 

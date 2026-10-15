@@ -42,7 +42,7 @@ for (const mode of [
       page.getByLabel("香蕉［甘蕉］可食部比例", { exact: true }),
     ).toHaveValue("59");
     await expect(
-      page.getByText("称重 200 g → 可食 118 g", { exact: true }),
+      page.getByText("称重 200 g → 可食 118 g（食用重）", { exact: true }),
     ).toBeVisible();
     await page.getByRole("button", { name: "锁定整餐", exact: true }).click();
     await page.getByRole("button", { name: "保存计划", exact: true }).click();

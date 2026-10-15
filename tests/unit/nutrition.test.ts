@@ -552,7 +552,9 @@ describe("meal solving", () => {
       planDate: "2026-05-22"
     };
     const meals = createStarterMeals(userProfile);
-    const result = buildNutritionResult(userProfile, meals, builtinFoods);
+    // 保留旧4/4/9求解回归，来源热量策略另有端到端一致性验收。
+    const legacyFoods = builtinFoods.map(food => ({ ...food, effectiveEnergyBasis: "macros" as const }));
+    const result = buildNutritionResult(userProfile, meals, legacyFoods);
     const actualGap = absoluteGap(result.actualTotals, result.dailyTarget);
     const recommendedGap = absoluteGap(result.recommendedTotals, result.dailyTarget);
     const breakfast = meals.find((meal) => meal.id === "breakfast")!;
@@ -822,8 +824,8 @@ describe("meal solving", () => {
       }
     ];
     const total = calculateMealsTotals(meals, builtinFoods);
-    expect(round(total.kcal, 1)).toBe(124.5);
-    expect(round(total.carbs, 2)).toBe(27.8);
+    expect(round(total.kcal, 1)).toBe(130);
+    expect(round(total.carbs, 2)).toBe(27.77);
   });
 
   it("uses category default max when user does not set max grams", () => {
@@ -924,8 +926,8 @@ describe("meal solving", () => {
     const foods: FoodItem[] = [
       {
         id: "protein-fat",
-        name: "高脂蛋白粉",
-        category: "补剂",
+        name: "合成高脂蛋白食材",
+        category: "肉类",
         kcalPer100g: 650,
         fatPer100g: 50,
         carbsPer100g: 0,
@@ -1155,8 +1157,8 @@ describe("meal solving", () => {
     expect(Math.abs(result.recommendedRemaining.carbs)).toBeLessThanOrEqual(10);
   });
 
-  it("no longer hard-locks protein powder or nuts at 30g in multi-food meals", () => {
-    // 蛋白粉：与低蛋白主食同餐、蛋白目标高 → 求解器可把蛋白粉推到其上限(>30g)，不再硬锁 30g。
+  it("preserves supplement dose while ordinary nuts remain adjustable", () => {
+    // 补剂剂量即使未手动锁定，也不能由求解器自动增加。
     const wheyMeal: MealPlan[] = [
       {
         id: "lunch",
@@ -1175,7 +1177,7 @@ describe("meal solving", () => {
       builtinFoods
     );
     const whey = wheyResult.mealRecommendations[0].recommendedEntries.whey;
-    expect(whey).toBeGreaterThan(30);
+    expect(whey).toBe(30);
     expect(whey).toBeLessThanOrEqual(80);
 
     // 坚果：与蔬菜同餐、低碳日脂肪目标高 → 坚果可推到其上限(>30g)，不再硬锁 30g。

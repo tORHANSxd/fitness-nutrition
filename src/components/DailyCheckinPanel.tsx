@@ -23,7 +23,7 @@ export function DailyCheckinPanel({
   timeZone = "Asia/Shanghai",
   hourCycle = "h23",
   onCheckinChange,
-  allowV3 = controller.profile.targetMode === "calibrated",
+  allowV3 = true,
 }: {
   controller: PlannerController;
   date: string;
@@ -43,7 +43,7 @@ export function DailyCheckinPanel({
   const [exerciseEnergy, setExerciseEnergy] = useState<number | null>(null);
   const [message, setMessage] = useState("");
   const [loadError, setLoadError] = useState(false);
-  const v3Mode = allowV3 || checkin?.actual.version === 3;
+  const v3Mode = allowV3 || !checkin || !checkin.completed || checkin.actual.version === 3;
   const ready = controller.profile.planDate === date;
   const isFuture = date > today;
   const exercises = checkin?.actual.exercises ?? noExercises;

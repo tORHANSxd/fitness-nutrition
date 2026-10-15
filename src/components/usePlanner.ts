@@ -716,9 +716,9 @@ export function usePlanner({ foods, templates, user, timeZone, energyUnit = "kca
     if (profile.planDate < protocol.effectiveFrom) { setMessage(`新协议将从 ${protocol.effectiveFrom} 生效，当前日期保持原计划。`); return; }
     if (frozenDatesRef.current.has(profile.planDate)) { setMessage(`新协议已保存；${profile.planDate} 已有冻结计划，仍使用原目标。新建未保存日期时使用生效协议。`); return; }
     setProfile(profileAtDate(profile, profile.planDate));
-    setMeals(protocol.schemaVersion === 2 ? mealsForProtocol(protocol, meals) : protocolMeals(protocol));
+    setMeals(protocol.schemaVersion >= 2 ? mealsForProtocol(protocol, meals, profile.planDate) : protocolMeals(protocol, profile.planDate));
     setActiveMealId(protocol.mealSlots[0].id);
-    setMessage(protocol.schemaVersion === 2 ? "新目标已应用，餐次与食品保留，历史和实际记录未改写。" : "新协议已应用，原餐食历史保留；请为新计划选择食品。");
+    setMessage(protocol.schemaVersion >= 2 ? "新目标已应用，餐次与食品保留，历史和实际记录未改写。" : "新协议已应用，原餐食历史保留；请为新计划选择食品。");
   }
 
   function exportDocument(): string | null {
@@ -741,9 +741,15 @@ export function usePlanner({ foods, templates, user, timeZone, energyUnit = "kca
   }
 }
 
-function mealsForProtocol(protocol: PlanProtocol, meals: MealPlan[]): MealPlan[] {
-  return protocolMeals(protocol).map(slot => {
+function mealsForProtocol(protocol: PlanProtocol, meals: MealPlan[], date = protocol.effectiveFrom): MealPlan[] {
+  const used = new Set<string>();
+  const next = protocolMeals(protocol, date).map(slot => {
     const current = meals.find(m => m.id === slot.id);
+    if (current) used.add(current.id);
     return { ...slot, locked: current?.locked ?? false, entries: current?.entries ?? [] };
   });
+  // 移除的旧餐食品合并到新加餐，保留每项原快照和克重。
+  const destination = next.find(m => m.kind === "snack") ?? next.at(-1)!;
+  destination.entries = [...destination.entries, ...meals.filter(m => !used.has(m.id)).flatMap(m => m.entries)];
+  return next;
 }

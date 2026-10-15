@@ -168,7 +168,7 @@ test("copying another day waits for confirmation and can be undone without chang
   await page.getByRole("button", { name: /^复制/ }).click();
   await page.getByLabel("复制来源日期", { exact: true }).fill(today);
   await page.getByRole("button", { name: "预览", exact: true }).click();
-  await expect(page.getByRole("dialog")).toContainText("燕麦片 123g");
+  await expect(page.getByRole("dialog")).toContainText("燕麦片 生重 123 g · 熟重待实测");
   await expect(
     page
       .getByRole("region", { name: "分餐计划", exact: true })
@@ -212,7 +212,7 @@ test("copying legacy meals into a calibrated day preserves its target through sa
   await page.getByRole("button", { name: /^复制/ }).click();
   await page.getByLabel("复制来源日期", { exact: true }).fill(sourceDate);
   await page.getByRole("button", { name: "预览", exact: true }).click();
-  await expect(page.getByRole("dialog")).toContainText("燕麦片 123g");
+  await expect(page.getByRole("dialog")).toContainText("燕麦片 生重 123 g · 熟重待实测");
   await page.getByRole("button", { name: "确认替换餐食", exact: true }).click();
   await expect(page.getByLabel("燕麦片克重", { exact: true })).toHaveValue("123");
   await page.getByRole("button", { name: "保存计划", exact: true }).click();

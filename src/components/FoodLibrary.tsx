@@ -39,6 +39,7 @@ import {
 import { roundForStorage } from "@/lib/numericInput";
 import { matchesFoodSearch } from "@/lib/chinaFoodComposition";
 import { FoodPagination, useFoodPage } from "@/components/FoodPagination";
+import { foodNutritionMetadata, macroEnergyPer100g, parseFoodNutritionMetadata } from "@/lib/foodNutrition";
 
 interface FoodLibraryProps {
   foods: FoodItem[];
@@ -51,6 +52,7 @@ interface FoodLibraryProps {
 type SourceFilter = "all" | "public" | "user";
 
 const emptyForm: FoodFormState = {
+  ...foodNutritionMetadata({ sourceEnergyMethod: "macro_estimate" }),
   name: "",
   category: "主食",
   kcalPer100g: 0,
@@ -168,6 +170,8 @@ export function FoodLibrary({
     setFormOpen(true);
     setEditingFood(food);
     setForm({
+      ...foodNutritionMetadata(food),
+      servingDescription: food.servingDescription,
       name: food.name,
       category: food.category,
       kcalPer100g: calculateFoodKcalPer100g(food),
@@ -197,6 +201,7 @@ export function FoodLibrary({
     }
     const normalizedForm: FoodFormState = {
       ...form,
+      sourceKcalPer100g: form.sourceKcalPer100g == null ? null : roundForStorage(form.sourceKcalPer100g, 2),
       fatPer100g: roundForStorage(form.fatPer100g, 2),
       carbsPer100g: roundForStorage(form.carbsPer100g, 2),
       proteinPer100g: roundForStorage(form.proteinPer100g, 2),
@@ -205,7 +210,13 @@ export function FoodLibrary({
           ? null
           : roundForStorage(form.cookedRawRatio, 3),
     };
+    if (!parseFoodNutritionMetadata({ ...normalizedForm })) {
+      setMessage("请核对来源热量、碳水口径和纤维，未知纤维请留空。");
+      return;
+    }
+    if (editingFood?.sourceQuality === "matched_reference" && normalizedForm.sourceQuality === "matched_reference" && (["proteinPer100g", "carbsPer100g", "fatPer100g"] as const).some(key => normalizedForm[key] !== editingFood[key])) normalizedForm.sourceQuality = "unverified";
     const precisionChanged =
+      normalizedForm.sourceKcalPer100g !== form.sourceKcalPer100g ||
       normalizedForm.fatPer100g !== form.fatPer100g ||
       normalizedForm.carbsPer100g !== form.carbsPer100g ||
       normalizedForm.proteinPer100g !== form.proteinPer100g ||
@@ -214,7 +225,7 @@ export function FoodLibrary({
       id: editingFood?.id ?? "",
       userId: editingFood?.userId,
       ...normalizedForm,
-      kcalPer100g: calculateFoodKcalPer100g(normalizedForm),
+      kcalPer100g: normalizedForm.sourceKcalPer100g ?? macroEnergyPer100g(normalizedForm),
       name: form.name.trim(),
       source: editingFood?.source ?? "user",
       isUserOverride:
@@ -247,10 +258,12 @@ export function FoodLibrary({
     setMessage("");
     try {
       const copy: FoodItem = {
+        ...foodNutritionMetadata(food),
+        servingDescription: food.servingDescription,
         id: "",
         name: `${food.name} (副本)`,
         category: food.category,
-        kcalPer100g: calculateFoodKcalPer100g(food),
+        kcalPer100g: food.kcalPer100g,
         fatPer100g: food.fatPer100g,
         carbsPer100g: food.carbsPer100g,
         proteinPer100g: food.proteinPer100g,
@@ -343,14 +356,14 @@ export function FoodLibrary({
         : csvToFoodForms(text);
       if (parsed.foods.length === 0) {
         setMessage(
-          "未解析到可导入的食物（请检查表头：name,category,kcalPer100g,fatPer100g,carbsPer100g,proteinPer100g,weightBasis,cookedRawRatio）。",
+          parsed.errors.length ? parsed.errors.slice(0, 3).map(error => `第${error.index}条：${error.message}`).join("；") : "没有可导入的食物。",
         );
         return;
       }
       const result = await importUserFoods(parsed.foods, user, true);
       await onFoodsChanged();
       setMessage(
-        `导入完成：成功 ${result.inserted} 条${parsed.skipped ? `，跳过 ${parsed.skipped} 条（缺名）` : ""}。`,
+        `导入完成：成功 ${result.inserted} 条${parsed.skipped ? `，未导入 ${parsed.skipped} 条：${parsed.errors.slice(0, 3).map(error => `第${error.index}条 ${error.message}`).join("；")}` : ""}。`,
       );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "导入失败。");
@@ -371,7 +384,7 @@ export function FoodLibrary({
               {showArchived ? "已归档食物" : "我的食物与公共食物"}
             </h2>
             <p className="mt-1 text-xs text-muted">
-              每 100 g 可食用部分 · 热量按碳水、蛋白质与脂肪计算
+              每 100 g 可食用部分 · 来源热量与 4/4/9 估算分别保留
             </p>
           </div>
           <button
@@ -487,6 +500,7 @@ export function FoodLibrary({
                     {round(food.proteinPer100g, 1)} · 脂{" "}
                     {round(food.fatPer100g, 1)} g
                   </p>
+                  <p className="mt-1 text-xs text-muted">来源热量 {food.sourceKcalPer100g == null ? "未知" : energyValue(food.sourceKcalPer100g)} · 4/4/9估算 {energyValue(macroEnergyPer100g(food))} {energyLabel}；纤维 {food.fiberPer100g == null ? "未知" : `${food.fiberPer100g} g`} · {food.sourceQuality === "verified_label" ? "已核对标签" : food.sourceQuality === "matched_reference" ? "成分表参考" : "估值待核实"}</p>
                   {food.servingDescription && (
                     <details className="mt-2 text-xs text-muted">
                       <summary className="cursor-pointer">数据来源与称重口径</summary>
@@ -702,6 +716,16 @@ export function FoodLibrary({
               {energyValue(formKcalPer100g)} {energyLabel}
             </strong>
           </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="text-sm">来源热量（kcal/100g，可留空）<NumericInput className="field mt-1 w-full" label="来源热量" aria-label="来源热量" min={0} blankValue={null} value={form.sourceKcalPer100g} onValueChange={value => setForm(current => ({ ...current, sourceKcalPer100g: value ?? null, effectiveEnergyBasis: value == null ? "macros" : current.effectiveEnergyBasis }))} /></label>
+            <label className="text-sm">膳食纤维（g/100g，未知留空）<NumericInput className="field mt-1 w-full" label="膳食纤维" aria-label="膳食纤维" min={0} max={100} blankValue={null} value={form.fiberPer100g} onValueChange={value => setForm(current => ({ ...current, fiberPer100g: value ?? null }))} /></label>
+            <label className="text-sm">热量计算口径<select className="field mt-1 w-full" aria-label="热量计算口径" value={form.effectiveEnergyBasis ?? "macros"} onChange={event => setForm(current => ({ ...current, effectiveEnergyBasis: event.target.value as "label" | "macros" }))}><option value="macros">明确使用4/4/9估算</option><option value="label" disabled={form.sourceKcalPer100g == null}>使用来源热量</option></select></label>
+            <label className="text-sm">数据来源质量<select className="field mt-1 w-full" aria-label="数据来源质量" value={form.sourceQuality ?? "unverified"} onChange={event => setForm(current => ({ ...current, sourceQuality: event.target.value as FoodItem["sourceQuality"], sourceEnergyMethod: event.target.value === "verified_label" ? "product_label" : event.target.value === "matched_reference" ? "food_composition" : event.target.value === "recipe_estimate" ? "recipe" : "macro_estimate" }))}><option value="unverified">未核实估值</option><option value="verified_label">已核对实际产品标签</option><option value="matched_reference">匹配成分表参考</option><option value="recipe_estimate">配方估算</option></select></label>
+            <label className="text-sm">来源碳水口径<select className="field mt-1 w-full" aria-label="来源碳水口径" value={form.carbohydrateBasis ?? "unknown"} onChange={event => setForm(current => ({ ...current, carbohydrateBasis: event.target.value as FoodItem["carbohydrateBasis"] }))}><option value="unknown">未知，不自动扣纤维</option><option value="available_excluding_fiber">可利用碳水（不含纤维）</option><option value="total_including_fiber">总碳水（含纤维）</option><option value="net_declared">来源已声明净碳水</option></select></label>
+            <label className="text-sm">原标签碳水（g/100g，可留空）<NumericInput className="field mt-1 w-full" label="原标签碳水" min={0} max={100} blankValue={null} value={form.sourceCarbsPer100g} onValueChange={value => setForm(current => ({ ...current, sourceCarbsPer100g: value ?? null }))} /></label>
+          </div>
+          <p className="text-xs text-muted">上方宏量用于计算；原标签碳水和纤维单独保留，不会对已声明净碳水再次扣减。烹调出成率不代表营养保留率。</p>
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.portionPolicy === "fixed_dose" || form.category === "补剂"} disabled={form.category === "补剂"} onChange={event => setForm(current => ({ ...current, portionPolicy: event.target.checked ? "fixed_dose" : "food" }))} />固定剂量，不参与自动配餐（补剂始终固定）</label>
           <details>
             <summary className="cursor-pointer text-sm text-muted">
               更多设置

@@ -13,6 +13,8 @@ import { createNutritionSnapshot } from "@/lib/nutritionGoals/snapshot";
 import type { CalculationBodySnapshot, GoalPresetId, NutritionPolicyV1 } from "@/lib/nutritionGoals/types";
 import { createTreProtocol } from "@/lib/planPresets";
 import { targetForAllocation } from "@/lib/planProtocol";
+import { loadNutritionStandard, saveNutritionStandard, type NutritionStandardProposal } from "@/lib/nutritionStandard";
+import { getSupabaseClient } from "@/lib/supabase";
 import { activatePlanProtocol } from "@/lib/protocolStorage";
 import { buildNutritionResult } from "@/lib/nutrition";
 import { loadBodyLogs, type BodyLog } from "@/lib/bodyLogs";
@@ -47,6 +49,16 @@ export function NutritionGoalPanel({ controller, user, preferences, protocols, r
   const [previewMealsKey, setPreviewMealsKey] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [standard, setStandard] = useState<NutritionStandardProposal | null>(null);
+  const [useStandardMeals, setUseStandardMeals] = useState(false);
+  const [cycleEnabled, setCycleEnabled] = useState(active?.nutritionStrategy?.mode === "weekly_cycle");
+  const [eligibleDays, setEligibleDays] = useState<number | null>(null);
+  useEffect(() => { let live = true;
+    loadNutritionStandard(user).then(value => { if (live) setStandard(value); }).catch(() => { if (live) setLogMessage("个人标准暂不可读；可以导入标准文件，或保留当前目标。"); });
+    getSupabaseClient()?.rpc("nutrition_stable_logging_days_v1").then(({ data, error }) => { if (live && !error && typeof data === "number") setEligibleDays(data); });
+    return () => { live = false; };
+  }, [user]);
+  const stageStandard = (value: NutritionStandardProposal) => { setStandard(value); setPolicy(structuredClone(value.policy)); setUseStandardMeals(true); setCycleEnabled(false); setEditing(true); setPendingPreset(null); setBody(current => ({ ...current, recovery: current.recovery === "concern" ? "concern" : "unknown" })); setPreview(null); setMessage("草案已载入，尚未生效；请核对恢复状态并预览确认。原餐中移除的餐次食品将并入加餐，克重与快照保留。"); };
   const numeric = useNumericDraftForm();
   useEffect(() => { let live = true; loadBodyLogs(user, 60).then(rows => { if (live) setLogs(rows); }).catch(() => { if (live) setLogMessage("体测读取失败，仍可明确手填计算输入。"); }); return () => { live = false; }; }, [user]);
   const resolvedBody = useMemo(() => resolveCalculationBodySnapshot({ ...body, timeZone: preferences.timeZone }, logs, morningConfirmed), [body, logs, morningConfirmed, preferences.timeZone]);
@@ -81,12 +93,13 @@ export function NutritionGoalPanel({ controller, user, preferences, protocols, r
       if (!effectiveFrom || effectiveFrom < todayKey(preferences.timeZone) || effectiveFrom < body.calculationDate) throw new Error("请选择今天或未来的生效日期，不覆盖过去计划。");
       const ratioSum = controller.meals.reduce((sum, m) => sum + m.ratio, 0);
       if (!controller.meals.length || ratioSum <= 0) throw new Error("请先设置有效餐次与份额。");
-      const mealSlots = controller.meals.map((m, index) => {
+      const mealSlots = useStandardMeals && standard ? standard.meals : controller.meals.map((m, index) => {
         const minutes = 690 + Math.round(index * 510 / Math.max(1, controller.meals.length - 1));
         const clock = (n: number) => `${String(Math.floor(n / 60)).padStart(2, "0")}:${String(n % 60).padStart(2, "0")}`;
         return { id: m.id, name: m.name, kind: m.kind ?? "main" as const, schedule: m.schedule ?? { start: clock(minutes), end: clock(minutes + 20), endDayOffset: 0 as const }, targetAllocation: m.targetAllocation ?? { protein: m.ratio / ratioSum, carbs: m.ratio / ratioSum, fat: m.ratio / ratioSum } };
       });
-      setPreview(createTreProtocol({ id: crypto.randomUUID(), effectiveFrom, cycleAnchorDate: active?.trainingCycle.anchorDate ?? effectiveFrom, timeZone: preferences.timeZone, previous, mealSlots, nutrition: createNutritionSnapshot(policy, resolvedBody), changeReason: "用户预览并确认营养目标策略" }));
+      if (cycleEnabled && (eligibleDays == null || eligibleDays < 14)) throw new Error("启用周期前需要最近至少14天同一目标的完整实际摄入记录。");
+      setPreview(createTreProtocol({ id: crypto.randomUUID(), effectiveFrom, cycleAnchorDate: active?.trainingCycle.anchorDate ?? effectiveFrom, timeZone: preferences.timeZone, previous, mealSlots, reviewMode: useStandardMeals ? "personal_standard_v1" : active?.reviewMode, nutrition: createNutritionSnapshot(policy, resolvedBody), nutritionStrategy: cycleEnabled ? standard?.optionalCycle ?? active?.nutritionStrategy : { version: 1, mode: "fixed_daily" }, ...(useStandardMeals && standard ? { preTrainingNoIntakeMinutes: standard.preTrainingNoIntakeMinutes } : {}), changeReason: "用户预览并确认营养目标策略" }));
       setPreviewMealsKey(nutritionInputFingerprint(controller.meals)); setMessage("");
     } catch (error) { setMessage(error instanceof Error ? error.message : "无法预览，请检查输入。"); }
   };
@@ -106,10 +119,18 @@ export function NutritionGoalPanel({ controller, user, preferences, protocols, r
   return <NumericDraftProvider form={numeric}><section className="min-w-0 space-y-4" aria-label="自动营养目标">
     <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg">每日营养目标</h2><button className="btn-secondary" type="button" onClick={() => setEditing(v => !v)}>{editing ? "收起设置" : "调整目标"}</button></div>
     {saved && <div className="rounded-xl bg-panel p-4"><p className="text-sm">{energy(active.dailyTarget.kcal)} · 碳水 {active.dailyTarget.carbs} g · 蛋白质 {active.dailyTarget.protein} g · 脂肪 {active.dailyTarget.fat} g</p><p className="mt-1 text-xs text-muted">{active.effectiveFrom} 起生效</p></div>}
+    {active?.nutritionStrategy?.mode === "weekly_cycle" && <p className="text-sm text-muted">按业务日期使用训练日 / 休息日目标；周预算 {energy(active.nutritionStrategy.weeklyTargetKcal)}，上方为日均目标。每周训练日：{active.nutritionStrategy.isoWeekdaysTraining.join("、")}。</p>}
     {saved && <details><summary className="cursor-pointer py-2 text-sm text-muted">查看计算依据</summary><NutritionCalculationDetails result={saved.result} policy={saved.policy} energyUnit={preferences.energyUnit} frozen /></details>}
     {saved && logs.some(l => l.logDate > saved.body.calculationDate && l.logDate <= body.calculationDate && l.weightKg != null) && <p className="text-sm">有更新体测，可打开编辑重新计算；已生效目标不变。</p>}
     {ready === false && <p role="status" className="text-sm text-muted">目标保存暂不可用，可以先计算预览。</p>}
     {editing && <fieldset disabled={busy} className="min-w-0 space-y-4">
+      <div className="rounded border border-line p-3 space-y-3" aria-label="个人饮食标准草案">
+        <p className="text-sm">个人标准通过预览和确认生效，导入文件不会覆盖历史或直接更改目标。</p>
+        <div className="flex flex-wrap items-center gap-3">{standard && <button className="btn-secondary" type="button" onClick={() => stageStandard(standard)}>载入个人标准草案</button>}<label className="text-sm">导入个人标准 JSON<input className="block mt-1 max-w-full" type="file" accept=".json,application/json" onChange={async event => { const file = event.target.files?.[0]; event.target.value = ""; if (!file) return; try { if (file.size > 65536) throw new Error("标准文件超过64KB。"); const value = await saveNutritionStandard(JSON.parse(await file.text()), user); stageStandard(value); } catch (error) { setMessage(error instanceof Error ? error.message : "导入失败，当前目标保持原值。"); } }} /></label></div>
+        {(standard || active?.nutritionStrategy?.mode === "weekly_cycle") && <label className="flex gap-2 text-sm"><input type="checkbox" checked={cycleEnabled} disabled={eligibleDays == null || eligibleDays < 14} onChange={event => { setCycleEnabled(event.target.checked); setPreview(null); }} />预览7天训练/休息日碳循环（默认关闭；最近合格记录 {eligibleDays ?? "待读取"} / 14 天）</label>}
+        {cycleEnabled && <p className="text-sm">将独立确认每周四次训练：周一、二、四、六；替代未来新生成的8天循环排期。改变训练天数必须重新平衡周预算并确认。</p>}
+        {useStandardMeals && standard && <p className="text-xs text-muted">餐次采用标准中的午餐、下午加餐和晚餐。蔬菜 {standard.foodPattern.vegetable.join("–")} g（生可食重）、水果 {standard.foodPattern.fruit.join("–")} g、纤维 {standard.foodPattern.fiber.join("–")} g 为参考范围；缺失纤维不会按零累计。</p>}
+      </div>
       <div className="grid grid-cols-2 gap-3"><button type="button" className={e.kind === "from_macros" ? "btn-primary" : "btn-secondary"} onClick={() => editPolicy({ rmr: {kind:"not_used"}, tdee: {kind:"not_used"}, energy: {kind:"from_macros"}, protein:{kind:"fixed_grams",grams:controller.result.dailyTarget.protein}, fat:{kind:"fixed_grams",grams:controller.result.dailyTarget.fat}, carbs:{kind:"fixed_grams",grams:controller.result.dailyTarget.carbs} })}>手动设置</button><button type="button" className={usesTdee ? "btn-primary" : "btn-secondary"} onClick={() => setPreset("cut_recomp",false)}>按身体数据计算</button></div>
       {e.kind === "from_macros" && <div className="grid gap-3 sm:grid-cols-3">{p.kind === "fixed_grams" && number("每日蛋白质 g", p.grams,n=>editPolicy({protein:{...p,grams:n}}))}{f.kind === "fixed_grams" && number("每日脂肪 g",f.grams,n=>editPolicy({fat:{...f,grams:n}}))}{policy.carbs.kind === "fixed_grams" && number("每日碳水 g",policy.carbs.grams,n=>editPolicy({carbs:{kind:"fixed_grams",grams:n}}))}</div>}
       {e.kind !== "from_macros" && <>
@@ -195,7 +216,8 @@ export function NutritionGoalPanel({ controller, user, preferences, protocols, r
         <ul className="space-y-2 text-sm">{preview.mealSlots.map(slot => { const next = targetForAllocation(preview.dailyTarget, slot.targetAllocation), old = controller.result.mealRecommendations.find(m => m.mealId === slot.id)?.target; return <li key={slot.id}>{slot.name} {slot.schedule.start}—{slot.schedule.end}：蛋白质 {old?.protein.toFixed(1) ?? "—"}→{next.protein.toFixed(1)} / 脂肪 {old?.fat.toFixed(1) ?? "—"}→{next.fat.toFixed(1)} / 碳水 {old?.carbs.toFixed(1) ?? "—"}→{next.carbs.toFixed(1)} g</li>; })}</ul>
         {locked.length > 0 && <div role="alert"><p>以下餐次已固定目标，请先解除固定：{locked.map(m => m.name).join("、")}。</p><button className="btn-secondary mt-2" type="button" onClick={() => { locked.forEach(m => controller.updateMeal(m.id, meal => ({ ...meal, locked: false }))); setPreview(null); }}>解除固定并重新预览</button></div>}
         {!!previewResult?.conflicts.length && <details><summary>食物推荐与锁定冲突（目标不会反改）</summary><ul className="text-sm">{previewResult.conflicts.map(text => <li key={text}>{text}</li>)}</ul></details>}
-        <p className="text-xs text-muted">确认后更新目标，保留已有餐食和实际记录。</p>
+        <p className="text-xs text-muted">确认后更新目标，保留已有餐食和实际记录。每餐为参考分配，可按全天预算调整。</p>
+        {preview.nutritionStrategy?.mode === "weekly_cycle" && <p className="text-sm">训练日 {energy(preview.nutritionStrategy.trainingTarget.kcal)}，休息日 {energy(preview.nutritionStrategy.restTarget.kcal)}；周预算 {energy(preview.nutritionStrategy.weeklyTargetKcal)}。每周训练日 {preview.nutritionStrategy.isoWeekdaysTraining.join("、")}，需一并确认。</p>}
         {!previewCurrent && <p role="status">计算依据或餐食已改变，请重新生成预览。</p>}
         <button className="btn-primary" type="button" disabled={!ready || !previewCurrent || busy || locked.length > 0 || numeric.hasPending || result.status !== "valid"} onClick={() => void confirm()}>确认目标</button>
       </div>}

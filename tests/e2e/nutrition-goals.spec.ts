@@ -80,7 +80,7 @@ test("v5 five scenarios, evidence, actuals and history round-trip @a11y", async 
   await expect(page.getByText("查看计算依据", { exact: true })).toBeVisible();
   const initial = await (await request.get(`${fixture}/fixture/state`)).json();
   const protocol = initial.user_plan_protocols[0].config;
-  expect(protocol.schemaVersion).toBe(2);
+  expect(protocol.schemaVersion).toBe(3);
   expect(protocol.requestId).toBe(protocol.id);
   expect(protocol.nutrition.result.resolvedTarget).toEqual({
     kcal: 2400,

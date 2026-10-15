@@ -2,6 +2,7 @@ import type { BodyLog } from "@/lib/bodyLogs";
 import type { DailyCheckin, PlanProtocol } from "@/lib/types";
 import { addDays, daysBetween } from "@/lib/dateTime";
 import { actualCoverageKnown, actualTotals } from "@/lib/actualIntake";
+import { dailyTargetForDate } from "@/lib/nutritionStrategy";
 import { goalPresetVersions } from "@/lib/nutritionGoals/presets";
 
 export type ReviewStatus = "maintain" | "review_intake" | "consider_increase" | "consider_small_decrease" | "recovery_first" | "insufficient_data";
@@ -16,7 +17,7 @@ export function reviewProgress(protocol: PlanProtocol, endDate: string, logs: Bo
   const goalPresets = goalPresetVersions[policy?.presetVersion ?? 1];
   // originPreset records provenance; a custom policy can have a different energy direction.
   const goal = policy?.presetId === "custom" ? undefined : policy?.presetId;
-  const observationDays = policy ? goal ? goalPresets[goal].reviewDays : 28 : 14;
+  const observationDays = protocol.reviewMode === "personal_standard_v1" ? 14 : policy ? goal ? goalPresets[goal].reviewDays : 28 : 14;
   const elapsed = daysBetween(protocol.effectiveFrom, endDate) + 1;
   const count = Math.min(policy && observationDays === 28 ? 4 : 3, Math.max(0, Math.floor(elapsed/7)));
   const confirmed = new Map(checkins.filter(c => c.completed).map(c => [c.planDate,c]));
@@ -24,11 +25,12 @@ export function reviewProgress(protocol: PlanProtocol, endDate: string, logs: Bo
   const windows: ReviewWindow[] = Array.from({length:count}, (_,i) => {
     const to = addDays(endDate, -(count-1-i)*7); const from = addDays(to,-6);
     const dates = Array.from({length:7}, (_,d) => addDays(from,d));
-    const weights = dates.map(d => body.get(d)?.weightKg).filter(positive);
+    const weights = dates.map(d => body.get(d)?.morningWeightConfirmed === true ? body.get(d)?.weightKg : null).filter(positive);
     const waists = dates.map(d => body.get(d)?.waistCm).filter(positive);
     const actuals = dates.flatMap(d => {
       const c = confirmed.get(d);
-      if (!c || !actualCoverageKnown(c.actual) || !c.target || !Object.keys(protocol.dailyTarget).every(k => Math.abs(c.target![k as keyof typeof c.target]-protocol.dailyTarget[k as keyof typeof protocol.dailyTarget])<0.01)) return [];
+      const target = dailyTargetForDate(protocol, d);
+      if (!c || !actualCoverageKnown(c.actual) || !c.target || !Object.keys(target).every(k => Math.abs(c.target![k as keyof typeof c.target]-target[k as keyof typeof target])<0.01)) return [];
       if (policy && (c.actual.version !== 3 || c.actual.targetProtocolSnapshot?.id !== protocol.id)) return [];
       return [c.actual];
     });
@@ -43,11 +45,11 @@ export function reviewProgress(protocol: PlanProtocol, endDate: string, logs: Bo
   const done = (status: ReviewStatus, reason: string, adjustmentKcal: number|null = null): ProgressReview => ({...result,status,reasons:[...result.reasons,reason],adjustmentKcal});
   if (symptoms) return done("recovery_first","有持续不适或恢复负担标记，先复盘恢复与训练；持续症状可寻求医疗帮助，暂不建议进一步减少摄入。");
   if (elapsed < Math.max(observationDays,protocol.reviewRules.firstReviewDays,protocol.reviewRules.stableTargetDays)) return done("insufficient_data",`同一目标需观察至少 ${Math.max(observationDays,protocol.reviewRules.firstReviewDays,protocol.reviewRules.stableTargetDays)} 天；当前 ${Math.max(elapsed,0)} 天。`);
-  if (windows.length<2 || windows.some(w=>w.weightSamples<protocol.reviewRules.minWeightsPerWeek)) return done("insufficient_data",`每个7天窗口需要至少 ${protocol.reviewRules.minWeightsPerWeek} 次有效体重；缺失日期未填零。`);
+  if (windows.length<2 || windows.some(w=>w.weightSamples<Math.max(4,protocol.reviewRules.minWeightsPerWeek))) return done("insufficient_data",`每个7天窗口需要至少 ${Math.max(4,protocol.reviewRules.minWeightsPerWeek)} 次已确认晨重；缺失日期未填零。`);
   result.weeklyLoss = windows.slice(1).map((w,i)=>windows[i].meanWeight!-w.meanWeight!);
   if (!stable) return done("review_intake","恢复信息不足或尚不稳定，不能判断恢复良好；补充睡眠、疲劳、足部不适和训练耐受。");
-  if (windows.some(w=>w.intakeDays<protocol.reviewRules.minIntakeDaysPerWeek || w.estimatedShare>0.25)) return done("review_intake",`每7天至少 ${protocol.reviewRules.minIntakeDaysPerWeek} 天确认完整摄入；估算事件超过25%时降低置信度。先核对记录。`);
-  if (policy) {
+  if (windows.some(w=>w.intakeDays<Math.max(6,protocol.reviewRules.minIntakeDaysPerWeek) || w.estimatedShare>0.25)) return done("review_intake",`每7天至少 ${Math.max(6,protocol.reviewRules.minIntakeDaysPerWeek)} 天确认完整摄入；估算事件超过25%时降低置信度。先核对记录。`);
+  if (policy && protocol.reviewMode !== "personal_standard_v1") {
     const changes = windows.slice(1).map((w, i) => (w.meanWeight! / windows[i].meanWeight! - 1) * 100);
     if (!goal) return done("maintain", "自定义目标按已确认策略观察趋势；本轮不自动推导TDEE或增减摄入。");
     if (goal === "recomp") return done("maintain", "重组方向结合腰围与力量观察；不因体重不降减少能量。");
@@ -70,7 +72,7 @@ export function reviewProgress(protocol: PlanProtocol, endDate: string, logs: Bo
     return done("maintain", `周间变化结合${lower}%至${upper}%/周的场景参考观察；保持当前目标。`);
   }
   const lastLoss = result.weeklyLoss.at(-1)!;
-  if (lastLoss>=0.3 && lastLoss<=0.7) return done("maintain","最近周均下降处于观察区间，恢复记录稳定，维持当前目标。体重变化不等同于脂肪变化。");
+  if (lastLoss >= (protocol.reviewMode ? 0.4 : 0.3) && lastLoss <= (protocol.reviewMode ? 0.6 : 0.7)) return done("maintain","最近周均下降处于观察区间，恢复记录稳定，维持当前目标。体重变化不等同于脂肪变化。");
   if (windows.length<3) return done("insufficient_data","14天只能形成一次周间比较；连续两次比较至少需要3个有效7天窗口。");
   if (result.weeklyLoss.every(n=>n>0.8)) {
     if (windows[0].from<addDays(protocol.effectiveFrom,7)) return done("review_intake","首周不用于激进速度判断，继续补充首周之后的有效窗口。");

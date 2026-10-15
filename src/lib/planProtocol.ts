@@ -148,6 +148,19 @@ export function protocolMeals(protocol: PlanProtocol, date = protocol.effectiveF
   return protocol.mealSlots.map((slot) => ({ ...structuredClone(slot), ratio: targetForAllocation(daily, slot.targetAllocation).kcal / daily.kcal, locked: false, entries: [] }));
 }
 
+export function mealsForProtocol(protocol: PlanProtocol, meals: MealPlan[], date = protocol.effectiveFrom): MealPlan[] {
+  const used = new Set<string>();
+  const next = protocolMeals(protocol, date).map(slot => {
+    const current = meals.find(m => m.id === slot.id);
+    if (current) used.add(current.id);
+    return { ...slot, locked: current?.locked ?? false, entries: current?.entries ?? [] };
+  });
+  // 移除的旧餐食品合并到新加餐，保留每项原快照和克重。
+  const destination = next.find(m => m.kind === "snack") ?? next.at(-1)!;
+  destination.entries = [...destination.entries, ...meals.filter(m => !used.has(m.id)).flatMap(m => m.entries)];
+  return next;
+}
+
 export function targetForAllocation(daily: MacroTotals, allocation: MacroRatio): MacroTotals {
   const protein = daily.protein * allocation.protein;
   const carbs = daily.carbs * allocation.carbs;

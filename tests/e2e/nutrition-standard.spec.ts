@@ -1,6 +1,10 @@
 import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { syntheticStandard } from "../fixtures/nutritionStandardFixture";
+import { syntheticGoalProtocol } from "../fixtures/nutritionGoalFixture";
+import { emptyProfile } from "../../src/lib/demoState";
+import { protocolMeals } from "../../src/lib/planProtocol";
+import { todayKey } from "../../src/lib/dateTime";
 
 test("个人标准导入、恢复门禁、确认及重新加载 @a11y", async ({ page, request }, testInfo) => {
   await request.post("http://127.0.0.1:45432/fixture/reset");
@@ -38,4 +42,56 @@ test("个人标准导入、恢复门禁、确认及重新加载 @a11y", async ({
   await page.reload();
   await expect(panel.getByText("查看计算依据", { exact: true })).toBeVisible();
   expect((await state()).user_plan_protocols).toHaveLength(1);
+});
+
+for (const count of [2, 4]) test(`已有 ${count} 餐载入三餐个人草案，预览、确认及刷新保留食品快照和克重`, async ({ page, request }, testInfo) => {
+  const fixture = "http://127.0.0.1:45432";
+  await request.post(`${fixture}/fixture/reset`);
+  const userId = "50000000-0000-4000-8000-000000000001";
+  const date = todayKey("Asia/Shanghai");
+  const active = syntheticGoalProtocol({ date });
+  active.mealSlots = ["breakfast", "lunch", "dinner", "extra"].slice(0, count).map(id => ({ id, name: id, kind: "main", schedule: { start: "12:00", end: "12:30", endDayOffset: 0 }, targetAllocation: { protein: 1 / count, carbs: 1 / count, fat: 1 / count } }));
+  const meals = protocolMeals(active).map((meal, index) => ({ ...meal, entries: [{ id: `synthetic-entry-${index}`, foodId: `synthetic-food-${index}`, grams: 123 + index, locked: true, minGrams: 50, maxGrams: 200, inputWeightBasis: "cooked" as const, inputCookedRawRatio: 2, foodSnapshot: { version: 1 as const, name: `合成食物${index}`, category: "主食" as const, kcalPer100g: 114, carbsPer100g: 20, proteinPer100g: 4, fatPer100g: 2, weightBasis: "raw" as const, cookedRawRatio: 2 } }] }));
+  const profile = { ...emptyProfile, planDate: date, targetMode: "calibrated", allocationMode: "explicitMacros", protocolSnapshot: active };
+  await request.post(`${fixture}/rest/v1/user_plan_protocols`, { data: { id: active.id, user_id: userId, effective_from: date, schema_version: 2, config: active } });
+  await request.post(`${fixture}/rest/v1/planner_drafts`, { data: { user_id: userId, plan_date: date, revision: 1, schema_version: 3, profile_snapshot: profile, meals } });
+  await request.post(`${fixture}/rest/v1/nutrition_standard_proposals`, { data: { user_id: userId, payload: syntheticStandard } });
+  const state = async () => (await request.get(`${fixture}/fixture/state`)).json();
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  await page.goto("/login");
+  await page.getByLabel("邮箱", { exact: true }).fill("browser-fixture@example.test");
+  await page.getByLabel("密码", { exact: true }).fill("synthetic-ui-only");
+  await page.getByRole("button", { name: "登录", exact: true }).click();
+  await page.waitForURL(/\/(overview|today)/);
+  await page.goto("/goals");
+  const panel = page.getByRole("region", { name: "自动营养目标", exact: true });
+  await panel.getByRole("button", { name: "调整目标" }).click();
+  await panel.getByRole("button", { name: "载入个人标准草案" }).click();
+  await panel.getByRole("combobox", { name: "恢复状态", exact: true }).selectOption("stable");
+  await panel.getByRole("button", { name: "预览调整" }).click();
+  const preview = panel.getByLabel("自动目标应用预览");
+  await expect(preview).toContainText("下午加餐 16:00—16:30");
+  await expect(preview.locator(":scope > ul > li")).toHaveCount(3);
+  expect((await state()).user_plan_protocols).toHaveLength(1);
+  expect((await state()).planner_drafts[0].meals).toEqual(meals);
+  await page.screenshot({ path: testInfo.outputPath(`standard-from-${count}-meals.png`), fullPage: true });
+  await panel.getByRole("button", { name: "确认目标" }).click();
+  await expect.poll(async () => (await state()).user_plan_protocols.length).toBe(2);
+  const next = (await state()).user_plan_protocols[1].config;
+  await expect.poll(async () => (await state()).planner_drafts[0].profile_snapshot.protocolSnapshot.id).toBe(next.id);
+  const applied = (await state()).planner_drafts[0].meals;
+  expect(applied.map((meal: { id: string }) => meal.id)).toEqual(syntheticStandard.mealSlotsProposal.map(slot => slot.id));
+  const entries = applied.flatMap((meal: { entries: unknown[] }) => meal.entries);
+  expect(entries).toHaveLength(count);
+  for (const meal of meals) expect(entries).toContainEqual(meal.entries[0]);
+  expect(applied.find((meal: { id: string }) => meal.id === "lunch").entries).toEqual(meals.find(meal => meal.id === "lunch")!.entries);
+  expect(applied.find((meal: { id: string }) => meal.id === "afternoon-snack").entries).toEqual(meals.filter(meal => !["lunch", "dinner"].includes(meal.id)).flatMap(meal => meal.entries));
+  await page.reload();
+  await expect(panel.getByText("查看计算依据", { exact: true })).toBeVisible();
+  await page.goto("/today");
+  await expect(page.getByRole("tab", { name: /下午加餐/ })).toBeVisible();
+  expect((await state()).planner_drafts[0].meals).toEqual(applied);
+  expect((await state()).user_plan_protocols).toHaveLength(2);
+  expect(errors).toEqual([]);
 });

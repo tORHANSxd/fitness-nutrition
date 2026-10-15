@@ -8,7 +8,7 @@ import { createStarterMeals, defaultProfile, emptyProfile } from "@/lib/demoStat
 import { createCustomFood, customFoodsFromMeals } from "@/lib/foods";
 import { foodSnapshotFromFood } from "@/lib/foodSnapshots";
 import { todayKey } from "@/lib/dateTime";
-import { mealMetadata, planDocumentVersion, protocolMeals, resolveProtocol, UnsupportedDocumentError } from "@/lib/planProtocol";
+import { mealMetadata, mealsForProtocol, planDocumentVersion, protocolMeals, resolveProtocol, UnsupportedDocumentError } from "@/lib/planProtocol";
 import { loadPlanProtocols } from "@/lib/protocolStorage";
 import { exportPlanDocument, importPlanDocument } from "@/lib/planTransfer";
 import { nutritionInputFingerprint } from "@/lib/nutritionGoals/calculator";
@@ -739,17 +739,4 @@ export function usePlanner({ foods, templates, user, timeZone, energyUnit = "kca
       setMessage("已将文件载入计划草稿，请核对后保存计划。实际记录保持独立。");
     } catch (error) { setMessage(error instanceof Error ? error.message : "导入失败，当前计划未改变。"); }
   }
-}
-
-function mealsForProtocol(protocol: PlanProtocol, meals: MealPlan[], date = protocol.effectiveFrom): MealPlan[] {
-  const used = new Set<string>();
-  const next = protocolMeals(protocol, date).map(slot => {
-    const current = meals.find(m => m.id === slot.id);
-    if (current) used.add(current.id);
-    return { ...slot, locked: current?.locked ?? false, entries: current?.entries ?? [] };
-  });
-  // 移除的旧餐食品合并到新加餐，保留每项原快照和克重。
-  const destination = next.find(m => m.kind === "snack") ?? next.at(-1)!;
-  destination.entries = [...destination.entries, ...meals.filter(m => !used.has(m.id)).flatMap(m => m.entries)];
-  return next;
 }

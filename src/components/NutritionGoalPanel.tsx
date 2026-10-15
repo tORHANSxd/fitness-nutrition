@@ -12,7 +12,7 @@ import { resolveCalculationBodySnapshot } from "@/lib/nutritionGoals/bodySnapsho
 import { createNutritionSnapshot } from "@/lib/nutritionGoals/snapshot";
 import type { CalculationBodySnapshot, GoalPresetId, NutritionPolicyV1 } from "@/lib/nutritionGoals/types";
 import { createTreProtocol } from "@/lib/planPresets";
-import { targetForAllocation } from "@/lib/planProtocol";
+import { mealsForProtocol, targetForAllocation } from "@/lib/planProtocol";
 import { loadNutritionStandard, saveNutritionStandard, type NutritionStandardProposal } from "@/lib/nutritionStandard";
 import { getSupabaseClient } from "@/lib/supabase";
 import { activatePlanProtocol } from "@/lib/protocolStorage";
@@ -85,7 +85,7 @@ export function NutritionGoalPanel({ controller, user, preferences, protocols, r
     const old = controller.result.mealRecommendations.find(r => r.mealId === m.id)?.target;
     return !slot || !old || Math.abs(targetForAllocation(preview.dailyTarget, slot.targetAllocation)[k] - old[k]) > 1e-6;
   }));
-  const previewResult = useMemo(() => preview ? buildNutritionResult({ ...controller.profile, targetMode: "calibrated", allocationMode: "explicitMacros", protocolSnapshot: preview }, controller.meals.map((meal, i) => ({ ...meal, targetAllocation: preview.mealSlots[i]?.targetAllocation })), [...controller.foodsById.values()]) : null, [preview, controller.profile, controller.meals, controller.foodsById]);
+  const previewResult = useMemo(() => preview ? buildNutritionResult({ ...controller.profile, targetMode: "calibrated", allocationMode: "explicitMacros", protocolSnapshot: preview }, mealsForProtocol(preview, controller.meals, controller.profile.planDate), [...controller.foodsById.values()]) : null, [preview, controller.profile, controller.meals, controller.foodsById]);
   const makePreview = () => {
     if (!numeric.validateAll() || result.status !== "valid") return;
     try {

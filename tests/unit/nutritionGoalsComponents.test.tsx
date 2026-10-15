@@ -11,9 +11,14 @@ import { emptyProfile } from "@/lib/demoState";
 import { todayKey } from "@/lib/dateTime";
 import { activatePlanProtocol } from "@/lib/protocolStorage";
 import type { PlanProtocol } from "@/lib/types";
+import { loadNutritionStandard, parseNutritionStandard } from "@/lib/nutritionStandard";
+import { configureMealLayout } from "@/lib/mealLayout";
+import { syntheticGoalProtocol } from "../fixtures/nutritionGoalFixture";
+import { syntheticStandard } from "../fixtures/nutritionStandardFixture";
 
 vi.mock("@/lib/bodyLogs", () => ({ loadBodyLogs: vi.fn(async () => []) }));
 vi.mock("@/lib/protocolStorage", () => ({ activatePlanProtocol: vi.fn(async (p: PlanProtocol) => p) }));
+vi.mock("@/lib/nutritionStandard", async importOriginal => ({ ...await importOriginal<typeof import("@/lib/nutritionStandard")>(), loadNutritionStandard: vi.fn(async () => null) }));
 const preferences = defaultPreferences({ timeZone: "Asia/Shanghai" });
 const user = { id: "synthetic-user" } as User;
 function props() {
@@ -34,7 +39,7 @@ function preview() {
   fireEvent.click(screen.getByRole("button", { name: "预览调整" }));
 }
 afterEach(cleanup);
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => { vi.clearAllMocks(); vi.mocked(loadNutritionStandard).mockResolvedValue(null); });
 
 it("S10 full kcal/kJ and kg/lb display round-trip never writes rounded values into policy/body", async () => {
   const p = props(); const { rerender } = render(<NutritionGoalPanel {...p} />); begin();
@@ -84,4 +89,27 @@ it("a changed calculation time zone invalidates a previously reviewable request"
   rerender(<NutritionGoalPanel {...p} preferences={{ ...preferences, timeZone: "America/Los_Angeles" }} />);
   expect(screen.getByRole("button", { name: "确认目标" })).toBeDisabled();
   expect(screen.getByText("计算依据或餐食已改变，请重新生成预览。")).toBeVisible();
+});
+
+it.each([2, 4])("已保存的 %i 餐安排可载入三餐个人草案并预览，确认前保持原餐食", async count => {
+  const p = props();
+  const active = syntheticGoalProtocol();
+  p.protocols = [active];
+  p.controller.profile = { ...p.controller.profile, protocolSnapshot: active };
+  p.controller.meals = configureMealLayout([], ["breakfast", "lunch", "dinner", "extra"].slice(0, count).map(id => ({ id, name: id, weights: { protein: 1, carbs: 1, fat: 1 } })), active.dailyTarget);
+  p.controller.result = buildNutritionResult(p.controller.profile, p.controller.meals, []);
+  const original = structuredClone(p.controller.meals);
+  vi.mocked(loadNutritionStandard).mockResolvedValue(parseNutritionStandard(syntheticStandard));
+  render(<NutritionGoalPanel {...p} />);
+  fireEvent.click(screen.getByRole("button", { name: "调整目标" }));
+  fireEvent.click(await screen.findByRole("button", { name: "载入个人标准草案" }));
+  fireEvent.change(screen.getByRole("combobox", { name: "恢复状态" }), { target: { value: "stable" } });
+  preview();
+  expect(screen.getByLabelText("自动目标应用预览").querySelectorAll(":scope > ul > li")).toHaveLength(3);
+  expect(screen.getByLabelText("自动目标应用预览")).toHaveTextContent("下午加餐 16:00—16:30");
+  expect(p.controller.meals).toEqual(original);
+  expect(activatePlanProtocol).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "确认目标" }));
+  await waitFor(() => expect(p.onApplied).toHaveBeenCalledOnce());
+  expect((p.onApplied.mock.calls[0][0] as PlanProtocol).dailyTarget).toEqual(syntheticStandard.dailyTarget);
 });

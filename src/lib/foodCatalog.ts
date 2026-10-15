@@ -12,7 +12,6 @@ export const publicFoodReplacements: Readonly<Record<string, string>> = {
   "public-orange-raw": "public-cfcd6-064101",
   "public-kiwi-raw": "public-cfcd6-063909",
   "public-egg-whole": "public-cfcd6-111101x",
-  "public-almond": "public-cfcd6-071014",
   "public-walnut": "public-cfcd6-071004",
   "public-peanut": "public-cfcd6-072004",
 };

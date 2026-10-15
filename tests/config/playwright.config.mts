@@ -6,7 +6,7 @@ const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3200";
 
 export default defineConfig({
   testDir: resolve(repoRoot, "tests/e2e"),
-  testIgnore: ["tre-flow.spec.ts", "nutrition-goals.spec.ts", "custom-meals.spec.ts", "tutorial.spec.ts", "china-food-catalog.spec.ts"],
+  testIgnore: ["tre-flow.spec.ts", "nutrition-goals.spec.ts", "custom-meals.spec.ts", "tutorial.spec.ts", "china-food-catalog.spec.ts", "food-weight-basis.spec.ts"],
   outputDir: runtimePath("artifacts", "playwright", "base", "results"),
   fullyParallel: true,
   retries: process.env.CI ? 2 : 0,

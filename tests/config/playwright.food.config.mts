@@ -4,7 +4,7 @@ import base from "./playwright.tre.config.mjs";
 
 export default defineConfig({
   ...base,
-  testMatch: ["china-food-catalog.spec.ts"],
+  testMatch: ["china-food-catalog.spec.ts", "food-weight-basis.spec.ts"],
   outputDir: runtimePath("artifacts", "playwright", "food", "results"),
   reporter: [["list"], ["html", { outputFolder: runtimePath("artifacts", "playwright", "food", "report"), open: "never" }]],
 });

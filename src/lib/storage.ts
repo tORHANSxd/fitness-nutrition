@@ -70,7 +70,7 @@ function mapDailyCheckinRow(row: Record<string, unknown>): DailyCheckin {
 
 const mealTemplateLimit = 24;
 const dayTemplateLimit = 12;
-const foodColumns = "id,user_id,name,category,kcal_per_100g,fat_per_100g,carbs_per_100g,protein_per_100g,weight_basis,cooked_raw_ratio,archived_at";
+const foodColumns = "id,user_id,name,category,kcal_per_100g,fat_per_100g,carbs_per_100g,protein_per_100g,weight_basis,cooked_raw_ratio,archived_at,serving_description";
 const foodOverrideColumns = "user_id,base_food_id,name,category,kcal_per_100g,fat_per_100g,carbs_per_100g,protein_per_100g,weight_basis,cooked_raw_ratio";
 const planColumns = "id,plan_date,profile,meals,result,created_at,updated_at,schema_version,algorithm_version,integrity_flags";
 const planSummaryColumns = "id,plan_date,created_at,updated_at,integrity_flags,training_time:profile->>trainingTime,daily_target:result->dailyTarget,actual_totals:result->actualTotals";

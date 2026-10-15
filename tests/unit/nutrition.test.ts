@@ -197,7 +197,7 @@ describe("nutrition formulas", () => {
       "public-broccoli-cooked": 3.88,
       "public-spinach-cooked": 1.35,
       "public-lettuce-raw": 1.57,
-      "public-tomato-raw": 2.72,
+      "public-tomato-raw": 2.69,
       "public-cucumber-raw": 3.13
     };
 
@@ -822,8 +822,8 @@ describe("meal solving", () => {
       }
     ];
     const total = calculateMealsTotals(meals, builtinFoods);
-    expect(round(total.kcal, 1)).toBe(124.8);
-    expect(round(total.carbs, 2)).toBe(27.9);
+    expect(round(total.kcal, 1)).toBe(124.5);
+    expect(round(total.carbs, 2)).toBe(27.8);
   });
 
   it("uses category default max when user does not set max grams", () => {

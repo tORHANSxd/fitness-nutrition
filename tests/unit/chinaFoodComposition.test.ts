@@ -51,7 +51,7 @@ describe("China food composition integration", () => {
 
   it("preserves stable legacy IDs and snapshots for every added category", () => {
     expect(builtinFoods[0].id).toBe("public-rice-cooked");
-    expect(builtinFoods.find((food) => food.id === "public-chicken-breast-cooked")).toMatchObject({ proteinPer100g: 30.76, weightBasis: "cooked" });
+    expect(builtinFoods.find((food) => food.id === "public-chicken-breast-cooked")).toMatchObject({ proteinPer100g: 31, weightBasis: "cooked" });
     expect(new Set(builtinFoods.map((food) => food.id)).size).toBe(builtinFoods.length);
     for (const category of ["豆类", "乳制品", "其他"] as const) {
       const food = chinaCompositionFoods.find((item) => item.category === category)!;

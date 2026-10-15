@@ -48,6 +48,7 @@ export function mapFoodRow(row: Record<string, unknown>): FoodItem {
     weightBasis: mapWeightBasis(row.weight_basis),
     cookedRawRatio: row.cooked_raw_ratio == null ? null : Number(row.cooked_raw_ratio),
     archivedAt: row.archived_at == null ? null : String(row.archived_at),
+    ...(typeof row.serving_description === "string" && row.serving_description ? { servingDescription: row.serving_description } : {}),
     source: row.user_id == null ? "public" : "user"
   };
 }

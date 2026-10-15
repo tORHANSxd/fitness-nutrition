@@ -95,6 +95,7 @@ export interface FoodItem {
   cookedRawRatio?: number | null;
   archivedAt?: string | null;
   source: "public" | "user";
+  servingDescription?: string;
   /** 每 100g 称重中可食用的比例；未知时不推测。 */
   ediblePercent?: number;
 }
@@ -126,6 +127,9 @@ export interface MealFoodEntry {
   foodId: string;
   foodSnapshot?: FoodSnapshotV1;
   grams: number;
+  /** 输入可切换生熟重；grams 和范围始终保存食物营养基准的克重。 */
+  inputWeightBasis?: "raw" | "cooked";
+  inputCookedRawRatio?: number;
   useEdiblePortion?: boolean;
   /** 随条目保存当时使用的比例，不跟随食物库后续变化。 */
   ediblePercent?: number;
@@ -332,6 +336,8 @@ export interface PlannerDraft {
 /** 模板里的食物引用：只记「哪种食物」，不记克重；临时自定义食物随引用内嵌其营养定义。 */
 export interface TemplateFoodRef {
   foodId: string;
+  inputWeightBasis?: "raw" | "cooked";
+  inputCookedRawRatio?: number;
   useEdiblePortion?: boolean;
   ediblePercent?: number;
   foodSnapshot?: FoodSnapshotV1;

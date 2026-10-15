@@ -13,8 +13,8 @@ test("food search, pagination, personal override and saved snapshot @a11y", asyn
   await page.goto("/resources?tab=foods");
   const library = page.getByRole("main");
   const pagination = library.getByRole("navigation", { name: "食物列表分页" });
-  // The catalog hides 10 confirmed duplicates from the 1,381 available foods.
-  await expect(pagination).toContainText("共 1371 条 · 第 1 / 115 页");
+  // Almonds remain distinct from apricot kernels; 9 confirmed duplicates are hidden.
+  await expect(pagination).toContainText("共 1372 条 · 第 1 / 115 页");
   await expect(library.getByRole("listitem")).toHaveCount(12);
   await pagination.getByRole("button", { name: "下一页" }).click();
   await expect(pagination).toContainText("第 2 / 115 页");

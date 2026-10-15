@@ -21,7 +21,7 @@ import { NumericInput } from "@/components/NumericInput";
 import type { PlannerController } from "@/components/usePlanner";
 import { createCustomFood } from "@/lib/foods";
 import { foodSnapshotFromFood, resolveMealFood } from "@/lib/foodSnapshots";
-import { edibleGrams, isEdiblePercent } from "@/lib/foodWeights";
+import { edibleGrams, isEdiblePercent, formatFoodWeight, fromInputWeight, getCookedRawRatio, getWeightInputBasis, toInputWeight } from "@/lib/foodWeights";
 import {
   assessNutritionRecommendation,
   calculateFoodTotals,
@@ -90,6 +90,8 @@ export function MealSplitView({
         foodSnapshot: foodSnapshotFromFood(food),
         useEdiblePortion: false,
         ediblePercent: undefined,
+        inputWeightBasis: undefined,
+        inputCookedRawRatio: undefined,
         ...getDefaultMealEntrySettings(food, meal),
       }));
   };
@@ -410,6 +412,7 @@ export function MealSplitView({
         {preview && (
           <CopyPreview
             meals={preview}
+            foodsById={c.foodsById}
             onApply={applyPreview}
           />
         )}
@@ -487,6 +490,7 @@ export function MealSplitView({
         {preview && (
           <CopyPreview
             meals={preview}
+            foodsById={c.foodsById}
             onApply={applyPreview}
           />
         )}
@@ -513,15 +517,15 @@ export function MealSplitView({
                   {resolveMealFood(e, c.foodsById).food?.name ?? "未找到食物"}
                   <small className="ml-2 text-muted">{m.name}</small>
                 </span>
-                <span className="shrink-0 tabular-nums">
-                  {round(e.grams, 1)} →{" "}
-                  {round(
+                <span className="min-w-0 text-right text-xs tabular-nums">
+                  {formatFoodWeight(resolveMealFood(e, c.foodsById).food ?? { weightBasis: "none" }, e.grams, e)} →{" "}
+                  {formatFoodWeight(
+                    resolveMealFood(e, c.foodsById).food ?? { weightBasis: "none" },
                     c.recommendationsByMeal.get(m.id)?.recommendedEntries[
                       e.id
                     ] ?? e.grams,
-                    1,
-                  )}{" "}
-                  g
+                    e,
+                  )}
                 </span>
               </div>
             ))}
@@ -553,9 +557,11 @@ export function MealSplitView({
 
 function CopyPreview({
   meals,
+  foodsById,
   onApply,
 }: {
   meals: MealPlan[];
+  foodsById: ReadonlyMap<string, FoodItem>;
   onApply: () => void;
 }) {
   return (
@@ -571,7 +577,7 @@ function CopyPreview({
             {m.entries
               .map(
                 (e) =>
-                  `${e.foodSnapshot?.name ?? e.customFood?.name ?? "食物"} ${e.grams}g${e.useEdiblePortion ? `（可食部 ${e.ediblePercent}%）` : ""}`,
+                  `${e.foodSnapshot?.name ?? e.customFood?.name ?? "食物"} ${formatFoodWeight(resolveMealFood(e, foodsById).food ?? { weightBasis: "none" }, e.grams, e)}${e.useEdiblePortion ? `（可食部 ${e.ediblePercent}%）` : ""}`,
               )
               .join("、")}
           </p>
@@ -611,6 +617,11 @@ function FoodEntryRow({
     : { kcal: 0, carbs: 0, protein: 0, fat: 0 };
   const name = food?.name ?? "未找到食物";
   const unit = energyUnit === "kj" ? "kJ" : "kcal";
+  const basis = food ? getWeightInputBasis(food, entry) : "none";
+  const cookedRawRatio = food ? getCookedRawRatio(food, entry) : null;
+  const formatWeight = (grams: number) => food ? round(toInputWeight(food, grams, entry), 1) : grams;
+  const parseWeight = (grams: number) => food ? fromInputWeight(food, grams, entry) : grams;
+  const weightFormatKey = `${basis}:${cookedRawRatio}`;
   return (
     <article className="food-entry-row">
       <div className="flex min-w-0 items-start justify-between gap-2">
@@ -626,9 +637,9 @@ function FoodEntryRow({
           <p className="mt-1 text-xs text-muted">
             {food?.category}
             {food?.weightBasis === "raw"
-              ? " · 生重"
+              ? " · 营养数据按生重"
               : food?.weightBasis === "cooked"
-                ? " · 熟重"
+                ? " · 营养数据按熟重"
                 : ""}
           </p>
         </div>
@@ -650,6 +661,9 @@ function FoodEntryRow({
             min={0}
             required
             value={entry.grams}
+            formatValue={formatWeight}
+            toValue={parseWeight}
+            formatKey={weightFormatKey}
             onValueChange={(value) => {
               onChange((e) => ({ ...e, grams: value as number, locked: true }));
               tutorialAction("food-weight-changed");
@@ -680,6 +694,30 @@ function FoodEntryRow({
           </p>
         </div>
       </div>
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+        <p className="tabular-nums text-muted" aria-label={`${name}生熟重量`}>
+          {formatFoodWeight(food ?? { weightBasis: "none" }, entry.grams, entry)}
+        </p>
+        {food && food.weightBasis !== "none" && (
+          <label className="flex items-center gap-2 text-muted">
+            计算标准
+            <select
+              className="field min-w-0 py-1 text-xs"
+              aria-label={`${name}计算标准`}
+              value={basis}
+              onChange={(event) => onChange((current) => ({ ...current, inputWeightBasis: event.target.value as "raw" | "cooked" }))}
+            >
+              <option value="raw" disabled={food.weightBasis !== "raw" && cookedRawRatio == null}>生重</option>
+              <option value="cooked" disabled={food.weightBasis !== "cooked" && cookedRawRatio == null}>熟重</option>
+            </select>
+          </label>
+        )}
+      </div>
+      {food && food.weightBasis !== "none" && (
+        <p className="mt-1 text-xs text-muted">
+          {cookedRawRatio == null ? "在下方填写实测熟生比后，可切换计算标准。" : "生熟重量按出成率估算；加油、调料和汤汁另计。"}
+        </p>
+      )}
       <div className="food-entry-options">
         <label className="check-label">
           <input
@@ -731,7 +769,7 @@ function FoodEntryRow({
             </label>
             <span className="text-xs text-accent2">
               {entry.useEdiblePortion
-                ? `称重 ${round(entry.grams, 1)} g → 可食 ${round(edibleGrams(entry.grams, entry), 1)} g`
+                ? `称重 ${formatWeight(entry.grams)} g → 可食 ${formatWeight(edibleGrams(entry.grams, entry))} g（${basis === "raw" ? "生重" : basis === "cooked" ? "熟重" : "食用重"}）`
                 : "填写比例后生效"}
             </span>
           </>
@@ -741,7 +779,7 @@ function FoodEntryRow({
       </div>
       <details className="mt-2 text-xs text-muted">
         <summary className="cursor-pointer py-1">
-          分量范围
+          分量范围与生熟换算
         </summary>
         <div className="mt-2 flex flex-wrap items-center gap-3">
           <label className="flex items-center gap-1">
@@ -749,11 +787,15 @@ function FoodEntryRow({
             <NumericInput
               className="field w-20"
               label={`${name}最小克重`}
+              aria-label={`${name}最小克重`}
               min={0}
               blankValue={null}
               value={entry.minGrams}
+              formatValue={formatWeight}
+              toValue={parseWeight}
+              formatKey={weightFormatKey}
               validateValue={(n) =>
-                entry.maxGrams != null && n > entry.maxGrams
+                entry.maxGrams != null && parseWeight(n) > entry.maxGrams
                   ? "不能大于最多分量"
                   : null
               }
@@ -767,11 +809,15 @@ function FoodEntryRow({
             <NumericInput
               className="field w-20"
               label={`${name}最大克重`}
+              aria-label={`${name}最大克重`}
               min={0}
               blankValue={null}
               value={entry.maxGrams}
+              formatValue={formatWeight}
+              toValue={parseWeight}
+              formatKey={weightFormatKey}
               validateValue={(n) =>
-                entry.minGrams != null && n < entry.minGrams
+                entry.minGrams != null && parseWeight(n) < entry.minGrams
                   ? "不能小于最少分量"
                   : null
               }
@@ -781,6 +827,23 @@ function FoodEntryRow({
             />
           </label>
         </div>
+        <p className="mt-2">分量范围按当前{basis === "raw" ? "生重" : basis === "cooked" ? "熟重" : "食用重"}填写。</p>
+        {food && food.weightBasis !== "none" && (
+          <label className="mt-3 block">
+            熟重 ÷ 生重（可用实测值覆盖）
+            <NumericInput
+              className="field mt-1 w-24"
+              label={`${name}熟生比`}
+              aria-label={`${name}熟生比`}
+              minExclusive={0}
+              blankValue={undefined}
+              value={entry.inputCookedRawRatio ?? food.cookedRawRatio}
+              placeholder="待实测"
+              onValueChange={(value) => onChange((current) => ({ ...current, inputCookedRawRatio: value ?? undefined }))}
+            />
+            <span className="mt-1 block">如 100g 生米煮成 250g 熟饭，填 2.5；100g 生肉煮成 66g，填 0.66。留空使用食物库比例。</span>
+          </label>
+        )}
       </details>
     </article>
   );

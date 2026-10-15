@@ -1,7 +1,7 @@
 import { createCustomFood, sortFoods } from "@/lib/foods";
 import { foodFromSnapshot, foodSnapshotFromFood, parseFoodSnapshot } from "@/lib/foodSnapshots";
 import { getDefaultMealEntrySettings } from "@/lib/nutrition";
-import { edibleSelection } from "@/lib/foodWeights";
+import { edibleSelection, weightInputSelection } from "@/lib/foodWeights";
 import { assertMealAllocations, mealMetadata } from "@/lib/planProtocol";
 import {
   foodCategories,
@@ -66,6 +66,7 @@ export function templateRefsFromEntries(
     return {
       foodId: entry.foodId,
       ...edibleSelection({ ...entry }),
+      ...weightInputSelection({ ...entry }),
       ...(foodSnapshot ? { foodSnapshot } : {}),
       ...(entry.customFood ? { customFood: entry.customFood } : {}),
     };
@@ -102,7 +103,7 @@ export function materializeTemplateEntries(
   return refs.map((ref): MealFoodEntry => {
     const food = resolveTemplateFood(ref, foodsById);
     if (!food) {
-      return { id: crypto.randomUUID(), foodId: ref.foodId, grams: 0, locked: true, ...edibleSelection({ ...ref }) };
+      return { id: crypto.randomUUID(), foodId: ref.foodId, grams: 0, locked: true, ...edibleSelection({ ...ref }), ...weightInputSelection({ ...ref }) };
     }
     const defaults = getDefaultMealEntrySettings(food, meal);
     return {
@@ -114,6 +115,7 @@ export function materializeTemplateEntries(
       maxGrams: defaults.maxGrams,
       foodSnapshot: foodSnapshotFromFood(food),
       ...edibleSelection({ ...ref }),
+      ...weightInputSelection({ ...ref }),
       ...(ref.customFood ? { customFood: ref.customFood } : {})
     };
   });
@@ -168,7 +170,7 @@ function parseFoodRefs(value: unknown): TemplateFoodRef[] | null {
     const customFood = item.customFood == null ? undefined : parseTemplateCustomFood(item.customFood);
     if ((item.foodSnapshot != null && !foodSnapshot) || (item.customFood != null && !customFood)) return null;
     let selection;
-    try { selection = edibleSelection(item); } catch { return null; }
+    try { selection = { ...edibleSelection(item), ...weightInputSelection(item) }; } catch { return null; }
     refs.push({
       foodId: item.foodId,
       ...selection,

@@ -61,7 +61,7 @@ describe("food sorting", () => {
 
     // 排序上：配料类食物永远排在坚果之后。
     const sorted = sortFoods([pickById("public-cooking-oil"), pickById("public-almond"), pickById("public-rice-cooked")]);
-    expect(sorted.map((food) => food.name)).toEqual(["白米饭", "杏仁", "食用油"]);
+    expect(sorted.map((food) => food.name)).toEqual(["白米饭", "巴旦木（扁桃仁）", "食用油"]);
   });
 
   it("keeps the built-in food library grouped by category order", () => {

@@ -73,73 +73,79 @@ export const builtinFoods: FoodItem[] = [
     id: "public-rice-cooked",
     name: "白米饭",
     category: "主食",
-    kcalPer100g: 129,
+    kcalPer100g: 124.5,
     fatPer100g: 0.28,
-    carbsPer100g: 27.9,
-    proteinPer100g: 2.66,
+    carbsPer100g: 27.8,
+    proteinPer100g: 2.69,
     weightBasis: "cooked",
     cookedRawRatio: 2.5,
-    source: "public"
+    source: "public",
+    servingDescription: "USDA FoodData Central / SR Legacy，FDC 168878（2026-10-15核对）。每100g可食部，碳水按总碳水减膳食纤维换算；热量按4/4/9估算。白米长粒米饭，熟重；熟生比2.5仅为估算。https://fdc.nal.usda.gov/portal-data/external/168878"
   },
   {
     id: "public-brown-rice-cooked",
     name: "糙米饭",
     category: "主食",
-    kcalPer100g: 110,
-    fatPer100g: 0.89,
-    carbsPer100g: 22.78,
-    proteinPer100g: 2.56,
+    kcalPer100g: 115.7,
+    fatPer100g: 0.97,
+    carbsPer100g: 24,
+    proteinPer100g: 2.74,
     weightBasis: "cooked",
     cookedRawRatio: 2.5,
-    source: "public"
+    source: "public",
+    servingDescription: "USDA FoodData Central / SR Legacy，FDC 169704（2026-10-15核对）。每100g可食部，碳水按总碳水减膳食纤维换算；热量按4/4/9估算。长粒糙米饭，熟重；熟生比2.5仅为估算。https://fdc.nal.usda.gov/portal-data/external/169704"
   },
   {
     id: "public-oats-raw",
     name: "燕麦片",
     category: "主食",
-    kcalPer100g: 389,
+    kcalPer100g: 352.5,
     fatPer100g: 6.9,
-    carbsPer100g: 66.27,
-    proteinPer100g: 16.89,
+    carbsPer100g: 55.7,
+    proteinPer100g: 16.9,
     weightBasis: "raw",
     cookedRawRatio: null,
-    source: "public"
+    source: "public",
+    servingDescription: "USDA FoodData Central / SR Legacy，FDC 169705（2026-10-15核对）。每100g可食部，碳水按总碳水减膳食纤维换算；热量按4/4/9估算。普通干燕麦；按干品重，不适用于加糖即食麦片。https://fdc.nal.usda.gov/portal-data/external/169705"
   },
   {
     id: "public-sweet-potato-cooked",
     name: "红薯",
     category: "主食",
-    kcalPer100g: 86,
-    fatPer100g: 0.05,
-    carbsPer100g: 20.12,
-    proteinPer100g: 1.57,
+    kcalPer100g: 67.5,
+    fatPer100g: 0.14,
+    carbsPer100g: 15.2,
+    proteinPer100g: 1.37,
     weightBasis: "cooked",
     cookedRawRatio: null,
-    source: "public"
+    source: "public",
+    servingDescription: "USDA FoodData Central / SR Legacy，FDC 168484（2026-10-15核对）。每100g可食部，碳水按总碳水减膳食纤维换算；热量按4/4/9估算。去皮水煮红薯，熟重。https://fdc.nal.usda.gov/portal-data/external/168484"
   },
   {
     id: "public-potato-cooked",
     name: "土豆",
     category: "主食",
-    kcalPer100g: 87,
+    kcalPer100g: 81.6,
     fatPer100g: 0.1,
-    carbsPer100g: 20.13,
+    carbsPer100g: 18.3,
     proteinPer100g: 1.87,
     weightBasis: "cooked",
     cookedRawRatio: null,
-    source: "public"
+    source: "public",
+    servingDescription: "USDA FoodData Central / SR Legacy，FDC 170438（2026-10-15核对）。每100g可食部，碳水按总碳水减膳食纤维换算；热量按4/4/9估算。带皮煮熟、只取薯肉，无盐，熟重。https://fdc.nal.usda.gov/portal-data/external/170438"
   },
   {
     id: "public-noodle-cooked",
-    name: "面条",
+    name: "鸡蛋面条（熟）",
     category: "主食",
-    kcalPer100g: 138,
+    kcalPer100g: 132.8,
     fatPer100g: 2.07,
-    carbsPer100g: 25.16,
+    carbsPer100g: 24,
     proteinPer100g: 4.54,
     weightBasis: "cooked",
     cookedRawRatio: null,
-    source: "public"
+    source: "public",
+    servingDescription: "USDA FoodData Central / SR Legacy，FDC 168919（2026-10-15核对）。每100g可食部，碳水按总碳水减膳食纤维换算；热量按4/4/9估算。熟鸡蛋面、强化营养、加盐；不是通用普通面条。https://fdc.nal.usda.gov/portal-data/external/168919"
   },
   {
     id: "public-broccoli-cooked",
@@ -151,7 +157,8 @@ export const builtinFoods: FoodItem[] = [
     proteinPer100g: 2.38,
     weightBasis: "cooked",
     cookedRawRatio: null,
-    source: "public"
+    source: "public",
+    servingDescription: "USDA FoodData Central / SR Legacy，FDC 169967（2026-10-15核对）。每100g可食部，碳水按总碳水减膳食纤维换算；热量按4/4/9估算。水煮西兰花、沥干、无盐，熟重。https://fdc.nal.usda.gov/portal-data/external/169967"
   },
   {
     id: "public-spinach-cooked",
@@ -163,7 +170,8 @@ export const builtinFoods: FoodItem[] = [
     proteinPer100g: 2.97,
     weightBasis: "cooked",
     cookedRawRatio: null,
-    source: "public"
+    source: "public",
+    servingDescription: "USDA FoodData Central / SR Legacy，FDC 168463（2026-10-15核对）。每100g可食部，碳水按总碳水减膳食纤维换算；热量按4/4/9估算。水煮菠菜、沥干、无盐，熟重。https://fdc.nal.usda.gov/portal-data/external/168463"
   },
   {
     id: "public-lettuce-raw",
@@ -175,19 +183,21 @@ export const builtinFoods: FoodItem[] = [
     proteinPer100g: 1.36,
     weightBasis: "raw",
     cookedRawRatio: null,
-    source: "public"
+    source: "public",
+    servingDescription: "USDA FoodData Central / SR Legacy，FDC 169249（2026-10-15核对）。每100g可食部，碳水按总碳水减膳食纤维换算；热量按4/4/9估算。生绿叶生菜，可食部。https://fdc.nal.usda.gov/portal-data/external/169249"
   },
   {
     id: "public-tomato-raw",
     name: "番茄",
     category: "蔬菜",
-    kcalPer100g: 16.2,
+    kcalPer100g: 16.1,
     fatPer100g: 0.2,
-    carbsPer100g: 2.72,
+    carbsPer100g: 2.69,
     proteinPer100g: 0.88,
     weightBasis: "raw",
     cookedRawRatio: null,
-    source: "public"
+    source: "public",
+    servingDescription: "USDA FoodData Central / SR Legacy，FDC 170457（2026-10-15核对）。每100g可食部，碳水按总碳水减膳食纤维换算；热量按4/4/9估算。成熟红番茄，生重。https://fdc.nal.usda.gov/portal-data/external/170457"
   },
   {
     id: "public-cucumber-raw",
@@ -199,127 +209,138 @@ export const builtinFoods: FoodItem[] = [
     proteinPer100g: 0.65,
     weightBasis: "raw",
     cookedRawRatio: null,
-    source: "public"
+    source: "public",
+    servingDescription: "USDA FoodData Central / SR Legacy，FDC 168409（2026-10-15核对）。每100g可食部，碳水按总碳水减膳食纤维换算；热量按4/4/9估算。带皮黄瓜，生重。https://fdc.nal.usda.gov/portal-data/external/168409"
   },
   {
     id: "public-banana-raw",
     name: "香蕉",
     category: "水果",
-    kcalPer100g: 89,
+    kcalPer100g: 88.1,
     fatPer100g: 0.33,
-    carbsPer100g: 22.84,
+    carbsPer100g: 20.2,
     proteinPer100g: 1.09,
     weightBasis: "raw",
     cookedRawRatio: null,
-    source: "public"
+    source: "public",
+    servingDescription: "USDA FoodData Central / SR Legacy，FDC 173944（2026-10-15核对）。每100g可食部，碳水按总碳水减膳食纤维换算；热量按4/4/9估算。生香蕉，可食果肉重。https://fdc.nal.usda.gov/portal-data/external/173944"
   },
   {
     id: "public-apple-raw",
     name: "苹果",
     category: "水果",
-    kcalPer100g: 52,
+    kcalPer100g: 48.2,
     fatPer100g: 0.17,
-    carbsPer100g: 13.81,
+    carbsPer100g: 11.4,
     proteinPer100g: 0.26,
     weightBasis: "raw",
     cookedRawRatio: null,
-    source: "public"
+    source: "public",
+    servingDescription: "USDA FoodData Central / SR Legacy，FDC 171688（2026-10-15核对）。每100g可食部，碳水按总碳水减膳食纤维换算；热量按4/4/9估算。带皮生苹果，去果核可食部。https://fdc.nal.usda.gov/portal-data/external/171688"
   },
   {
     id: "public-orange-raw",
     name: "橙子",
     category: "水果",
-    kcalPer100g: 47,
+    kcalPer100g: 42.4,
     fatPer100g: 0.12,
-    carbsPer100g: 11.75,
+    carbsPer100g: 9.4,
     proteinPer100g: 0.94,
     weightBasis: "raw",
     cookedRawRatio: null,
-    source: "public"
+    source: "public",
+    servingDescription: "USDA FoodData Central / SR Legacy，FDC 169097（2026-10-15核对）。每100g可食部，碳水按总碳水减膳食纤维换算；热量按4/4/9估算。生橙，可食果肉重。https://fdc.nal.usda.gov/portal-data/external/169097"
   },
   {
     id: "public-blueberry-raw",
     name: "蓝莓",
     category: "水果",
-    kcalPer100g: 57,
+    kcalPer100g: 54.3,
     fatPer100g: 0.33,
-    carbsPer100g: 14.49,
+    carbsPer100g: 12.1,
     proteinPer100g: 0.74,
     weightBasis: "raw",
     cookedRawRatio: null,
-    source: "public"
+    source: "public",
+    servingDescription: "USDA FoodData Central / SR Legacy，FDC 171711（2026-10-15核对）。每100g可食部，碳水按总碳水减膳食纤维换算；热量按4/4/9估算。生蓝莓，可食部。https://fdc.nal.usda.gov/portal-data/external/171711"
   },
   {
     id: "public-kiwi-raw",
     name: "猕猴桃",
     category: "水果",
-    kcalPer100g: 61,
+    kcalPer100g: 56,
     fatPer100g: 0.52,
-    carbsPer100g: 14.66,
+    carbsPer100g: 11.7,
     proteinPer100g: 1.14,
     weightBasis: "raw",
     cookedRawRatio: null,
-    source: "public"
+    source: "public",
+    servingDescription: "USDA FoodData Central / SR Legacy，FDC 168153（2026-10-15核对）。每100g可食部，碳水按总碳水减膳食纤维换算；热量按4/4/9估算。绿心猕猴桃，生的可食果肉。https://fdc.nal.usda.gov/portal-data/external/168153"
   },
   {
     id: "public-chicken-breast-cooked",
     name: "鸡胸肉",
     category: "肉类",
-    kcalPer100g: 164,
-    fatPer100g: 3.54,
+    kcalPer100g: 156.1,
+    fatPer100g: 3.57,
     carbsPer100g: 0,
-    proteinPer100g: 30.76,
+    proteinPer100g: 31,
     weightBasis: "cooked",
     cookedRawRatio: 0.75,
-    source: "public"
+    source: "public",
+    servingDescription: "USDA FoodData Central / SR Legacy，FDC 171477（2026-10-15核对）。每100g可食部，碳水按总碳水减膳食纤维换算；热量按4/4/9估算。去皮鸡胸肉、烤熟，可食熟肉；熟生比0.75仅为估算，可用实测值覆盖。https://fdc.nal.usda.gov/portal-data/external/171477"
   },
   {
     id: "public-lean-beef-cooked",
-    name: "瘦牛肉",
+    name: "牛肉饼（90%瘦，烤熟）",
     category: "肉类",
-    kcalPer100g: 217,
+    kcalPer100g: 210.6,
     fatPer100g: 11.8,
     carbsPer100g: 0,
     proteinPer100g: 26.1,
     weightBasis: "cooked",
-    cookedRawRatio: 0.75,
-    source: "public"
+    cookedRawRatio: 0.73,
+    source: "public",
+    servingDescription: "USDA FoodData Central / SR Legacy，FDC 174031（2026-10-15核对）。每100g可食部，碳水按总碳水减膳食纤维换算；热量按4/4/9估算。90%瘦绞牛肉饼、烤熟；对应USDA出成率约0.73，不代表所有牛肉部位。https://fdc.nal.usda.gov/portal-data/external/174031"
   },
   {
     id: "public-salmon-cooked",
     name: "三文鱼",
     category: "肉类",
-    kcalPer100g: 206,
-    fatPer100g: 12.35,
+    kcalPer100g: 200,
+    fatPer100g: 12.4,
     carbsPer100g: 0,
     proteinPer100g: 22.1,
     weightBasis: "cooked",
     cookedRawRatio: 0.8,
-    source: "public"
+    source: "public",
+    servingDescription: "USDA FoodData Central / SR Legacy，FDC 175168（2026-10-15核对）。每100g可食部，碳水按总碳水减膳食纤维换算；热量按4/4/9估算。养殖大西洋三文鱼、干热熟制；熟生比0.8仅为估算。https://fdc.nal.usda.gov/portal-data/external/175168"
   },
   {
     id: "public-egg-whole",
     name: "鸡蛋",
     category: "肉类",
-    kcalPer100g: 143,
+    kcalPer100g: 138.9,
     fatPer100g: 9.51,
     carbsPer100g: 0.72,
-    proteinPer100g: 12.56,
+    proteinPer100g: 12.6,
     weightBasis: "raw",
     cookedRawRatio: null,
-    source: "public"
+    source: "public",
+    servingDescription: "USDA FoodData Central / SR Legacy，FDC 171287（2026-10-15核对）。每100g可食部，碳水按总碳水减膳食纤维换算；热量按4/4/9估算。生全蛋，去壳可食部。https://fdc.nal.usda.gov/portal-data/external/171287"
   },
   {
     id: "public-shrimp-cooked",
     name: "虾仁",
     category: "肉类",
-    kcalPer100g: 99,
+    kcalPer100g: 99.3,
     fatPer100g: 0.28,
     carbsPer100g: 0.2,
-    proteinPer100g: 23.98,
+    proteinPer100g: 24,
     weightBasis: "cooked",
     cookedRawRatio: null,
-    source: "public"
+    source: "public",
+    servingDescription: "USDA FoodData Central / SR Legacy，FDC 175180（2026-10-15核对），熟虾仁，每100g可食部。蛋白质、脂肪采用来源值；碳水沿用0.2g估值，原记录未返回纤维，不能声称由已测纤维差减得到。热量按4/4/9估算。https://fdc.nal.usda.gov/portal-data/external/175180"
   },
   {
     id: "public-whey",
@@ -329,9 +350,10 @@ export const builtinFoods: FoodItem[] = [
     fatPer100g: 6,
     carbsPer100g: 8,
     proteinPer100g: 76,
-    weightBasis: "raw",
+    weightBasis: "none",
     cookedRawRatio: null,
-    source: "public"
+    source: "public",
+    servingDescription: "乳清蛋白粉示例配方；按干粉重，以实际产品标签为准。"
   },
   {
     id: "public-creatine",
@@ -341,9 +363,10 @@ export const builtinFoods: FoodItem[] = [
     fatPer100g: 0,
     carbsPer100g: 0,
     proteinPer100g: 0,
-    weightBasis: "raw",
+    weightBasis: "none",
     cookedRawRatio: null,
-    source: "public"
+    source: "public",
+    servingDescription: "仅适用于无糖、无其他营养辅料的纯肌酸；按粉重，以实际包装为准。"
   },
   {
     id: "public-casein",
@@ -353,9 +376,10 @@ export const builtinFoods: FoodItem[] = [
     fatPer100g: 2,
     carbsPer100g: 10,
     proteinPer100g: 78,
-    weightBasis: "raw",
+    weightBasis: "none",
     cookedRawRatio: null,
-    source: "public"
+    source: "public",
+    servingDescription: "酪蛋白粉示例配方；按干粉重，以实际产品标签为准。"
   },
   {
     id: "public-electrolyte",
@@ -365,9 +389,10 @@ export const builtinFoods: FoodItem[] = [
     fatPer100g: 0,
     carbsPer100g: 30,
     proteinPer100g: 0,
-    weightBasis: "raw",
+    weightBasis: "none",
     cookedRawRatio: null,
-    source: "public"
+    source: "public",
+    servingDescription: "含糖电解质粉示例配方，每100g碳水30g；不能用于无糖产品。按干粉重，以实际标签为准。"
   },
   {
     id: "public-fish-oil",
@@ -377,81 +402,88 @@ export const builtinFoods: FoodItem[] = [
     fatPer100g: 100,
     carbsPer100g: 0,
     proteinPer100g: 0,
-    weightBasis: "raw",
+    weightBasis: "none",
     cookedRawRatio: null,
-    source: "public"
+    source: "public",
+    servingDescription: "纯鱼油内容物，每100g脂肪100g；不包含胶囊壳，按油体重计算。"
   },
   {
     id: "public-cooking-oil",
     name: "食用油",
     category: "食物配料",
-    kcalPer100g: 884,
+    kcalPer100g: 900,
     fatPer100g: 100,
     carbsPer100g: 0,
     proteinPer100g: 0,
-    weightBasis: "raw",
+    weightBasis: "none",
     cookedRawRatio: null,
-    source: "public"
+    source: "public",
+    servingDescription: "USDA FoodData Central / SR Legacy，FDC 171413（2026-10-15核对）。每100g可食部，碳水按总碳水减膳食纤维换算；热量按4/4/9估算。纯油体，参考橄榄油；能量采用本软件4/4/9估算。https://fdc.nal.usda.gov/portal-data/external/171413"
   },
   {
     id: "public-almond",
-    name: "杏仁",
+    name: "巴旦木（扁桃仁）",
     category: "坚果",
-    kcalPer100g: 578,
-    fatPer100g: 50.64,
-    carbsPer100g: 19.74,
-    proteinPer100g: 21.26,
+    kcalPer100g: 570.3,
+    fatPer100g: 49.9,
+    carbsPer100g: 9.1,
+    proteinPer100g: 21.2,
     weightBasis: "raw",
     cookedRawRatio: null,
-    source: "public"
+    source: "public",
+    servingDescription: "USDA FoodData Central / SR Legacy，FDC 170567（2026-10-15核对）。每100g可食部，碳水按总碳水减膳食纤维换算；热量按4/4/9估算。扁桃仁/巴旦木，可食果仁；不是杏核仁。https://fdc.nal.usda.gov/portal-data/external/170567"
   },
   {
     id: "public-walnut",
     name: "核桃",
     category: "坚果",
-    kcalPer100g: 654,
-    fatPer100g: 65.21,
-    carbsPer100g: 13.71,
-    proteinPer100g: 15.23,
+    kcalPer100g: 675.6,
+    fatPer100g: 65.2,
+    carbsPer100g: 7,
+    proteinPer100g: 15.2,
     weightBasis: "raw",
     cookedRawRatio: null,
-    source: "public"
+    source: "public",
+    servingDescription: "USDA FoodData Central / SR Legacy，FDC 170187（2026-10-15核对）。每100g可食部，碳水按总碳水减膳食纤维换算；热量按4/4/9估算。核桃，可食果仁，不含壳。https://fdc.nal.usda.gov/portal-data/external/170187"
   },
   {
     id: "public-cashew",
     name: "腰果",
     category: "坚果",
-    kcalPer100g: 553,
-    fatPer100g: 43.85,
-    carbsPer100g: 30.19,
-    proteinPer100g: 18.22,
+    kcalPer100g: 574.6,
+    fatPer100g: 43.8,
+    carbsPer100g: 26.9,
+    proteinPer100g: 18.2,
     weightBasis: "raw",
     cookedRawRatio: null,
-    source: "public"
+    source: "public",
+    servingDescription: "USDA FoodData Central / SR Legacy，FDC 170162（2026-10-15核对）。每100g可食部，碳水按总碳水减膳食纤维换算；热量按4/4/9估算。未进一步烘烤的腰果仁，不含壳。https://fdc.nal.usda.gov/portal-data/external/170162"
   },
   {
     id: "public-peanut",
     name: "花生",
     category: "坚果",
-    kcalPer100g: 567,
-    fatPer100g: 49.24,
-    carbsPer100g: 16.13,
+    kcalPer100g: 576.4,
+    fatPer100g: 49.2,
+    carbsPer100g: 7.6,
     proteinPer100g: 25.8,
     weightBasis: "raw",
     cookedRawRatio: null,
-    source: "public"
+    source: "public",
+    servingDescription: "USDA FoodData Central / SR Legacy，FDC 172430（2026-10-15核对）。每100g可食部，碳水按总碳水减膳食纤维换算；热量按4/4/9估算。生花生仁，不含壳。https://fdc.nal.usda.gov/portal-data/external/172430"
   },
   {
     id: "public-pistachio",
     name: "开心果",
     category: "坚果",
-    kcalPer100g: 560,
-    fatPer100g: 45.32,
-    carbsPer100g: 27.17,
-    proteinPer100g: 20.16,
+    kcalPer100g: 554.9,
+    fatPer100g: 45.3,
+    carbsPer100g: 16.6,
+    proteinPer100g: 20.2,
     weightBasis: "raw",
     cookedRawRatio: null,
-    source: "public"
+    source: "public",
+    servingDescription: "USDA FoodData Central / SR Legacy，FDC 170184（2026-10-15核对）。每100g可食部，碳水按总碳水减膳食纤维换算；热量按4/4/9估算。生开心果仁，不含壳。https://fdc.nal.usda.gov/portal-data/external/170184"
   },
   ...chinaCompositionFoods
 ];

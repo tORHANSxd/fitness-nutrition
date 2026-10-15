@@ -152,6 +152,7 @@ export function NumericInput({
   const valueChangeRef = useRef(onValueChange);
   const errorChangeRef = useRef(onErrorChange);
   const formatValueRef = useRef(formatValue);
+  const formatKeyRef = useRef(formatKey);
   const draftRef = useRef(initialDraft);
   const [draft, setDraft] = useState(initialDraft);
   const [error, setError] = useState<string | null>(null);
@@ -229,10 +230,15 @@ export function NumericInput({
   }), [fieldId, registerField]);
 
   useEffect(() => {
-    if (focusedRef.current) {
+    const formatChanged = formatKeyRef.current !== formatKey;
+    formatKeyRef.current = formatKey;
+    if (focusedRef.current && !formatChanged) {
       return;
     }
     const nextDraft = displayText(value, formatValueRef.current);
+    if (formatChanged) {
+      snapshotRef.current = { text: nextDraft, value };
+    }
     draftRef.current = nextDraft;
     setDraft(nextDraft);
     pendingRef.current = false;

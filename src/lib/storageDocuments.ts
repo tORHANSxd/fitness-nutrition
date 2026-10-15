@@ -12,7 +12,7 @@ import {
   type UserProfile,
 } from "@/lib/types";
 import { parseFoodSnapshot } from "@/lib/foodSnapshots";
-import { edibleSelection } from "@/lib/foodWeights";
+import { edibleSelection, weightInputSelection } from "@/lib/foodWeights";
 import { assertDocument, assertMealAllocations, boundedNumber, mealMetadata, parseMealSchedule, parsePlanProtocol, record, UnsupportedDocumentError, validTime } from "@/lib/planProtocol";
 import { isDateKey } from "@/lib/dateTime";
 import { normalizeActualV3 } from "@/lib/actualIntake";
@@ -157,6 +157,7 @@ function parseMealEntry(value: unknown): MealFoodEntry {
   return {
     ...value,
     ...edibleSelection(value),
+    ...weightInputSelection(value),
     id: value.id,
     foodId: value.foodId,
     grams: Number(value.grams),

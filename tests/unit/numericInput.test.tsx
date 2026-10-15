@@ -44,6 +44,18 @@ function NumericHarness({ initial = 42, required = true, blankValue }: { initial
 }
 
 describe("NumericInput", () => {
+  it("refreshes a focused field when units change and Escape keeps the new units", () => {
+    const props = { label: "分量", "aria-label": "分量", value: 120, onValueChange: () => {} };
+    const view = render(<NumericInput {...props} formatKey="raw" />);
+    const input = screen.getByRole("textbox", { name: "分量" });
+    fireEvent.focus(input);
+    view.rerender(<NumericInput {...props} formatKey="cooked" formatValue={(value) => value * 2.5} toValue={(value) => value / 2.5} />);
+    expect(input).toHaveValue("300");
+    fireEvent.change(input, { target: { value: "250" } });
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(input).toHaveValue("300");
+  });
+
   it("keeps intermediate drafts visible and calculations on the last valid value", () => {
     render(<NumericHarness />);
     const input = screen.getByRole("textbox", { name: "测试数值" });

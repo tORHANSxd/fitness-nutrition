@@ -487,6 +487,13 @@ export function FoodLibrary({
                     {round(food.proteinPer100g, 1)} · 脂{" "}
                     {round(food.fatPer100g, 1)} g
                   </p>
+                  {food.servingDescription && (
+                    <details className="mt-2 text-xs text-muted">
+                      <summary className="cursor-pointer">数据来源与称重口径</summary>
+                      {food.isUserOverride && <p className="mt-1">当前为个人修改值，下述来源仅供核对原始参考。</p>}
+                      <p className="mt-1 max-w-xl break-words">{food.servingDescription}</p>
+                    </details>
+                  )}
                 </div>
                 <strong className="text-right text-base tabular-nums">
                   {energyValue(calculateFoodKcalPer100g(food))}

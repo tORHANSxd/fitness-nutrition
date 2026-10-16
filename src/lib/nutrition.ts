@@ -714,7 +714,7 @@ export function assessNutritionRecommendation(result: NutritionResult, meals: Me
     }
     const recommendation = recommendationsByMeal.get(meal.id);
     for (const entry of meal.entries) {
-      if (entry.locked || entry.foodSnapshot?.category === "补剂" || (entry.foodSnapshot?.version === 2 && entry.foodSnapshot.portionPolicy === "fixed_dose")) {
+      if (entry.locked || (entry.foodSnapshot?.version === 2 && isFixedDose(entry.foodSnapshot))) {
         continue;
       }
       adjustableEntryCount += 1;

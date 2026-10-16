@@ -21,6 +21,7 @@ import { NumericInput } from "@/components/NumericInput";
 import type { PlannerController } from "@/components/usePlanner";
 import { createCustomFood } from "@/lib/foods";
 import { foodSnapshotFromFood, resolveMealFood } from "@/lib/foodSnapshots";
+import { isFixedDose } from "@/lib/foodNutrition";
 import { edibleGrams, isEdiblePercent, formatFoodWeight, fromInputWeight, getCookedRawRatio, getWeightInputBasis, toInputWeight } from "@/lib/foodWeights";
 import {
   assessNutritionRecommendation,
@@ -616,7 +617,7 @@ function FoodEntryRow({
     ? calculateFoodTotals(food, entry.grams, entry)
     : { kcal: 0, carbs: 0, protein: 0, fat: 0 };
   const name = food?.name ?? "未找到食物";
-  const fixedDose = food?.category === "补剂" || food?.portionPolicy === "fixed_dose";
+  const fixedDose = food ? isFixedDose(food) : false;
   const unit = energyUnit === "kj" ? "kJ" : "kcal";
   const basis = food ? getWeightInputBasis(food, entry) : "none";
   const cookedRawRatio = food ? getCookedRawRatio(food, entry) : null;
@@ -666,7 +667,7 @@ function FoodEntryRow({
             toValue={parseWeight}
             formatKey={weightFormatKey}
             onValueChange={(value) => {
-              onChange((e) => ({ ...e, grams: value as number, locked: true }));
+              onChange((e) => ({ ...e, grams: value as number }));
               tutorialAction("food-weight-changed");
             }}
           />

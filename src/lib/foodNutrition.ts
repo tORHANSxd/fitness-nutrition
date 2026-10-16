@@ -54,7 +54,7 @@ export function foodMetadataFromRow(row: Record<string, unknown>): FoodNutrition
   return metadata;
 }
 
-export const isFixedDose = (food: Pick<FoodItem, "category" | "portionPolicy">) => food.category === "补剂" || food.portionPolicy === "fixed_dose";
+export const isFixedDose = (food: Pick<FoodItem, "category" | "portionPolicy">) => food.portionPolicy === "fixed_dose";
 
 export function fiberSummary(meals: MealPlan[], resolve: (entry: MealPlan["entries"][number]) => FoodItem | null) {
   let knownGrams = 0, unknownItems = 0;

@@ -1157,8 +1157,8 @@ describe("meal solving", () => {
     expect(Math.abs(result.recommendedRemaining.carbs)).toBeLessThanOrEqual(10);
   });
 
-  it("preserves supplement dose while ordinary nuts remain adjustable", () => {
-    // 补剂剂量即使未手动锁定，也不能由求解器自动增加。
+  it("preserves an explicitly fixed supplement dose while ordinary nuts remain adjustable", () => {
+    // 固定剂量必须主动选择，不由补剂分类隐式决定。
     const wheyMeal: MealPlan[] = [
       {
         id: "lunch",
@@ -1174,7 +1174,7 @@ describe("meal solving", () => {
     const wheyResult = buildNutritionResult(
       { ...defaultProfile, goalType: "maintain", weeklyWeightChangePct: 0, planDate: "2026-05-22" },
       wheyMeal,
-      builtinFoods
+      builtinFoods.map(food => food.id === "public-whey" ? { ...food, portionPolicy: "fixed_dose" as const } : food)
     );
     const whey = wheyResult.mealRecommendations[0].recommendedEntries.whey;
     expect(whey).toBe(30);

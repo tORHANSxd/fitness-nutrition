@@ -37,7 +37,7 @@ it("同时展示生熟重，切换保留份量；按熟重输入会换算营养�
   expect(screen.getByLabelText("测试生米最小克重")).toHaveValue("200");
   expect(screen.getByLabelText("测试生米最大克重")).toHaveValue("300");
   fireEvent.change(screen.getByLabelText("测试生米克重"), { target: { value: "100" } });
-  expect(savedEntry()).toMatchObject({ grams: 40, locked: true });
+  expect(savedEntry()).toMatchObject({ grams: 40, locked: false });
   expect(screen.getByText(/碳 32 · 蛋 3.2 · 脂/)).toBeInTheDocument();
   fireEvent.change(screen.getByLabelText("测试生米最小克重"), { target: { value: "150" } });
   expect(savedEntry().minGrams).toBe(60);

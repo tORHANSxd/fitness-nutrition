@@ -415,16 +415,31 @@ describe("MealSplitView（分餐单独页含应用推荐/保存计划 + 弹出�
     expect(screen.queryByText("推荐受锁定限制")).not.toBeInTheDocument();
   });
 
-  it("sets a manual serving and keeps it fixed during recommendations", () => {
+  it.each([false, true])("editing a serving preserves its explicit lock state: %s", locked => {
     const controller = makeController();
     const meal = controller.meals[0];
     const entry = meal.entries.find(item => item.foodId === "public-oats-raw")!;
+    entry.locked = locked;
     render(<MealSplitView controller={controller} foods={builtinFoods} templates={templates}/>);
     fireEvent.change(screen.getByLabelText("燕麦片克重"), {target:{value:"120"}});
     const [mealId, entryId, mapper] = vi.mocked(controller.updateEntry).mock.calls[0];
     expect(mealId).toBe(meal.id);
     expect(entryId).toBe(entry.id);
-    expect(mapper(entry)).toEqual({...entry,grams:120,locked:true});
+    expect(mapper(entry)).toEqual({...entry,grams:120,locked});
+  });
+
+  it("protein powder is unlocked by default and can be manually locked", () => {
+    const controller = makeController();
+    const meal = controller.meals[0];
+    const entry = meal.entries.find(item => item.foodId === "public-whey")!;
+    render(<MealSplitView controller={controller} foods={builtinFoods} templates={templates} />);
+    const toggle = screen.getByRole("button", { name: "锁定乳清蛋白粉分量" });
+    expect(toggle).toBeEnabled();
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(toggle);
+    const [, entryId, mapper] = vi.mocked(controller.updateEntry).mock.calls[0];
+    expect(entryId).toBe(entry.id);
+    expect(mapper(entry)).toEqual({ ...entry, locked: true });
   });
 
   it("keeps a negative serving weight as a visible draft without overwriting the plan", () => {

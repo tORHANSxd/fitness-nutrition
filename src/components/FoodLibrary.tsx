@@ -725,7 +725,7 @@ export function FoodLibrary({
             <label className="text-sm">原标签碳水（g/100g，可留空）<NumericInput className="field mt-1 w-full" label="原标签碳水" min={0} max={100} blankValue={null} value={form.sourceCarbsPer100g} onValueChange={value => setForm(current => ({ ...current, sourceCarbsPer100g: value ?? null }))} /></label>
           </div>
           <p className="text-xs text-muted">上方宏量用于计算；原标签碳水和纤维单独保留，不会对已声明净碳水再次扣减。烹调出成率不代表营养保留率。</p>
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.portionPolicy === "fixed_dose" || form.category === "补剂"} disabled={form.category === "补剂"} onChange={event => setForm(current => ({ ...current, portionPolicy: event.target.checked ? "fixed_dose" : "food" }))} />固定剂量，不参与自动配餐（补剂始终固定）</label>
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.portionPolicy === "fixed_dose"} onChange={event => setForm(current => ({ ...current, portionPolicy: event.target.checked ? "fixed_dose" : "food" }))} />固定剂量，不参与自动配餐</label>
           <details>
             <summary className="cursor-pointer text-sm text-muted">
               更多设置

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { calculateFoodTotals, calculateMealTotals, buildNutritionResult } from "@/lib/nutrition";
+import { calculateFoodTotals, calculateMealTotals, buildNutritionResult, assessNutritionRecommendation } from "@/lib/nutrition";
+import { isFixedDose } from "@/lib/foodNutrition";
 import { actualEntryTotals, actualCoverageKnown, confirmMealEvent } from "@/lib/actualIntake";
 import { attachFoodSnapshots, foodSnapshotFromFood, parseFoodSnapshot } from "@/lib/foodSnapshots";
 import { fromInputWeight } from "@/lib/foodWeights";
@@ -54,9 +55,22 @@ describe("营养标准：食物数据与历史兼容", () => {
     expect(actualCoverageKnown({ version: 2, foods: [{ foodId: "food", name: "样品", grams: 100, totals: { kcal: 150, protein: 20, carbs: 10, fat: 2 } }], exercises: [], bmrKcal: 0, activityKcal: 0 })).toBe(false);
   });
 
-  it("补剂即使未手动锁定也不参与自动调整剂量", () => {
-    const supplement: FoodItem = { ...food, category: "补剂", sourceKcalPer100g: 400, kcalPer100g: 400 };
+  it("主动标记固定剂量的食品不参与自动调整", () => {
+    const supplement: FoodItem = { ...food, category: "补剂", portionPolicy: "fixed_dose", sourceKcalPer100g: 400, kcalPer100g: 400 };
     const result = buildNutritionResult({ ...defaultProfile, targetKcal: 2000, proteinTargetG: 180, fatTargetG: 65 }, [{ ...meal, entries: [{ ...meal.entries[0], grams: 5 }] }], [supplement]);
     expect(result.mealRecommendations[0].recommendedEntries.entry).toBe(5);
+  });
+
+  it("补剂分类默认可调整，推荐状态与求解器均遵守手动锁定和上下限", () => {
+    const supplement: FoodItem = { ...food, name: "合成乳清蛋白粉", category: "补剂", portionPolicy: "food", sourceKcalPer100g: 400, kcalPer100g: 400, proteinPer100g: 100, carbsPer100g: 0, fatPer100g: 0 };
+    const unlocked = { ...meal, entries: [{ ...meal.entries[0], grams: 5, minGrams: 0, maxGrams: 40, foodSnapshot: foodSnapshotFromFood(supplement) }] };
+    const profile = { ...defaultProfile, targetKcal: 2000, proteinTargetG: 180, fatTargetG: 65 };
+    const result = buildNutritionResult(profile, [unlocked], [supplement]);
+    expect(isFixedDose(supplement)).toBe(false);
+    expect(assessNutritionRecommendation(result, [unlocked]).adjustableEntryCount).toBe(1);
+    expect(result.mealRecommendations[0].recommendedEntries.entry).toBeGreaterThan(5);
+    expect(result.mealRecommendations[0].recommendedEntries.entry).toBeLessThanOrEqual(40);
+    const locked = { ...unlocked, entries: [{ ...unlocked.entries[0], locked: true }] };
+    expect(buildNutritionResult(profile, [locked], [supplement]).mealRecommendations[0].recommendedEntries.entry).toBe(5);
   });
 });

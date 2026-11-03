@@ -7,11 +7,13 @@ export function NutritionSummary({
   target,
   energyUnit = "kcal",
   label = "计划摄入",
+  date,
 }: {
   total: MacroTotals;
   target: MacroTotals;
   energyUnit?: EnergyUnit;
   label?: string;
+  date?: string;
 }) {
   const fields = [
     { key: "kcal", label: "热量", color: "var(--color-accent-2)" },
@@ -29,7 +31,7 @@ export function NutritionSummary({
         <h2 className="text-sm font-semibold">{label}</h2>
         <Link
           className="text-xs font-medium text-accent2 hover:underline"
-          href="/goals"
+          href={date ? `/goals?date=${date}` : "/goals"}
         >
           {target.kcal > 0 ? "调整目标" : "设置目标"}
         </Link>

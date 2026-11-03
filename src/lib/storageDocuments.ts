@@ -11,7 +11,7 @@ import {
   type SavedPlan,
   type UserProfile,
 } from "@/lib/types";
-import { dailyTargetForDate } from "@/lib/nutritionStrategy";
+import { dailyTargetForDate, parseDailyEnergyAdjustment } from "@/lib/nutritionStrategy";
 import { parseFoodSnapshot } from "@/lib/foodSnapshots";
 import { edibleSelection, weightInputSelection } from "@/lib/foodWeights";
 import { assertDocument, assertMealAllocations, boundedNumber, mealMetadata, parseMealSchedule, parsePlanProtocol, record, UnsupportedDocumentError, validTime } from "@/lib/planProtocol";
@@ -87,6 +87,7 @@ function parseUserProfile(value: unknown): UserProfile {
   if (value.targetMode != null) profile.targetMode = value.targetMode as UserProfile["targetMode"];
   if (value.allocationMode != null) profile.allocationMode = value.allocationMode as UserProfile["allocationMode"];
   if (value.protocolSnapshot != null) profile.protocolSnapshot = parsePlanProtocol(value.protocolSnapshot);
+  if (value.dailyEnergyAdjustment != null) profile.dailyEnergyAdjustment = parseDailyEnergyAdjustment(value.dailyEnergyAdjustment);
   if (value.targetMode === "calibrated" && (!profile.protocolSnapshot || value.allocationMode !== "explicitMacros")) throw new Error("校准模式缺少协议及显式分配。");
   if (value.scheduleOverride != null) {
     const override = record(value.scheduleOverride);
@@ -289,7 +290,7 @@ export function parseSavedPlanRow(row: Record<string, unknown>): SavedPlan {
   if (profile.allocationMode === "explicitMacros") assertMealAllocations(meals);
   const result = parseNutritionResult(row.result);
   if (profile.protocolSnapshot?.nutrition && (nutritionInputFingerprint(result.targetResolution) !== nutritionInputFingerprint(profile.protocolSnapshot.nutrition.result)
-    || nutritionInputFingerprint(result.dailyTarget) !== nutritionInputFingerprint(dailyTargetForDate(profile.protocolSnapshot, profile.planDate))
+    || nutritionInputFingerprint(result.dailyTarget) !== nutritionInputFingerprint(dailyTargetForDate(profile.protocolSnapshot, profile.planDate, profile.dailyEnergyAdjustment))
     || nutritionInputFingerprint(result.cycleAverageTarget) !== nutritionInputFingerprint(profile.protocolSnapshot.dailyTarget))) throw new UnsupportedDocumentError("每日计划与执行协议冻结结果不一致。", row);
   return {
     id: String(row.id),

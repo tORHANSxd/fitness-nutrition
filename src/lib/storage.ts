@@ -593,6 +593,7 @@ export async function savePlan(
   foods: FoodItem[] = [],
   minimumSchemaVersion: 2 | 3 = 2,
 ): Promise<SavedPlan> {
+  if (result.targetError) throw new Error(result.targetError);
   const { supabase, user: authedUser } = requireClient(user);
   const profileDocument = normalizeUserProfile(profile);
   const resultDocument = normalizeNutritionResult(result);
@@ -790,7 +791,9 @@ export async function completeDailyRecord(
   foods: FoodItem[] = [],
   expectedRevision?: number,
   minimumSchemaVersion: 2 | 3 = 2,
+  completed = true,
 ): Promise<DailyCheckin> {
+  if (result.targetError) throw new Error(result.targetError);
   const { supabase } = requireClient(user);
   const profileDocument = normalizeUserProfile(profile);
   const resultDocument = normalizeNutritionResult(result);
@@ -814,7 +817,7 @@ export async function completeDailyRecord(
     p_integrity_flags: unresolvedFoodFlags(snapshotMeals, foodsById),
     p_actual: actualDocument,
     p_target: targetDocument,
-    p_completed: true,
+    p_completed: completed,
   });
   if (error) throw error;
   if (!data || typeof data !== "object" || Array.isArray(data)) {

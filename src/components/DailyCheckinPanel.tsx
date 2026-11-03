@@ -49,7 +49,7 @@ export function DailyCheckinPanel({
   const exercises = checkin?.actual.exercises ?? noExercises;
 
   const liveActual = useMemo(
-    () => v3Mode ? checkin?.actual.version === 3 ? checkin.actual : { ...emptyActualV3(checkin?.actual), ...(!checkin && controller.profile.protocolSnapshot?.nutrition ? { targetProtocolSnapshot: structuredClone(controller.profile.protocolSnapshot) } : {}) }
+    () => v3Mode ? checkin?.actual.version === 3 ? checkin.actual : { ...emptyActualV3(checkin?.actual), ...(!checkin && controller.profile.protocolSnapshot?.nutrition ? { targetProtocolSnapshot: structuredClone(controller.profile.protocolSnapshot) } : {}), ...(!checkin && controller.profile.dailyEnergyAdjustment ? { targetEnergyAdjustment: controller.profile.dailyEnergyAdjustment } : {}) }
       : checkin?.completed ? checkin.actual : buildDailyActual(controller.profile, controller.meals, controller.result, controller.foodsById, exercises),
     [v3Mode, checkin, controller.foodsById, controller.meals, controller.profile, controller.result, exercises]
   );

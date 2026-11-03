@@ -197,10 +197,12 @@ test("copying legacy meals into a calibrated day preserves its target through sa
   await page.getByRole("dialog").getByLabel("搜索食物", { exact: true }).fill("燕麦片");
   await page.getByRole("dialog").getByText("燕麦片", { exact: true }).click();
   await page.getByLabel("燕麦片克重", { exact: true }).fill("123");
+  await page.getByRole("button", { name: "锁定燕麦片分量", exact: true }).click();
   await page.getByRole("button", { name: "保存计划", exact: true }).click();
   await expect.poll(async () => (await state()).daily_plans.length).toBe(1);
   const source = structuredClone((await state()).daily_plans[0]);
   expect(source.schema_version).toBe(2);
+  expect(source.meals[0].entries[0].locked).toBe(true);
   expect(source.meals.every((meal: { targetAllocation?: unknown }) => !meal.targetAllocation)).toBe(true);
 
   await manualGoal(page);

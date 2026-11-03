@@ -19,3 +19,11 @@
 验收包括来源与宏量能量差异、旧快照保持、生熟重与可食部换算、严格导入、固定剂量、按日期分餐、复盘资格、服务器 14 天门禁、所有权与 RLS、超预算实际记录，以及三种屏幕宽度的浏览器流程。独立 PostgreSQL 引擎测试使用合成身份，不能等同于完整 Supabase Auth/PostgREST 集成测试。
 
 参考：[USDA FoodData Central 文档](https://fdc.nal.usda.gov/Foundation_Foods_Documentation/)、[USDA API](https://fdc.nal.usda.gov/api-guide/)、[中国疾控营养标签查询系统](https://nlc.chinanutri.cn/)。
+
+## 按日热量缺口补充
+
+每日饮食页支持按日期填写估算维持热量和热量缺口（包括 0）。当天摄入目标严格等于维持热量减缺口；蛋白质、脂肪沿用该日目标，碳水按 4/4/9 剩余预算计算。不自动指定食物，也不按缺口更改已有食品克重。
+
+当天覆盖保存于 `profile.dailyEnergyAdjustment`，实际记录保存 `targetEnergyAdjustment`。长期协议及其营养计算快照保持不变，周均协议预算仍表示原方案；当天覆盖会改变实际执行的周预算。缺少消耗来源时由用户明确填写估计值，不从固定摄入反推维持量。运动记录不再叠加到已包含训练的总消耗。
+
+保存使用现有 `complete_daily_record_v3` 的未完成状态，在同一事务更新日期计划及实际目标。实际食品、记录 revision 和协议归属检查保持有效；已完成日期需先重开。数据库先应用 `20261103042039_daily_energy_adjustment.sql`，再发布客户端。

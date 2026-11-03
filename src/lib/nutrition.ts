@@ -14,6 +14,7 @@ import { calibratedTarget, explicitMealTargets, protocolMeals } from "@/lib/plan
 import { edibleGrams } from "@/lib/foodWeights";
 import { energyPer100g, isFixedDose } from "@/lib/foodNutrition";
 import { resolveMealFood } from "@/lib/foodSnapshots";
+import { adjustDailyEnergy } from "@/lib/nutritionStrategy";
 
 export const zeroTotals: MacroTotals = {
   kcal: 0,
@@ -55,7 +56,6 @@ const dailyKcalSurplusCap = 50;
 // 脂肪 = 体重 × 0.65（文档 60–65g、不低于 0.6g/kg）；剩余热量全部给碳水。周六日休息同一目标。
 // 三个目标字段均可手动覆盖（targetKcal/proteinTargetG/fatTargetG），留空即用公式。
 const defaultCalorieDeficit = 600;
-const calorieDeficitRange = { min: 200, max: 1000 };
 const estimatedBodyFatPct = 25; // 未填体脂时的估算值（UI 提示补测体脂更准）
 const bodyFatPctRange = { min: 3, max: 60 };
 const leanBodyFatThreshold = 20;
@@ -429,7 +429,7 @@ function ceilTo5(value: number) {
 }
 
 export function getCalorieDeficit(profile: Pick<UserProfile, "calorieDeficit">) {
-  return clamp(profile.calorieDeficit ?? defaultCalorieDeficit, calorieDeficitRange.min, calorieDeficitRange.max);
+  return profile.calorieDeficit ?? defaultCalorieDeficit;
 }
 
 /** 碳水渐降当前生效校准量 kcal（Σ 步进；负 = 减热量全落碳水）。无步进 = 初始阶段 0。 */
@@ -498,7 +498,9 @@ export function calculateDailyTarget(profile: UserProfile): MacroTotals {
   }
   const protein = getProteinTargetG(profile);
   const fat = getFatTargetG(profile);
-  const carbs = Math.max((getTargetKcal(profile) - protein * 4 - fat * 9) / 4, 0);
+  if (profile.dailyEnergyAdjustment) return adjustDailyEnergy({ kcal: 0, protein, fat, carbs: 0 }, profile.dailyEnergyAdjustment);
+  const carbs = (getTargetKcal(profile) - protein * 4 - fat * 9) / 4;
+  if (carbs < 0) throw new Error("蛋白质和脂肪已超过热量目标，请调整目标后再保存。");
   const target = { kcal: 0, carbs, protein, fat };
 
   return {
@@ -535,10 +537,14 @@ export function calculateCalorieTarget(profile: UserProfile) {
 
 // 当日目标相对维持(TDEE)的盈亏（≈ −赤字）；档案不完整时返回 0，避免空档案的噪声值。
 export function calculatePlannedCalorieDelta(profile: UserProfile) {
-  if (!isProfileComplete(profile)) {
-    return 0;
-  }
-  return calculateDailyTarget(profile).kcal - calculateTdee(profile);
+  const tdee = targetTdee(profile);
+  return tdee == null ? 0 : calculateDailyTarget(profile).kcal - tdee;
+}
+
+export function targetTdee(profile: UserProfile): number | null {
+  if (profile.dailyEnergyAdjustment) return profile.dailyEnergyAdjustment.tdeeKcal;
+  if (profile.protocolSnapshot?.nutrition) return profile.protocolSnapshot.nutrition.result.expenditure.tdeeKcal ?? null;
+  return isProfileComplete(profile) ? calculateTdee(profile) : null;
 }
 
 export function calculateFoodTotals(food: FoodItem, grams: number, selection?: Pick<MealFoodEntry, "useEdiblePortion" | "ediblePercent">): MacroTotals {
@@ -1311,13 +1317,23 @@ function dailyBandConflictMessage(remaining: MacroTotals) {
 
 export function buildNutritionResult(profile: UserProfile, meals: MealPlan[], foods: FoodItem[]): NutritionResult {
   const foodsById = new Map(foods.map((food) => [food.id, food]));
-  const cycleAverageTarget = calculateCycleAverageTarget(profile);
-  const dailyTarget = calculateDailyTarget(profile);
   const actualTotals = calculateMealsTotals(meals, foods);
+  let cycleAverageTarget: MacroTotals, dailyTarget: MacroTotals;
+  try {
+    dailyTarget = calculateDailyTarget(profile);
+    cycleAverageTarget = calculateCycleAverageTarget(profile);
+  } catch (error) {
+    const targetError = error instanceof Error ? error.message : "每日目标无效。";
+    return { targetError, estimatesAvailable: false, bmr: 0, tdee: 0, plannedCalorieDelta: 0,
+      dailyTarget: { ...zeroTotals }, cycleAverageTarget: { ...zeroTotals }, actualTotals,
+      recommendedTotals: actualTotals, targetRatio: { carbs: 0, protein: 0, fat: 0 }, actualRatio: calculateMacroRatio(actualTotals),
+      remaining: subtractTotals(zeroTotals, actualTotals), recommendedRemaining: subtractTotals(zeroTotals, actualTotals),
+      mealRecommendations: [], conflicts: [targetError] };
+  }
   const targetResolution = profile.protocolSnapshot?.nutrition?.result;
-  const estimatesAvailable = targetResolution ? targetResolution.expenditure.tdeeKcal != null : isProfileComplete(profile);
-  const tdee = targetResolution ? targetResolution.expenditure.tdeeKcal ?? 0 : estimatesAvailable ? calculateTdee(profile) : 0;
-  const plannedCalorieDelta = targetResolution ? targetResolution.rawValues.energyDeltaKcal ?? 0 : calculatePlannedCalorieDelta(profile);
+  const estimatesAvailable = targetTdee(profile) != null;
+  const tdee = targetTdee(profile) ?? 0;
+  const plannedCalorieDelta = estimatesAvailable ? dailyTarget.kcal - tdee : 0;
   const lockedMealTotals = meals
     .filter((meal) => meal.locked)
     .reduce((total, meal) => addTotals(total, calculateMealTotals(meal, foodsById)), zeroTotals);

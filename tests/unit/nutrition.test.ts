@@ -131,15 +131,15 @@ describe("nutrition formulas", () => {
     expect(round(calculateDailyTarget({ ...profile, calorieDeficit: 500 }).kcal, 0)).toBe(round(tdee - 500, 0));
   });
 
-  it("clamps override fields and the deficit into sane ranges", () => {
+  it("preserves legacy override bounds and the explicit deficit including small values", () => {
     expect(getTargetKcal({ ...profile, targetKcal: 500 })).toBe(1200);
     expect(getTargetKcal({ ...profile, targetKcal: 9000 })).toBe(6000);
     expect(getProteinTargetG({ ...profile, proteinTargetG: 20 })).toBe(80);
     expect(getProteinTargetG({ ...profile, proteinTargetG: 500 })).toBe(300);
     expect(getFatTargetG({ ...profile, fatTargetG: 5 })).toBe(30);
     expect(getFatTargetG({ ...profile, fatTargetG: 400 })).toBe(150);
-    expect(getCalorieDeficit({ calorieDeficit: 50 })).toBe(200);
-    expect(getCalorieDeficit({ calorieDeficit: 2000 })).toBe(1000);
+    expect(getCalorieDeficit({ calorieDeficit: 50 })).toBe(50);
+    expect(getCalorieDeficit({ calorieDeficit: 2000 })).toBe(2000);
     expect(getCalorieDeficit({})).toBe(600);
   });
 
@@ -300,12 +300,10 @@ describe("carb taper (v2 文档第五节渐进热量校准：每步 ±100~150 kc
     expect(round(tapered.carbs, 1)).toBe(205);
   });
 
-  it("cannot taper past the floors: carbs clamp at 0 and kcal floor at 1200", () => {
-    // 极深渐降：目标热量被 1200 下限兜住，碳水最多压到 0（不为负），
-    // 此时 kcal 回落到蛋白×4+脂肪×9 的底座——渐降无法击穿蛋白/脂肪守底。
-    const tapered = calculateDailyTarget({ ...defaultProfile, carbTaperSteps: [{ date: "2026-07-13", deltaKcal: -2000 }] });
-    expect(tapered.carbs).toBe(0);
-    expect(round(tapered.kcal, 0)).toBe(round(tapered.protein * 4 + tapered.fat * 9, 0));
+  it("rejects tapering below the protein and fat budget without silently raising energy", () => {
+    const profile = { ...defaultProfile, carbTaperSteps: [{ date: "2026-07-13", deltaKcal: -2000 }] };
+    expect(() => calculateDailyTarget(profile)).toThrow("超过热量目标");
+    expect(buildNutritionResult(profile, [], []).targetError).toContain("超过热量目标");
     expect(getTargetKcal({ ...defaultProfile, carbTaperSteps: [{ date: "2026-07-13", deltaKcal: -2000 }] })).toBe(1200);
   });
 

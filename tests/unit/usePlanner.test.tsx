@@ -4,7 +4,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { usePlanner, type UsePlannerArgs } from "@/components/usePlanner";
 import { emptyProfile } from "@/lib/demoState";
 import { createDefaultMeals, buildNutritionResult } from "@/lib/nutrition";
-import { loadPlannerDraft, savePlannerDraft, savePlan, PlannerDraftConflictError } from "@/lib/storage";
+import { completeDailyRecord, loadDailyCheckin, loadPlannerDraft, savePlannerDraft, savePlan, PlannerDraftConflictError } from "@/lib/storage";
 import { UnsupportedDocumentError } from "@/lib/planProtocol";
 import { protocolMeals } from "@/lib/planProtocol";
 import { syntheticGoalProtocol, syntheticPolicy } from "../fixtures/nutritionGoalFixture";
@@ -18,7 +18,7 @@ import { parsePlannerDraftRow, parseSavedPlanRow } from "@/lib/storageDocuments"
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }) }));
 vi.mock("@/lib/bodyLogs", () => ({ loadBodyLogs: vi.fn(async () => []), mergeLatestBodyMetrics: (profile: unknown) => profile }));
 vi.mock("@/lib/protocolStorage", () => ({ loadPlanProtocols: vi.fn(async () => []) }));
-vi.mock("@/lib/storage", () => ({ loadPlannerDraft: vi.fn(), savePlannerDraft: vi.fn(async () => ({ revision: 5 })), savePlan: vi.fn(), PlannerDraftConflictError: class extends Error {} }));
+vi.mock("@/lib/storage", () => ({ loadDailyCheckin: vi.fn(async () => null), completeDailyRecord: vi.fn(), loadPlannerDraft: vi.fn(), savePlannerDraft: vi.fn(async () => ({ revision: 5 })), savePlan: vi.fn(), PlannerDraftConflictError: class extends Error {} }));
 
 const profile = { ...emptyProfile, planDate: "2030-01-03" };
 const meals = createDefaultMeals(profile);
@@ -28,7 +28,30 @@ afterEach(cleanup);
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(loadPlanProtocols).mockResolvedValue([]);
+  vi.mocked(loadDailyCheckin).mockResolvedValue(null);
   vi.mocked(loadPlannerDraft).mockResolvedValue({ profile, meals: meals.map((m, i) => i ? m : { ...m, name: "草稿餐", schedule: { start: "12:00", end: "12:30", endDayOffset: 0 } }), updatedAt: "", revision: 4, schemaVersion: 2 });
+});
+
+it("当天缺口保存日期计划和实际；刷新恢复，切换日期不会继承", async () => {
+  const goal = syntheticGoalProtocol({ date: profile.planDate });
+  vi.mocked(loadPlanProtocols).mockResolvedValue([goal]);
+  const props = { ...args, openDateRequest: { date: profile.planDate, plan: null, nonce: 1 } };
+  const { result, rerender, unmount } = renderHook((p: UsePlannerArgs) => usePlanner(p), { initialProps: props as UsePlannerArgs });
+  await waitFor(() => expect(result.current.profile.protocolSnapshot?.id).toBe(goal.id));
+  const beforeMeals = structuredClone(result.current.meals);
+  await act(async () => { expect(await result.current.applyDailyEnergyAdjustment?.({ tdeeKcal: 2650, deficitKcal: 800 })).toBe(true); });
+  expect(result.current.result.dailyTarget.kcal).toBe(1850);
+  expect(result.current.meals).toEqual(beforeMeals);
+  expect(vi.mocked(completeDailyRecord).mock.calls[0][9]).toBe(false);
+  const saved: SavedPlan = { ...savedPlan, profile: result.current.profile, meals: result.current.meals, result: result.current.result, schemaVersion: 3 };
+  rerender({ ...props, openDateRequest: { date: "2030-01-04", plan: null, nonce: 2 } });
+  await waitFor(() => expect(result.current.profile.planDate).toBe("2030-01-04"));
+  expect(result.current.profile.dailyEnergyAdjustment).toBeUndefined();
+  expect(result.current.result.dailyTarget).toEqual(goal.dailyTarget);
+  unmount();
+  const refreshed = renderHook(() => usePlanner({ ...args, openDateRequest: { date: profile.planDate, plan: saved, nonce: 3 } }));
+  await waitFor(() => expect(refreshed.result.current.result.dailyTarget.kcal).toBe(1850));
+  expect(refreshed.result.current.profile.dailyEnergyAdjustment?.deficitKcal).toBe(800);
 });
 
 it("刷新优先同日草稿，保留未手动保存的餐次时间", async () => {

@@ -7,6 +7,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { fiberSummary } from "@/lib/foodNutrition";
 import { resolveMealFood } from "@/lib/foodSnapshots";
 import { NutritionSummary } from "@/components/NutritionSummary";
+import { DailyEnergyPanel } from "@/components/DailyEnergyPanel";
 import { useEffect, useMemo, useState } from "react";
 import { MealSplitView } from "@/components/MealSplitView";
 import dynamic from "next/dynamic";
@@ -275,7 +276,9 @@ export function TodayWorkspace({
                   total={controller.result.actualTotals}
                   target={controller.result.dailyTarget}
                   energyUnit={preferences.energyUnit}
+                  date={requestedDate}
                 />
+                <DailyEnergyPanel key={`${controller.profile.planDate}:${controller.result.tdee}:${controller.result.dailyTarget.kcal}:${JSON.stringify(controller.profile.dailyEnergyAdjustment)}`} controller={controller} energyUnit={preferences.energyUnit} />
                 <p className="text-xs text-muted" aria-label="计划膳食纤维">{(() => { const fiber = fiberSummary(controller.meals, entry => resolveMealFood(entry, controller.foodsById).food); return `已知纤维 ${fiber.knownGrams.toFixed(1)} g${fiber.complete ? "" : ` · ${fiber.unknownItems} 项纤维未知，当前为部分合计`}`; })()}</p>
                 <MealSplitView
                   controller={controller}

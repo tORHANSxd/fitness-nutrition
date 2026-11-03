@@ -44,6 +44,7 @@ export interface CarbTaperStep {
 }
 
 export interface UserProfile {
+  dailyEnergyAdjustment?: { tdeeKcal: number; deficitKcal: number };
   targetMode?: "legacy" | "calibrated";
   allocationMode?: "ratio" | "explicitMacros";
   protocolSnapshot?: PlanProtocol;
@@ -215,6 +216,7 @@ export interface MealRecommendation {
 }
 
 export interface NutritionResult {
+  targetError?: string;
   /** New consumers prefer this frozen, nullable expenditure over legacy numeric fields. */
   targetResolution?: NutritionTargetResolution;
   estimatesAvailable?: boolean;
@@ -324,6 +326,7 @@ export interface DailyCheckinActualV3 extends Omit<DailyCheckinActualV2, "versio
   version: 3;
   /** Immutable target source for a newly started record; actual intake remains independent. */
   targetProtocolSnapshot?: PlanProtocol;
+  targetEnergyAdjustment?: UserProfile["dailyEnergyAdjustment"];
   mealEvents: MealEvent[];
   /** 从 V2 显式继续记录时保留全天原始量，餐时仍未知。 */
   legacyActual?: DailyCheckinActualV2;

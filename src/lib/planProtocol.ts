@@ -140,7 +140,7 @@ export function resolveProtocol(protocols: PlanProtocol[], date: string): PlanPr
 export function calibratedTarget(profile: UserProfile): MacroTotals | null {
   if (profile.targetMode !== "calibrated") return null;
   if (!profile.protocolSnapshot) throw new Error("校准模式缺少执行协议，已停止计算。");
-  return dailyTargetForDate(profile.protocolSnapshot, profile.planDate);
+  return dailyTargetForDate(profile.protocolSnapshot, profile.planDate, profile.dailyEnergyAdjustment);
 }
 
 export function protocolMeals(protocol: PlanProtocol, date = protocol.effectiveFrom): MealPlan[] {
@@ -189,5 +189,5 @@ export function explicitMealTargets(profile: UserProfile, meals: MealPlan[], dai
 }
 
 export function planDocumentVersion(profile: UserProfile, meals: MealPlan[]): 2 | 3 {
-  return profile.protocolSnapshot || meals.some((meal) => meal.kind || meal.schedule || meal.targetAllocation) ? 3 : 2;
+  return profile.protocolSnapshot || profile.dailyEnergyAdjustment || meals.some((meal) => meal.kind || meal.schedule || meal.targetAllocation) ? 3 : 2;
 }

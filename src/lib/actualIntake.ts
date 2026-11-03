@@ -1,4 +1,5 @@
 import { Temporal } from "@js-temporal/polyfill";
+import { parseDailyEnergyAdjustment } from "@/lib/nutritionStrategy";
 import { edibleGrams } from "@/lib/foodWeights";
 import { foodSnapshotFromFood, parseFoodSnapshot, resolveMealFood } from "@/lib/foodSnapshots";
 import { assertDocument, boundedNumber, parsePlanProtocol, record, validZone } from "@/lib/planProtocol";
@@ -60,6 +61,7 @@ export function normalizeActualV3(raw: unknown, legacy?: DailyCheckinActualV2): 
   if (item.version !== 3 || !Array.isArray(item.mealEvents) || item.mealEvents.length > 100 || typeof item.intakeComplete !== "boolean" || !Array.isArray(item.exercises)) throw new Error("实际 V3 文档无效。");
   const mealEvents = item.mealEvents.map(parseMealEvent);
   const targetProtocolSnapshot = item.targetProtocolSnapshot == null ? undefined : parsePlanProtocol(item.targetProtocolSnapshot);
+  if (item.targetEnergyAdjustment != null) item.targetEnergyAdjustment = parseDailyEnergyAdjustment(item.targetEnergyAdjustment);
   if (new Set(mealEvents.map((event) => event.id)).size !== mealEvents.length) throw new Error("实际事件标识重复。");
   const exercises = item.exercises.map((rawExercise) => {
     const e = record(rawExercise);

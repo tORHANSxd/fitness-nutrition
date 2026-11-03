@@ -469,8 +469,8 @@ function ProfilePanel({ profile, updateProfile, timeZone, unitSystem, energyUnit
               formatKey={energyUnit}
               formatValue={(value) => round(displayEnergy(value, energyUnit), 2)}
               label="减脂赤字"
-              min={round(displayEnergy(200, energyUnit), 2)}
-              max={round(displayEnergy(1000, energyUnit), 2)}
+              min={0}
+              max={round(displayEnergy(10000, energyUnit), 2)}
               toValue={(value) => canonicalEnergy(value, energyUnit)}
               value={profile.calorieDeficit}
               placeholder={`默认 ${round(displayEnergy(getCalorieDeficit({}), energyUnit), 0)}`}
@@ -565,8 +565,13 @@ function CarbTaperPanel({ profile, updateProfile, timeZone, energyUnit, unitSyst
   const ready = isProfileComplete(profile);
   // 首周目标 = 渐降基线（残差法：蛋白/脂肪按身体数据锚定后，剩余热量 ÷4），随体测实时重算；
   // 本周目标 = 基线 + Σ 步进。g/kg 体重是初始碳水合理性的交叉校验口径（文献带约 2–4）。
-  const baselineCarbs = calculateBaselineDailyTarget(profile).carbs;
-  const taperedCarbs = calculateDailyTarget(profile).carbs;
+  let baselineCarbs: number, taperedCarbs: number;
+  try {
+    baselineCarbs = calculateBaselineDailyTarget(profile).carbs;
+    taperedCarbs = calculateDailyTarget(profile).carbs;
+  } catch (error) {
+    return <p role="alert" className="text-sm text-danger">{error instanceof Error ? error.message : "请先调整每日目标。"}</p>;
+  }
   const taperedCarbsPerKg = carbsPerKgBodyweight(profile, taperedCarbs);
   const energyLabel = energyUnit === "kj" ? "kJ" : "kcal";
   const weightLabel = unitSystem === "imperial" ? "lb" : "kg";

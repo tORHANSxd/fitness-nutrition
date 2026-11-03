@@ -13,9 +13,10 @@ import { loadPlanProtocols } from "@/lib/protocolStorage";
 import { exportPlanDocument, importPlanDocument } from "@/lib/planTransfer";
 import { nutritionInputFingerprint } from "@/lib/nutritionGoals/calculator";
 import { allocateMealLayout, configureMealLayout, mealLayoutDraft, type MealLayoutSlot } from "@/lib/mealLayout";
-import { buildNutritionResult, createDefaultMeals, getDefaultMealEntrySettings, normalizeMealRatios, round } from "@/lib/nutrition";
+import { buildNutritionResult, calculateDailyTarget, createDefaultMeals, getDefaultMealEntrySettings, normalizeMealRatios, round } from "@/lib/nutrition";
+import { emptyActualV3 } from "@/lib/actualIntake";
 import { displayEnergy, type EnergyUnit } from "@/lib/preferences";
-import { loadPlannerDraft, PlannerDraftConflictError, savePlan, savePlannerDraft } from "@/lib/storage";
+import { completeDailyRecord, loadDailyCheckin, loadPlannerDraft, PlannerDraftConflictError, savePlan, savePlannerDraft } from "@/lib/storage";
 import { parseMeals } from "@/lib/storageDocuments";
 import {
   buildTemplateName,
@@ -60,6 +61,7 @@ export interface PlannerController {
   exportDocument?: () => string | null;
   importDocument?: (text: string) => void;
   applyProtocol?: (protocol: PlanProtocol) => void;
+  applyDailyEnergyAdjustment?: (adjustment?: UserProfile["dailyEnergyAdjustment"]) => Promise<boolean>;
   rawDocument?: unknown;
   profile: UserProfile;
   meals: MealPlan[];
@@ -371,6 +373,8 @@ export function usePlanner({ foods, templates, user, timeZone, energyUnit = "kca
       router.push(`/today?date=${encodeURIComponent(String(value))}`);
       return;
     }
+    try { calculateDailyTarget({ ...profileRef.current, [key]: value }); }
+    catch (error) { setMessage(error instanceof Error ? error.message : "目标配置无效。"); return; }
     setProfile((current) => {
       const next = { ...current, [key]: value };
       // 仅训练时间影响餐结构（休息日=3餐、训练日=4餐含训练前加餐）；v2 目标字段不动餐数。
@@ -570,6 +574,35 @@ export function usePlanner({ foods, templates, user, timeZone, energyUnit = "kca
     }
   }
 
+  async function applyDailyEnergyAdjustment(adjustment?: UserProfile["dailyEnergyAdjustment"]): Promise<boolean> {
+    if (saving || suspendWrites || !hydrated || rawDocument != null || (user && !autosaveEnabledRef.current)) return false;
+    if (validateNumericDrafts && !validateNumericDrafts()) return false;
+    const date = profile.planDate;
+    const session = draftSessionRef.current;
+    setSaving(true); setMessage("");
+    try {
+      const next = { ...profile, dailyEnergyAdjustment: adjustment };
+      const nextResult = buildNutritionResult(next, meals, allFoods);
+      const checkin = await loadDailyCheckin(date, user);
+      if (checkin?.completed) throw new Error("该日实际记录已完成，请先在实际记录页重开，再调整当天缺口。");
+      const actual = checkin?.actual.version === 3 ? structuredClone(checkin.actual) : emptyActualV3(checkin?.actual);
+      if (!checkin && profile.protocolSnapshot?.nutrition) actual.targetProtocolSnapshot = structuredClone(profile.protocolSnapshot);
+      if (adjustment) actual.targetEnergyAdjustment = adjustment;
+      else delete actual.targetEnergyAdjustment;
+      const version = Math.max(getPlanSchemaVersion(), planDocumentVersion(next, meals)) as 2 | 3;
+      await completeDailyRecord(next, meals, nextResult, actual, nextResult.dailyTarget, user, allFoods, checkin?.revision, version, false);
+      notePlanSaved(date, version);
+      if (session === draftSessionRef.current && profileRef.current.planDate === date) {
+        setProfile(current => ({ ...current, dailyEnergyAdjustment: adjustment }));
+        setMessage("当天热量与碳蛋脂目标已保存，食物由你自行安排。");
+      }
+      return true;
+    } catch (error) {
+      if (session === draftSessionRef.current && profileRef.current.planDate === date) setMessage(error instanceof Error ? error.message : "当天目标保存失败。");
+      return false;
+    } finally { setSaving(false); }
+  }
+
   function normalizeRatios() {
     setMeals((current) => normalizeMealRatios(current));
   }
@@ -674,6 +707,7 @@ export function usePlanner({ foods, templates, user, timeZone, energyUnit = "kca
     exportDocument,
     importDocument,
     applyProtocol,
+    applyDailyEnergyAdjustment,
     rawDocument,
     profile,
     meals,
@@ -705,7 +739,7 @@ export function usePlanner({ foods, templates, user, timeZone, energyUnit = "kca
 
   function profileAtDate(base: UserProfile, date: string): UserProfile {
     const protocol = resolveProtocol(protocolsRef.current, date);
-    const { protocolSnapshot: _protocol, targetMode: _mode, allocationMode: _allocation, scheduleOverride: _override, ...legacy } = base;
+    const { protocolSnapshot: _protocol, targetMode: _mode, allocationMode: _allocation, scheduleOverride: _override, dailyEnergyAdjustment: _energy, ...legacy } = base;
     if (!protocol) return { ...legacy, planDate: date };
     return { ...legacy, planDate: date, targetMode: "calibrated", allocationMode: "explicitMacros", protocolSnapshot: structuredClone(protocol) };
   }

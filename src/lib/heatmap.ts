@@ -3,7 +3,7 @@ import { edibleGrams } from "@/lib/foodWeights";
 import { daysBetween, isDateKey, monthKey, startOfWeek, toDateKey, toPlainDate } from "@/lib/dateTime";
 import { customFoodsFromMeals } from "@/lib/foods";
 import { foodFromSnapshot, parseFoodSnapshot } from "@/lib/foodSnapshots";
-import { calculateFoodKcalPer100g, getCalorieDeficit } from "@/lib/nutrition";
+import { calculateFoodKcalPer100g, targetTdee } from "@/lib/nutrition";
 import { actualTotals } from "@/lib/actualIntake";
 import type {
   DailyCheckin,
@@ -184,15 +184,16 @@ export function buildHeatmapDays({
     if (!actual) {
       return [];
     }
+    const adjustment = completed && actual.version === 3 ? actual.targetEnergyAdjustment : plan?.profile.dailyEnergyAdjustment;
+    const expenditure = completed ? actual.version === 3 ? actual.targetProtocolSnapshot?.nutrition?.result.expenditure : undefined : plan?.profile.protocolSnapshot?.nutrition?.result.expenditure;
 
     return [{
-      ...(completed ? actual.version === 3 && actual.targetProtocolSnapshot?.nutrition ? { expenditure: actual.targetProtocolSnapshot.nutrition.result.expenditure } : {}
-        : plan?.profile.protocolSnapshot?.nutrition ? { expenditure: plan.profile.protocolSnapshot.nutrition.result.expenditure } : {}),
+      ...(adjustment ? { expenditure: { rmrKcal: expenditure?.rmrKcal ?? null, tdeeKcal: adjustment.tdeeKcal, source: "daily_estimate" } } : expenditure ? { expenditure } : {}),
       date,
       completed,
       actual,
       target: completed && checkin ? checkin.target ?? plan?.result.dailyTarget ?? zeroTotals() : livePlan ? livePlan.result.dailyTarget : checkin?.target ?? plan?.result.dailyTarget ?? zeroTotals(),
-      plannedCalorieDeficitKcal: plan && plan.profile.targetMode !== "calibrated" && plan.result.dailyTarget.kcal > 0 ? getCalorieDeficit(plan.profile) : 0,
+      plannedCalorieDeficitKcal: adjustment?.deficitKcal ?? (plan?.result.dailyTarget.kcal ? Math.max(0, (targetTdee(plan.profile) ?? plan.result.dailyTarget.kcal) - plan.result.dailyTarget.kcal) : 0),
       plannedExerciseKcal: plan ? Math.max(0, plan.profile.exerciseKcal ?? 0) : 0
     }];
   });
@@ -242,7 +243,7 @@ export function aggregateHeatmap(days: HeatmapDay[], metric: HeatmapMetric): Hea
     });
     if (metric === "kcal") {
       if (day.expenditure) {
-        if (day.expenditure.tdeeKcal != null) add("expenditure:protocol", "activity", "协议估计TDEE（含所选活动口径）", -day.expenditure.tdeeKcal, day.date);
+        if (day.expenditure.tdeeKcal != null) add("expenditure:protocol", "activity", "估计日均总消耗（含所选活动口径）", -day.expenditure.tdeeKcal, day.date);
         return; // Recorded exercise stays in the log; it is not subtracted again from total PAL/TDEE.
       }
       let hasRecordedExercise = false;

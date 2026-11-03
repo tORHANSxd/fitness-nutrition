@@ -1,5 +1,21 @@
 import { Temporal } from "@js-temporal/polyfill";
-import type { MacroTotals, PlanProtocol } from "@/lib/types";
+import type { MacroTotals, PlanProtocol, UserProfile } from "@/lib/types";
+
+export function parseDailyEnergyAdjustment(value: unknown): NonNullable<UserProfile["dailyEnergyAdjustment"]> {
+  const a = value as UserProfile["dailyEnergyAdjustment"];
+  if (!a || typeof a.tdeeKcal !== "number" || !Number.isFinite(a.tdeeKcal) || a.tdeeKcal <= 0 || a.tdeeKcal > 10000
+    || typeof a.deficitKcal !== "number" || !Number.isFinite(a.deficitKcal) || a.deficitKcal < 0 || a.deficitKcal >= a.tdeeKcal) throw new Error("维持热量须为 0–10,000 kcal 之间的正数；缺口须非负且小于维持热量。");
+  return { tdeeKcal: a.tdeeKcal, deficitKcal: a.deficitKcal };
+}
+
+export function adjustDailyEnergy(base: MacroTotals, adjustment?: UserProfile["dailyEnergyAdjustment"]): MacroTotals {
+  if (!adjustment) return { ...base };
+  const { tdeeKcal, deficitKcal } = parseDailyEnergyAdjustment(adjustment);
+  const kcal = tdeeKcal - deficitKcal;
+  const carbs = (kcal - base.protein * 4 - base.fat * 9) / 4;
+  if (carbs < 0) throw new Error("蛋白质和脂肪已超过当天热量预算，请减小缺口或调整蛋白质、脂肪目标。");
+  return { kcal, protein: base.protein, fat: base.fat, carbs };
+}
 
 export type NutritionStrategy = { version: 1; mode: "fixed_daily" } | {
   version: 1; mode: "weekly_cycle"; isoWeekdaysTraining: number[];
@@ -27,8 +43,8 @@ export function parseNutritionStrategy(value: unknown, average: MacroTotals): Nu
   return { version: 1, mode: "weekly_cycle", isoWeekdaysTraining: [...s.isoWeekdaysTraining].sort((a, b) => a - b), trainingTarget, restTarget, weeklyTargetKcal: s.weeklyTargetKcal, startAfterStableLoggingDays: s.startAfterStableLoggingDays };
 }
 
-export function dailyTargetForDate(protocol: PlanProtocol, date: string): MacroTotals {
+export function dailyTargetForDate(protocol: PlanProtocol, date: string, adjustment?: UserProfile["dailyEnergyAdjustment"]): MacroTotals {
   const weekday = Temporal.PlainDate.from(date).dayOfWeek;
   const s = protocol.schemaVersion === 3 ? protocol.nutritionStrategy : undefined;
-  return { ...(s?.mode === "weekly_cycle" ? s.isoWeekdaysTraining.includes(weekday) ? s.trainingTarget : s.restTarget : protocol.dailyTarget) };
+  return adjustDailyEnergy(s?.mode === "weekly_cycle" ? s.isoWeekdaysTraining.includes(weekday) ? s.trainingTarget : s.restTarget : protocol.dailyTarget, adjustment);
 }

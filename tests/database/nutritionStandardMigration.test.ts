@@ -41,6 +41,7 @@ beforeAll(async () => {
   await db.exec(readFileSync("supabase/migrations/20260914072642_tre_rpt_v4_contracts.sql", "utf8"));
   await db.exec(readFileSync("supabase/migrations/20260914091735_nutrition_auto_goals_v5.sql", "utf8"));
   await db.exec(readFileSync("supabase/migrations/20261015095133_nutrition_standard_v6.sql", "utf8"));
+  await db.exec(readFileSync("supabase/migrations/20261103042039_daily_energy_adjustment.sql", "utf8"));
 }, 30000);
 afterAll(async () => { await db.close(); });
 
@@ -106,5 +107,34 @@ describe.sequential("饮食标准的 PostgreSQL 验收（独立引擎与合成�
     const saved = (await asUser(owner, () => db.query("select source_kcal_per_100g,fiber_per_100g,effective_energy_basis from public.foods"))).rows[0];
     expect(saved).toEqual({ source_kcal_per_100g: "150", fiber_per_100g: null, effective_energy_basis: "label" });
     await expect(asUser(owner, () => call("import_user_foods_v1", [[{ name: "missing", weight_basis: "raw" }], true]))).rejects.toThrow();
+  });
+
+  it("按日缺口原子保存计划和实际，保留协议、食品及其他日期", async () => {
+    const date = "2030-02-01";
+    const adjustment = { tdeeKcal: 2650, deficitKcal: 800 };
+    const profile = { ...emptyProfile, planDate: date, targetMode: "calibrated" as const, allocationMode: "explicitMacros" as const, protocolSnapshot: protocol, dailyEnergyAdjustment: adjustment };
+    const meals = protocolMeals(protocol, date);
+    const result = buildNutritionResult(profile, meals, []);
+    const actual = { ...emptyActualV3(), targetProtocolSnapshot: protocol, targetEnergyAdjustment: adjustment };
+    const args = [date, profile, meals, result, 3, "daily-test", [], actual, result.dailyTarget, false, null];
+    const saved = await asUser(owner, () => call("complete_daily_record_v3", args)) as { revision: number; target: unknown; actual: unknown };
+    expect(saved.target).toEqual(result.dailyTarget);
+    expect(saved.actual).toMatchObject(JSON.parse(JSON.stringify({ targetEnergyAdjustment: adjustment, targetProtocolSnapshot: protocol })));
+    expect((await db.query<{ profile: unknown; meals: unknown }>("select profile,meals from public.daily_plans where user_id=$1 and plan_date=$2", [owner, date])).rows[0]).toEqual(JSON.parse(JSON.stringify({ profile, meals })));
+    expect(await call("nutrition_target_on_date_v1", [protocol, "2030-02-02"])).toEqual(protocol.dailyTarget);
+    await expect(asUser(other, () => call("complete_daily_record_v3", args))).rejects.toThrow("invalid_protocol_reference");
+
+    const badProfile = { ...profile, dailyEnergyAdjustment: { tdeeKcal: 2650, deficitKcal: 2000 } };
+    await expect(asUser(owner, () => call("save_planner_draft_v3", [date, badProfile, meals, 3, null, false]))).rejects.toThrow("daily_macros_exceed_energy");
+    await expect(asUser(owner, () => call("save_daily_actual_v3", [date, { ...actual, targetEnergyAdjustment: { tdeeKcal: "2650", deficitKcal: 800 } }, result.dailyTarget, false, saved.revision]))).rejects.toThrow("invalid_daily_energy_adjustment");
+    await expect(asUser(owner, () => call("save_daily_actual_v3", [date, actual, protocol.dailyTarget, false, saved.revision]))).rejects.toThrow("invalid_actual_target_protocol");
+    await expect(asUser(owner, () => call("save_daily_actual_v3", [date, { ...actual, targetEnergyAdjustment: { tdeeKcal: 2650, deficitKcal: 600 } }, targetFromKcal(2050, 180, 65), false, saved.revision - 1]))).rejects.toThrow("actual_conflict");
+
+    const complete = await asUser(owner, () => call("save_daily_actual_v3", [date, actual, result.dailyTarget, true, saved.revision])) as { revision: number };
+    await expect(asUser(owner, () => call("save_daily_actual_v3", [date, { ...actual, targetEnergyAdjustment: { tdeeKcal: 2650, deficitKcal: 600 } }, targetFromKcal(2050, 180, 65), false, complete.revision]))).rejects.toThrow("reopen_actual_first");
+    const reopened = await asUser(owner, () => call("save_daily_actual_v3", [date, actual, result.dailyTarget, false, complete.revision])) as { revision: number };
+    const { targetEnergyAdjustment: _adjustment, ...restoredActual } = actual;
+    const restored = await asUser(owner, () => call("save_daily_actual_v3", [date, restoredActual, protocol.dailyTarget, false, reopened.revision])) as { target: unknown };
+    expect(restored.target).toEqual(protocol.dailyTarget);
   });
 });

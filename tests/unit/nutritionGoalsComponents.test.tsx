@@ -2,22 +2,23 @@ import type { User } from "@supabase/supabase-js";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { NutritionGoalPanel } from "@/components/NutritionGoalPanel";
+import { PlanProtocolPanel } from "@/components/PlanProtocolPanel";
 import type { PlannerController } from "@/components/usePlanner";
 import { defaultPreferences } from "@/lib/preferences";
 import { createTreProtocol } from "@/lib/planPresets";
 import { protocolMeals } from "@/lib/planProtocol";
 import { buildNutritionResult } from "@/lib/nutrition";
 import { emptyProfile } from "@/lib/demoState";
-import { todayKey } from "@/lib/dateTime";
-import { activatePlanProtocol } from "@/lib/protocolStorage";
+import { addDays, todayKey } from "@/lib/dateTime";
+import { activatePlanProtocol, loadPlanProtocols } from "@/lib/protocolStorage";
 import type { PlanProtocol } from "@/lib/types";
 import { loadNutritionStandard, parseNutritionStandard } from "@/lib/nutritionStandard";
 import { configureMealLayout } from "@/lib/mealLayout";
-import { syntheticGoalProtocol } from "../fixtures/nutritionGoalFixture";
+import { syntheticGoalProtocol, syntheticPolicy } from "../fixtures/nutritionGoalFixture";
 import { syntheticStandard } from "../fixtures/nutritionStandardFixture";
 
 vi.mock("@/lib/bodyLogs", () => ({ loadBodyLogs: vi.fn(async () => []) }));
-vi.mock("@/lib/protocolStorage", () => ({ activatePlanProtocol: vi.fn(async (p: PlanProtocol) => p) }));
+vi.mock("@/lib/protocolStorage", () => ({ activatePlanProtocol: vi.fn(async (p: PlanProtocol) => p), loadPlanProtocols: vi.fn(async () => []), protocolSchemaReady: vi.fn(async () => true) }));
 vi.mock("@/lib/nutritionStandard", async importOriginal => ({ ...await importOriginal<typeof import("@/lib/nutritionStandard")>(), loadNutritionStandard: vi.fn(async () => null) }));
 const preferences = defaultPreferences({ timeZone: "Asia/Shanghai" });
 const user = { id: "synthetic-user" } as User;
@@ -30,7 +31,8 @@ function props() {
 }
 const choose = (label: string, value: string) => fireEvent.change(screen.getByLabelText(label, { exact: true }), { target: { value } });
 function begin() {
-  fireEvent.click(screen.getByRole("button", { name: "按身体数据计算" }));
+  fireEvent.click(screen.getByRole("button", { name: "帮我计算" }));
+  fireEvent.click(screen.getByText("高级设置：公式与营养系数"));
   choose("计算所用性别", "male"); choose("总活动系数", "1.5");
   fireEvent.click(screen.getByLabelText(/我已成年/));
 }
@@ -59,7 +61,7 @@ it("S10 full kcal/kJ and kg/lb display round-trip never writes rounded values in
 it("U04 restoring a scenario default explicitly clears fixed fields", () => {
   render(<NutritionGoalPanel {...props()} />); begin();
   choose("蛋白方法", "fixed_grams"); choose("手动蛋白 g", "175");
-  choose("我的目标场景", "lean_gain");
+  choose("我的目标", "lean_gain");
   expect(screen.getByRole("button", { name: "保留手动项" })).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "全部采用场景默认" }));
   expect(screen.getByLabelText("蛋白方法", { exact: true })).toHaveValue("body_weight");
@@ -102,6 +104,7 @@ it.each([2, 4])("已保存的 %i 餐安排可载入三餐个人草案并预览�
   vi.mocked(loadNutritionStandard).mockResolvedValue(parseNutritionStandard(syntheticStandard));
   render(<NutritionGoalPanel {...p} />);
   fireEvent.click(screen.getByRole("button", { name: "调整目标" }));
+  fireEvent.click(screen.getByText("导入已有方案与周期设置"));
   fireEvent.click(await screen.findByRole("button", { name: "载入个人标准草案" }));
   fireEvent.change(screen.getByRole("combobox", { name: "恢复状态" }), { target: { value: "stable" } });
   preview();
@@ -112,4 +115,85 @@ it.each([2, 4])("已保存的 %i 餐安排可载入三餐个人草案并预览�
   fireEvent.click(screen.getByRole("button", { name: "确认目标" }));
   await waitFor(() => expect(p.onApplied).toHaveBeenCalledOnce());
   expect((p.onApplied.mock.calls[0][0] as PlanProtocol).dailyTarget).toEqual(syntheticStandard.dailyTarget);
+});
+
+it("新用户无需填写活动系数或体脂即可得到可保存的目标", async () => {
+  const p = props();
+  render(<NutritionGoalPanel {...p} activeProtocol={null} />);
+  expect(screen.getByRole("button", { name: "帮我计算" })).toHaveAttribute("aria-pressed", "true");
+  expect(screen.getByLabelText("总活动系数", { exact: true })).not.toBeVisible();
+  expect(screen.getByText("请选择计算所用性别，用于估算静息消耗。")).toBeVisible();
+  choose("计算所用性别", "male");
+  choose("日常活动水平", "1.4");
+  fireEvent.click(screen.getByLabelText(/我已成年/));
+  expect(screen.getByTestId("candidate-energy")).toHaveTextContent("2225 kcal");
+  preview();
+  fireEvent.click(screen.getByRole("button", { name: "确认目标" }));
+  await waitFor(() => expect(p.onApplied).toHaveBeenCalledOnce());
+  expect(p.onApplied.mock.calls[0][0].nutrition.policy.tdee).toEqual({ kind: "pal_total", multiplier: 1.4, includesExercise: true });
+});
+
+it("已有目标可直接填热量、蛋白质和脂肪，也可切换三大营养素输入", () => {
+  render(<NutritionGoalPanel {...props()} />);
+  fireEvent.click(screen.getByRole("button", { name: "我已有目标" }));
+  choose("每日热量", "2200"); choose("每日蛋白质 g", "170"); choose("每日脂肪 g", "60");
+  fireEvent.click(screen.getByLabelText(/我已成年/));
+  expect(screen.queryByLabelText("计算体重", { exact: true })).not.toBeInTheDocument();
+  expect(screen.getByTestId("candidate-carbs")).toHaveTextContent("245 g");
+  choose("填写方式", "macros"); choose("每日碳水 g", "200");
+  expect(screen.getByTestId("candidate-energy")).toHaveTextContent("2020 kcal");
+  choose("填写方式", "energy");
+  expect(screen.getByLabelText("每日热量", { exact: true })).toHaveValue("2020");
+});
+
+it("日常目标与已保存日期分别显示，确认前明确不会覆盖今天", () => {
+  const p = props();
+  const latest = syntheticGoalProtocol();
+  p.controller.meals[0].locked = true;
+  render(<NutritionGoalPanel {...p} activeProtocol={latest} hasSavedPlan />);
+  expect(screen.getByLabelText("今天的目标说明")).toHaveTextContent("2205 kcal");
+  fireEvent.click(screen.getByRole("button", { name: "调整目标" }));
+  fireEvent.click(screen.getByRole("button", { name: "我已有目标" }));
+  choose("每日热量", "2300");
+  preview();
+  expect(screen.getByLabelText("自动目标应用预览")).toHaveTextContent("仍使用 2205 kcal");
+  expect(screen.getByRole("button", { name: "确认目标" })).toBeEnabled();
+  expect(p.controller.result.dailyTarget.kcal).toBe(2205);
+});
+
+it("重复选择当前输入方式不会重置目标或填写方式", () => {
+  render(<NutritionGoalPanel {...props()} />);
+  choose("我的目标", "lean_gain");
+  fireEvent.click(screen.getByRole("button", { name: "帮我计算" }));
+  expect(screen.getByLabelText("我的目标", { exact: true })).toHaveValue("lean_gain");
+  fireEvent.click(screen.getByRole("button", { name: "我已有目标" }));
+  choose("填写方式", "macros");
+  choose("每日碳水 g", "200");
+  fireEvent.click(screen.getByRole("button", { name: "我已有目标" }));
+  expect(screen.getByLabelText("填写方式", { exact: true })).toHaveValue("macros");
+  expect(screen.getByLabelText("每日碳水 g", { exact: true })).toHaveValue("200");
+});
+
+it("同一未来日期只展示最终会采用的目标版本", async () => {
+  const p = props();
+  const date = addDays(todayKey(preferences.timeZone), 1);
+  const first = syntheticGoalProtocol({ date });
+  const latest = syntheticGoalProtocol({ date, id: "20000000-0000-4000-8000-000000000052", previous: first, policy: syntheticPolicy("maintain") });
+  vi.mocked(loadPlanProtocols).mockResolvedValue([first, latest]);
+  render(<PlanProtocolPanel controller={p.controller} user={user} preferences={preferences} />);
+  const upcoming = await screen.findAllByLabelText("待生效的日常目标");
+  expect(upcoming).toHaveLength(1);
+  expect(upcoming[0]).toHaveTextContent("2825 kcal");
+});
+
+it("身体信息载入完成后才初始化计算表单，避免带入临时示例值", async () => {
+  const p = props();
+  p.controller.draftState = "loading";
+  vi.mocked(loadPlanProtocols).mockResolvedValue([syntheticGoalProtocol({ date: addDays(todayKey(preferences.timeZone), 1) })]);
+  const { rerender } = render(<PlanProtocolPanel controller={p.controller} user={user} preferences={preferences} />);
+  await screen.findByLabelText("待生效的日常目标");
+  expect(screen.queryByLabelText("计算体重", { exact: true })).not.toBeInTheDocument();
+  const hydrated = { ...p.controller, draftState: "ready" as const, profile: { ...p.controller.profile, weightKg: 82 } };
+  rerender(<PlanProtocolPanel controller={hydrated} user={user} preferences={preferences} />);
+  expect(await screen.findByLabelText("计算体重", { exact: true })).toHaveValue("82");
 });

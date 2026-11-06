@@ -17,6 +17,7 @@ function controller() {
 it("kJ 输入按kcal保存，零缺口可选，超预算不可保存", () => {
   const c = controller();
   render(<DailyEnergyPanel controller={c} energyUnit="kj" />);
+  fireEvent.click(screen.getByText("仅调整这一天"));
   fireEvent.change(screen.getByLabelText("估算维持热量"), { target: { value: "11087.6" } });
   fireEvent.blur(screen.getByLabelText("估算维持热量"));
   fireEvent.change(screen.getByLabelText("当天缺口"), { target: { value: "3347.2" } });
@@ -25,7 +26,7 @@ it("kJ 输入按kcal保存，零缺口可选，超预算不可保存", () => {
   const saved = vi.mocked(c.applyDailyEnergyAdjustment!).mock.calls[0][0]!;
   expect(saved.tdeeKcal).toBeCloseTo(2650, 8);
   expect(saved.deficitKcal).toBeCloseTo(800, 8);
-  fireEvent.click(screen.getByRole("button", { name: "维持" }));
+  fireEvent.click(screen.getByRole("button", { name: "今天吃到维持热量" }));
   fireEvent.click(screen.getByRole("button", { name: "保存当天目标" }));
   expect(c.applyDailyEnergyAdjustment).toHaveBeenLastCalledWith({ tdeeKcal: 2650, deficitKcal: 0 });
   fireEvent.change(screen.getByLabelText("当天缺口"), { target: { value: "8368" } });
@@ -42,6 +43,7 @@ it("缺口输入只校验自己的保存操作，未确认的数字不能保存�
     return <NumericDraftProvider form={form}><DailyEnergyPanel controller={c} energyUnit="kcal" /><button onClick={() => { if (form.validateAll()) savePlan(); }}>保存计划</button></NumericDraftProvider>;
   }
   render(<Harness />);
+  fireEvent.click(screen.getByText("仅调整这一天"));
   expect(screen.getByLabelText("估算维持热量")).toHaveValue("");
   fireEvent.click(screen.getByRole("button", { name: "保存计划" }));
   expect(savePlan).toHaveBeenCalledOnce();
@@ -51,4 +53,12 @@ it("缺口输入只校验自己的保存操作，未确认的数字不能保存�
   fireEvent.click(screen.getByRole("button", { name: "保存当天目标" }));
   expect(c.applyDailyEnergyAdjustment).not.toHaveBeenCalled();
   expect(screen.getByRole("alert")).toHaveTextContent("当天缺口不是完整数字");
+});
+
+it("默认显示目标来源，临时调整收起且不写入数据", () => {
+  const c = controller();
+  render(<DailyEnergyPanel controller={c} energyUnit="kcal" />);
+  expect(screen.getByLabelText("当天目标来源")).toHaveTextContent("日常目标");
+  expect(screen.getByLabelText("当天缺口")).not.toBeVisible();
+  expect(c.applyDailyEnergyAdjustment).not.toHaveBeenCalled();
 });

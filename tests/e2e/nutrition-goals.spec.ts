@@ -1,7 +1,10 @@
 import { test, expect, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { readFile } from "node:fs/promises";
-import { todayKey } from "../../src/lib/dateTime";
+import { addDays, todayKey } from "../../src/lib/dateTime";
+import { syntheticGoalProtocol } from "../fixtures/nutritionGoalFixture";
+import { emptyProfile } from "../../src/lib/demoState";
+import { protocolMeals } from "../../src/lib/planProtocol";
 
 const fixture = "http://127.0.0.1:45432";
 async function login(page: Page) {
@@ -15,6 +18,111 @@ async function login(page: Page) {
   await page.goto("/goals");
 }
 
+test("新手从活动档位设置目标，设置页不显示饮食日期 @a11y", async ({ page, request }, testInfo) => {
+  await request.post(`${fixture}/fixture/reset`);
+  await login(page);
+  const panel = page.getByRole("region", { name: "自动营养目标", exact: true });
+  await expect(page.getByLabel("饮食日期", { exact: true })).toHaveCount(0);
+  await expect(panel.getByRole("button", { name: "帮我计算" })).toHaveAttribute("aria-pressed", "true");
+  await expect(panel.getByLabel("总活动系数", { exact: true })).not.toBeVisible();
+  await panel.getByLabel("计算体重", { exact: true }).fill("90");
+  await panel.getByLabel("身高", { exact: true }).fill("180");
+  await panel.getByLabel("当前周岁", { exact: true }).fill("30");
+  await panel.getByRole("combobox", { name: "计算所用性别", exact: true }).selectOption("male");
+  await panel.getByRole("combobox", { name: "日常活动水平", exact: true }).selectOption("1.4");
+  await panel.getByLabel(/我已成年/).check();
+  await expect(panel.getByTestId("candidate-energy")).toHaveText("2225 kcal");
+  await page.screenshot({ path: testInfo.outputPath("simple-goal.png"), fullPage: true });
+  expect((await new AxeBuilder({ page }).analyze()).violations.filter(v => ["critical", "serious"].includes(v.impact ?? ""))).toEqual([]);
+  expect(await page.locator("body").evaluate(b => b.scrollWidth <= innerWidth + 1)).toBe(true);
+  await panel.getByRole("button", { name: "预览调整" }).click();
+  await panel.getByRole("button", { name: "确认目标" }).click();
+  await expect(panel.getByText("查看计算依据", { exact: true })).toBeVisible();
+  const state = await (await request.get(`${fixture}/fixture/state`)).json();
+  expect(state.user_plan_protocols[0].config.nutrition.policy.tdee).toEqual({ kind: "pal_total", multiplier: 1.4, includesExercise: true });
+  await page.goto("/today");
+  await expect(page.getByRole("region", { name: "计划摄入" })).toContainText("目标 2,225 kcal");
+  await expect(page.getByLabel("当天目标来源")).toContainText("日常目标");
+  await expect(page.getByLabel("当天缺口", { exact: true })).not.toBeVisible();
+  const adjustment = page.getByText("仅调整这一天", { exact: true });
+  await adjustment.focus();
+  await adjustment.press("Enter");
+  await expect(page.getByLabel("当天缺口", { exact: true })).toBeVisible();
+  await adjustment.press("Tab");
+  await expect(page.getByLabel("估算维持热量", { exact: true })).toBeFocused();
+});
+
+test("未来日常目标保存后可见，今天不提前采用", async ({ page, request }) => {
+  await request.post(`${fixture}/fixture/reset`);
+  await login(page);
+  const tomorrow = addDays(todayKey("Asia/Shanghai"), 1);
+  const panel = page.getByRole("region", { name: "自动营养目标", exact: true });
+  await panel.getByRole("button", { name: "我已有目标" }).click();
+  await panel.getByLabel("每日热量", { exact: true }).fill("2200");
+  await panel.getByLabel("每日蛋白质 g", { exact: true }).fill("170");
+  await panel.getByLabel("每日脂肪 g", { exact: true }).fill("60");
+  await panel.getByLabel(/我已成年/).check();
+  await panel.getByLabel("新目标生效日期").fill(tomorrow);
+  await panel.getByRole("button", { name: "预览调整" }).click();
+  await expect(panel.getByLabel("自动目标应用预览")).toContainText("今天保持原目标");
+  await panel.getByRole("button", { name: "确认目标" }).click();
+  await expect(page.getByLabel("待生效的日常目标")).toContainText("2200 kcal");
+  await page.reload();
+  await expect(page.getByLabel("待生效的日常目标")).toContainText(tomorrow);
+  const state = await (await request.get(`${fixture}/fixture/state`)).json();
+  expect(state.user_plan_protocols).toHaveLength(1);
+  expect(state.daily_plans).toHaveLength(0);
+  await page.goto("/today");
+  await expect(page.getByRole("region", { name: "计划摄入" })).toContainText("未设目标");
+  await page.getByRole("button", { name: "后一天" }).click();
+  await expect(page.getByRole("region", { name: "计划摄入" })).toContainText("目标 2,200 kcal");
+});
+
+test("已保存的今天与新日常目标同时可见，刷新和跨日仍各自正确 @a11y", async ({ page, request }, testInfo) => {
+  const date = todayKey("Asia/Shanghai");
+  const old = syntheticGoalProtocol({ date: addDays(date, -1) });
+  const userId = "50000000-0000-4000-8000-000000000001";
+  const meals = protocolMeals(old);
+  await request.post(`${fixture}/fixture/reset`);
+  await request.post(`${fixture}/rest/v1/user_plan_protocols`, { data: { id: old.id, user_id: userId, effective_from: old.effectiveFrom, schema_version: 2, config: old } });
+  await request.post(`${fixture}/rest/v1/planner_drafts`, { data: { user_id: userId, plan_date: date, revision: 1, schema_version: 3, profile_snapshot: { ...emptyProfile, planDate: date, targetMode: "calibrated", allocationMode: "explicitMacros", protocolSnapshot: old }, meals } });
+  await login(page);
+  await page.goto("/today");
+  const day = page.getByRole("region", { name: "当天热量缺口" });
+  await day.getByText("仅调整这一天", { exact: true }).click();
+  await day.getByLabel("估算维持热量", { exact: true }).fill("2650");
+  await day.getByLabel("当天缺口", { exact: true }).fill("800");
+  await day.getByLabel("当天缺口", { exact: true }).press("Tab");
+  await day.getByRole("button", { name: "保存当天目标" }).click();
+  await expect(day).toContainText("当天热量与碳蛋脂目标已保存");
+  const before = await (await request.get(`${fixture}/fixture/state`)).json();
+  await page.goto("/goals");
+  const panel = page.getByRole("region", { name: "自动营养目标", exact: true });
+  await expect(panel.getByLabel("今天的目标说明")).toContainText("1850 kcal");
+  await panel.getByRole("button", { name: "调整目标", exact: true }).click();
+  await panel.getByRole("button", { name: "我已有目标" }).click();
+  await panel.getByLabel("每日热量", { exact: true }).fill("2200");
+  await panel.getByLabel("每日蛋白质 g", { exact: true }).fill("170");
+  await panel.getByLabel("每日脂肪 g", { exact: true }).fill("60");
+  await panel.getByRole("button", { name: "预览调整" }).click();
+  await expect(panel.getByLabel("自动目标应用预览")).toContainText("仍使用 1850 kcal");
+  await panel.getByRole("button", { name: "确认目标" }).click();
+  await expect(panel.getByText("2200 kcal / 天", { exact: true })).toBeVisible();
+  await expect(panel.getByLabel("今天的目标说明")).toContainText("1850 kcal");
+  await page.reload();
+  await expect(panel.getByText("2200 kcal / 天", { exact: true })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("saved-day-and-default.png"), fullPage: true });
+  const after = await (await request.get(`${fixture}/fixture/state`)).json();
+  expect(after.daily_plans).toEqual(before.daily_plans);
+  expect(after.daily_checkins).toEqual(before.daily_checkins);
+  expect(after.user_plan_protocols).toHaveLength(2);
+  expect((await new AxeBuilder({ page }).analyze()).violations.filter(v => ["critical", "serious"].includes(v.impact ?? ""))).toEqual([]);
+  await page.goto("/today");
+  await expect(page.getByRole("region", { name: "计划摄入" })).toContainText("目标 1,850 kcal");
+  await page.getByRole("button", { name: "后一天" }).click();
+  await expect(page.getByRole("region", { name: "计划摄入" })).toContainText("目标 2,200 kcal");
+});
+
 test("v5 five scenarios, evidence, actuals and history round-trip @a11y", async ({
   page,
   request,
@@ -25,13 +133,14 @@ test("v5 five scenarios, evidence, actuals and history round-trip @a11y", async 
   page.on("pageerror", (e) => errors.push(e.message));
   await login(page);
   const panel = page.getByRole("region", { name: "自动营养目标", exact: true });
-  await panel.getByRole("button", { name: "按身体数据计算" }).click();
+  await panel.getByRole("button", { name: "帮我计算" }).click();
   await panel.getByLabel("计算体重", { exact: true }).fill("90");
   await panel.getByLabel("身高", { exact: true }).fill("180");
   await panel.getByLabel("当前周岁", { exact: true }).fill("30");
   await panel
     .getByRole("combobox", { name: "计算所用性别", exact: true })
     .selectOption("male");
+  await panel.getByText("高级设置：公式与营养系数", { exact: true }).click();
   await panel.getByLabel("总活动系数", { exact: true }).fill("1.5");
   await panel.getByLabel("我已成年", { exact: false }).check();
   for (const [id, energy] of [
@@ -42,14 +151,14 @@ test("v5 five scenarios, evidence, actuals and history round-trip @a11y", async 
     ["maintain", "2825"],
   ]) {
     await panel
-      .getByRole("combobox", { name: "我的目标场景", exact: true })
+      .getByRole("combobox", { name: "我的目标", exact: true })
       .selectOption(id);
     await expect(panel.getByTestId("candidate-energy")).toHaveText(
       `${energy} kcal`,
     );
   }
   await panel
-    .getByRole("combobox", { name: "我的目标场景", exact: true })
+    .getByRole("combobox", { name: "我的目标", exact: true })
     .selectOption("cut_recomp");
   await expect(panel.getByTestId("candidate-protein")).toHaveText("170 g");
   await expect(panel.getByTestId("candidate-fat")).toHaveText("65 g");
@@ -74,7 +183,7 @@ test("v5 five scenarios, evidence, actuals and history round-trip @a11y", async 
   await panel.getByLabel("新目标生效日期").fill(date);
   await panel.getByRole("button", { name: "预览调整" }).click();
   await expect(panel.getByLabel("自动目标应用预览")).toContainText(
-    "新目标 2400 kcal",
+    "→ 2400 kcal",
   );
   await panel.getByRole("button", { name: "确认目标" }).click();
   await expect(page.getByText("查看计算依据", { exact: true })).toBeVisible();
@@ -139,6 +248,7 @@ test("v5 five scenarios, evidence, actuals and history round-trip @a11y", async 
   });
   await page.reload();
   await panel.getByRole("button", { name: "调整目标", exact: true }).click();
+  await panel.getByText("从体测记录填写体重", { exact: true }).click();
   await panel.getByRole("button", { name: "使用最近一次体重" }).click();
   await expect(panel.getByTestId("candidate-energy").last()).toHaveText(
     "2375 kcal",
@@ -170,8 +280,8 @@ test("v5 manual-only input and locks survive transient save failure @a11y", asyn
   });
   await login(page);
   const panel = page.getByRole("region", { name: "自动营养目标", exact: true });
-  await panel.getByRole("button", { name: "按身体数据计算" }).click();
-  await panel.locator("summary").filter({ hasText: "更多计算选项" }).click();
+  await panel.getByRole("button", { name: "帮我计算" }).click();
+  await panel.locator("summary").filter({ hasText: "高级设置：公式与营养系数" }).click();
   await panel
     .getByRole("combobox", { name: "静息消耗来源", exact: true })
     .selectOption("cunningham_1980");
@@ -196,12 +306,12 @@ test("v5 manual-only input and locks survive transient save failure @a11y", asyn
   ).toHaveCount(0);
   await expect(panel.getByTestId("candidate-carbs")).toHaveText("230 g");
   await panel
-    .getByRole("combobox", { name: "我的目标场景", exact: true })
+    .getByRole("combobox", { name: "我的目标", exact: true })
     .selectOption("lean_gain");
   await panel.getByRole("button", { name: "保留手动项" }).click();
   await expect(panel.getByTestId("candidate-carbs")).toHaveText("230 g");
   await expect(
-    panel.getByRole("combobox", { name: "我的目标场景", exact: true }),
+    panel.getByRole("combobox", { name: "我的目标", exact: true }),
   ).toHaveValue("custom");
   await panel
     .getByLabel("新目标生效日期")
@@ -279,10 +389,10 @@ test("v5 two pages cannot silently overwrite competing strategy revisions @a11y"
       name: "自动营养目标",
       exact: true,
     });
-    await panel.getByRole("button", { name: "按身体数据计算" }).click();
+    await panel.getByRole("button", { name: "帮我计算" }).click();
     await panel
       .locator("summary")
-      .filter({ hasText: "更多计算选项" })
+      .filter({ hasText: "高级设置：公式与营养系数" })
       .click();
     await panel
       .getByRole("combobox", { name: "能量控制方式", exact: true })

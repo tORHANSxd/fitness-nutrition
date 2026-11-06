@@ -747,12 +747,12 @@ export function usePlanner({ foods, templates, user, timeZone, energyUnit = "kca
   function applyProtocol(protocol: PlanProtocol) {
     setUndoState(null);
     protocolsRef.current = [...protocolsRef.current.filter((p) => p.id !== protocol.id), protocol];
-    if (profile.planDate < protocol.effectiveFrom) { setMessage(`新协议将从 ${protocol.effectiveFrom} 生效，当前日期保持原计划。`); return; }
-    if (frozenDatesRef.current.has(profile.planDate)) { setMessage(`新协议已保存；${profile.planDate} 已有冻结计划，仍使用原目标。新建未保存日期时使用生效协议。`); return; }
+    if (profile.planDate < protocol.effectiveFrom) { setMessage(`日常目标已保存，将从 ${protocol.effectiveFrom} 起使用；当前日期保持原目标。`); return; }
+    if (frozenDatesRef.current.has(profile.planDate)) { setMessage(`日常目标已保存；${profile.planDate} 已有保存的计划，仍使用原目标。生效日期之后未保存的日期会采用新目标。`); return; }
     setProfile(profileAtDate(profile, profile.planDate));
     setMeals(protocol.schemaVersion >= 2 ? mealsForProtocol(protocol, meals, profile.planDate) : protocolMeals(protocol, profile.planDate));
     setActiveMealId(protocol.mealSlots[0].id);
-    setMessage(protocol.schemaVersion >= 2 ? "新目标已应用，餐次与食品保留，历史和实际记录未改写。" : "新协议已应用，原餐食历史保留；请为新计划选择食品。");
+    setMessage(protocol.schemaVersion >= 2 ? "日常目标已保存，今天已采用新目标；已有食物和实际记录保留。" : "日常目标已保存；请为新计划选择食物。");
   }
 
   function exportDocument(): string | null {

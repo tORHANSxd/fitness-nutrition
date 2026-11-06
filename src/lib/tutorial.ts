@@ -21,7 +21,7 @@ export const tutorialChapters: { id: string; title: string; description: string;
     { title: "保存这份餐食安排", description: "确认分量后点击“保存计划”。这里保存的是准备吃的内容；吃完后，在“每日记录”中确认实际摄入。", route: "/today", selector: '[data-tour="plan-save"]', action: "plan-saved" },
   ] },
   { id: "goals", title: "设置饮食目标", description: "选择目标并查看计算结果", steps: [
-    { title: "选择适合自己的目标方式", description: "可以直接填写每日碳水、蛋白质和脂肪，也可以按身体数据计算。填好后先预览，确认无误再保存；已有目标可以跳过。", route: "/goals", selector: '[aria-label="饮食目标设置"]', action: "goal-saved" },
+    { title: "选择适合自己的目标方式", description: "选择“帮我计算”，填写身体信息和活动水平；已有确定数值就选“我已有目标”。预览确认后，未保存的日期会自动带入。偶尔想改一天，可在“今日饮食”选择“仅调整这一天”。", route: "/goals", selector: '[aria-label="饮食目标设置"]', action: "goal-saved" },
   ] },
   { id: "records", title: "记录每天的变化", description: "实际饮食、训练和身体数据", steps: [
     { title: "吃完后，记下一餐", description: "点击“按计划吃了”核对分量，或点击“记录食物或饮料”单独添加。请记录真实吃过的内容；尚未进食可以跳过。", route: "/records?tab=intake", selector: '[data-tour="intake-start"]', action: "intake-opened" },

@@ -21,7 +21,7 @@ export function NutritionCalculationDetails({
   const energy = (v: number | null) =>
     v == null
       ? "未使用 / 待填写"
-      : `${Number(displayEnergy(v, energyUnit).toFixed(2))} ${energyUnit === "kj" ? "kJ" : "kcal"}`;
+      : `${Math.round(displayEnergy(v, energyUnit))} ${energyUnit === "kj" ? "kJ" : "kcal"}`;
   const target = result.resolvedTarget ?? result.candidateTarget;
   return (
     <div className="min-w-0 space-y-3" aria-label="营养计算结果">
@@ -65,7 +65,7 @@ export function NutritionCalculationDetails({
               {policy.protein.kind === "fixed_grams" ? "手动设置" : "自动"}
             </dt>
             <dd data-testid="candidate-protein">
-              {Number(target.protein.toFixed(3))} g
+              {Number(target.protein.toFixed(1))} g
             </dd>
           </div>
           <div>
@@ -73,7 +73,7 @@ export function NutritionCalculationDetails({
               脂肪 · {policy.fat.kind === "fixed_grams" ? "手动设置" : "自动"}
             </dt>
             <dd data-testid="candidate-fat">
-              {Number(target.fat.toFixed(3))} g
+              {Number(target.fat.toFixed(1))} g
             </dd>
           </div>
           <div>
@@ -87,6 +87,17 @@ export function NutritionCalculationDetails({
           </div>
         </dl>
       )}
+      {!!result.issues.length && (
+        <ul className="space-y-1 text-sm">
+          {result.issues.map((issue, i) => (
+            <li key={`${issue.code}-${i}`} className={issue.severity === "warning" ? "text-muted" : "text-warning"}>
+              {issue.code === "CALCULATION_SEX_REQUIRED" ? "请选择计算所用性别，用于估算静息消耗。" : issue.code === "INPUT_REQUIRED" && issue.fieldPaths.includes("tdee.multiplier") ? "请选择最接近的日常活动水平。" : issue.message}
+            </li>
+          ))}
+        </ul>
+      )}
+      <details className="rounded border border-line p-3">
+        <summary className="cursor-pointer text-sm">计算明细与参考来源</summary>
       {result.rawValues.energyDeltaKcal != null && (
         <p className="text-sm">
           取整后的实际能量偏移：
@@ -103,22 +114,6 @@ export function NutritionCalculationDetails({
           {(((target.carbs * 4) / target.kcal) * 100).toFixed(1)}%。
         </p>
       )}
-      {!!result.issues.length && (
-        <ul className="space-y-1 text-sm">
-          {result.issues.map((issue, i) => (
-            <li
-              key={`${issue.code}-${i}`}
-              className={
-                issue.severity === "warning" ? "text-muted" : "text-warning"
-              }
-            >
-              {issue.message}
-            </li>
-          ))}
-        </ul>
-      )}
-      <details className="rounded border border-line p-3">
-        <summary className="cursor-pointer">计算明细与参考来源</summary>
         <ol className="mt-3 space-y-3 text-sm">
           {result.trace.map((step) => (
             <li key={step.stepId} className="break-words">

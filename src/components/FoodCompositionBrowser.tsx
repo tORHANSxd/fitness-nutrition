@@ -7,6 +7,7 @@ import {
   type ChinaFoodRecord, type ChinaGiGroup,
 } from "@/lib/chinaFoodComposition";
 import { FoodPagination, useFoodPage } from "@/components/FoodPagination";
+import { macroEnergyPer100g } from "@/lib/foodNutrition";
 
 const nutrientLabels: Record<string, string> = {
   edible: "可食部 %", water: "水分 g", energyKCal: "原表能量 kcal", energyKJ: "原表能量 kJ",
@@ -41,7 +42,7 @@ export function FoodCompositionDetails({ foodId }: { foodId: string }) {
       <p className="mt-1 text-xs text-muted">{summary.group} · 每 100g 可食部，按食物名称所示状态称量；可食部比例不再乘入营养值。</p>
       <p className="mt-2 text-xs text-muted">以下为原始成分表，不随个人覆盖值改变。— / 空白 / un 保留为未知；Tr 表示微量，配餐计算近似为 0；* 为原表标记。</p>
       <p className={`my-2 text-xs ${food ? "text-muted" : "text-warning"}`}>
-        {food ? `配餐使用：净碳水 ${food.carbsPer100g}g（总碳水 − 膳食纤维），按 4/4/9 估算 ${food.kcalPer100g} kcal；原表能量单独保留。` : `${chinaFoodUnavailableReason(summary)}，仅供查阅；补全可信数据后可另存为自定义食物。`}
+        {food ? `配餐使用：可利用碳水 ${food.carbsPer100g} g（总碳水 − 膳食纤维）；热量 ${food.kcalPer100g} kcal，${food.effectiveEnergyBasis === "label" ? "采用原表能量" : "原表能量缺失，按 4/4/9 估算"}。三大营养素另行估算为 ${Number(macroEnergyPer100g(food).toFixed(1))} kcal，不再额外加一次纤维热量。` : `${chinaFoodUnavailableReason(summary)}，仅供查阅；补全可信数据后可另存为自定义食物。`}
       </p>
       {record ? (
         <>

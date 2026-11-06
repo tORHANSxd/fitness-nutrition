@@ -24,9 +24,12 @@ test("当天缺口保存、刷新、跨日和恢复目标 @a11y", async ({ page,
   await page.waitForURL(/\/(overview|today)/);
   await page.goto(`/today?date=${date}`);
   const panel = page.getByRole("region", { name: "当天热量缺口" });
+  await expect(panel.getByLabel("当天缺口", { exact: true })).not.toBeVisible();
+  await panel.getByText("仅调整这一天", { exact: true }).click();
   await panel.getByLabel("估算维持热量", { exact: true }).fill("2650");
   await panel.getByLabel("估算维持热量", { exact: true }).press("Tab");
-  await panel.getByRole("button", { name: "800 kcal", exact: true }).click();
+  await panel.getByLabel("当天缺口", { exact: true }).fill("800");
+  await panel.getByLabel("当天缺口", { exact: true }).press("Tab");
   await panel.getByRole("button", { name: "保存当天目标" }).click();
   await expect(panel).toContainText("当天热量与碳蛋脂目标已保存");
   await page.reload();
@@ -39,14 +42,15 @@ test("当天缺口保存、刷新、跨日和恢复目标 @a11y", async ({ page,
   expect((await state()).daily_checkins[0].target.kcal).toBe(1850);
   await page.getByRole("button", { name: "后一天" }).click();
   await expect(page.getByLabel("饮食日期")).toHaveValue(addDays(date, 1));
-  await expect(panel.getByRole("button", { name: "恢复原目标" })).toHaveCount(0);
+  await expect(panel.getByRole("button", { name: "取消当天调整" })).toHaveCount(0);
   await page.getByRole("button", { name: "前一天" }).click();
   await expect(panel.getByLabel("当天缺口", { exact: true })).toHaveValue("800");
+  await panel.getByText("仅调整这一天", { exact: true }).click();
   await page.screenshot({ path: testInfo.outputPath("daily-energy.png"), fullPage: true });
   expect((await new AxeBuilder({ page }).analyze()).violations.filter(v => ["critical", "serious"].includes(v.impact ?? ""))).toEqual([]);
   expect(await page.locator("body").evaluate(b => b.scrollWidth <= innerWidth + 1)).toBe(true);
-  await panel.getByRole("button", { name: "恢复原目标" }).click();
-  await expect(panel.getByRole("button", { name: "恢复原目标" })).toHaveCount(0);
+  await panel.getByRole("button", { name: "取消当天调整" }).click();
+  await expect(panel.getByRole("button", { name: "取消当天调整" })).toHaveCount(0);
   await expect.poll(async () => (await state()).daily_plans.find((plan: { plan_date: string }) => plan.plan_date === date).result.dailyTarget.kcal).toBe(active.dailyTarget.kcal);
 });
 
@@ -59,6 +63,7 @@ test("个人标准导入、恢复门禁、确认及重新加载 @a11y", async ({
   await page.waitForURL(/\/(overview|today)/);
   await page.goto("/goals");
   const panel = page.getByRole("region", { name: "自动营养目标", exact: true });
+  await panel.getByText("导入已有方案与周期设置", { exact: true }).click();
   await panel.getByLabel("导入个人标准 JSON").setInputFiles({ name: "synthetic-standard.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(syntheticStandard)) });
   await expect(panel).toContainText("草案已载入，尚未生效");
   const state = async () => (await request.get("http://127.0.0.1:45432/fixture/state")).json();
@@ -111,6 +116,7 @@ for (const count of [2, 4]) test(`已有 ${count} 餐载入三餐个人草案，
   await page.goto("/goals");
   const panel = page.getByRole("region", { name: "自动营养目标", exact: true });
   await panel.getByRole("button", { name: "调整目标" }).click();
+  await panel.getByText("导入已有方案与周期设置", { exact: true }).click();
   await panel.getByRole("button", { name: "载入个人标准草案" }).click();
   await panel.getByRole("combobox", { name: "恢复状态", exact: true }).selectOption("stable");
   await panel.getByRole("button", { name: "预览调整" }).click();

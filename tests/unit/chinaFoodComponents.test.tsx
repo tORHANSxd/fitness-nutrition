@@ -1,13 +1,19 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { FoodPickerDialog } from "@/components/FoodPickerDialog";
-import { FoodCompositionBrowser } from "@/components/FoodCompositionBrowser";
+import { FoodCompositionBrowser, FoodCompositionDetails } from "@/components/FoodCompositionBrowser";
 import { builtinFoods } from "@/lib/foods";
 import { chinaFoodSource } from "@/lib/chinaFoodComposition";
 
 afterEach(() => vi.unstubAllGlobals());
 
 describe("large food catalog UI", () => {
+  it("成分详情区分采用的来源热量与宏量估算，不把来源值标成4/4/9结果", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false })));
+    render(<FoodCompositionDetails foodId="public-cfcd6-031101" />);
+    expect(screen.getByText(/热量 390 kcal，采用原表能量/)).toHaveTextContent("另行估算为 358.8 kcal");
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("读取失败"));
+  });
   it("pages the picker and searches the whole catalog before selecting by stable ID", () => {
     const onSelect = vi.fn();
     render(<FoodPickerDialog open foods={builtinFoods} onSelect={onSelect} onClose={vi.fn()} />);

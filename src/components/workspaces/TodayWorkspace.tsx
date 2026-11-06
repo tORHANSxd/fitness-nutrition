@@ -55,7 +55,7 @@ export function TodayWorkspace({
   const { foods, persistTemplates, preferences, templates, user } = useApp();
   const zonedToday = useZonedToday(preferences.timeZone);
   const dateParam = searchParams.get("date");
-  const requestedDate = isDateKey(dateParam) ? dateParam : zonedToday;
+  const requestedDate = mode === "goals" ? zonedToday : isDateKey(dateParam) ? dateParam : zonedToday;
   const requestedTemplateId = searchParams.get("template");
   const [savedPlan, setSavedPlan] = useState<SavedPlan | null | undefined>(
     undefined,
@@ -161,7 +161,7 @@ export function TodayWorkspace({
   return (
     <NumericDraftProvider form={numericDraftForm}>
       <section className="today-workspace space-y-4">
-        <div className="date-toolbar">
+        {mode !== "goals" && <div className="date-toolbar">
           <div className="flex min-w-0 items-center gap-2">
             <button
               className="icon-button"
@@ -169,7 +169,7 @@ export function TodayWorkspace({
               aria-label="前一天"
               onClick={() =>
                 router.push(
-                  `/${mode === "records" ? "records?tab=intake&" : mode === "goals" ? "goals?" : "today?"}date=${addDays(requestedDate, -1)}`,
+                  `/${mode === "records" ? "records?tab=intake&" : "today?"}date=${addDays(requestedDate, -1)}`,
                 )
               }
             >
@@ -183,7 +183,7 @@ export function TodayWorkspace({
               onChange={(event) => {
                 if (isDateKey(event.target.value))
                   router.push(
-                    `/${mode === "records" ? "records?tab=intake&" : mode === "goals" ? "goals?" : "today?"}date=${event.target.value}`,
+                    `/${mode === "records" ? "records?tab=intake&" : "today?"}date=${event.target.value}`,
                   );
               }}
             />
@@ -193,7 +193,7 @@ export function TodayWorkspace({
               aria-label="后一天"
               onClick={() =>
                 router.push(
-                  `/${mode === "records" ? "records?tab=intake&" : mode === "goals" ? "goals?" : "today?"}date=${addDays(requestedDate, 1)}`,
+                  `/${mode === "records" ? "records?tab=intake&" : "today?"}date=${addDays(requestedDate, 1)}`,
                 )
               }
             >
@@ -205,9 +205,7 @@ export function TodayWorkspace({
                 href={
                   mode === "records"
                     ? "/records"
-                    : mode === "goals"
-                      ? "/goals"
-                      : "/today"
+                    : "/today"
                 }
               >
                 今天
@@ -226,7 +224,7 @@ export function TodayWorkspace({
             />
             {draftStatus.label}
           </p>
-        </div>
+        </div>}
         <NumericDraftNotice />
         {planError && <p role="alert">{planError}</p>}
         {(rawPlan ?? controller.rawDocument) != null && (
@@ -257,6 +255,7 @@ export function TodayWorkspace({
                 controller={controller}
                 user={user}
                 preferences={preferences}
+                hasSavedPlan={savedPlan != null}
               />
             ) : mode === "records" ? (
               <DailyCheckinPanel

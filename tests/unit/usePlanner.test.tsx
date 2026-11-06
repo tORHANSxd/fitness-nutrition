@@ -107,7 +107,7 @@ it("D04/D07 同日食品草稿优先，但已保存日期的目标不会被新�
   act(() => result.current.applyProtocol?.(newGoal));
   expect(result.current.result.dailyTarget).toEqual(before);
   expect(result.current.meals[0].name).toBe("草稿餐");
-  expect(result.current.message).toContain("冻结");
+  expect(result.current.message).toContain("仍使用原目标");
 });
 
 it("D12 食品模板保持协议目标、各宏量分配和餐时", async () => {

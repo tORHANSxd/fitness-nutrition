@@ -11,7 +11,7 @@ const links = [
   {
     href: "/goals",
     title: "饮食目标",
-    text: "设置每日热量和营养分配",
+    text: "设好日常目标，每天自动带入",
     icon: Target,
   },
   {

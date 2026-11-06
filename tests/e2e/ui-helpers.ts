@@ -10,6 +10,8 @@ export async function login(page: Page) {
 }
 export async function manualGoal(page: Page) {
   await page.goto("/goals");
+  await page.getByRole("button", { name: "我已有目标", exact: true }).click();
+  await page.getByRole("combobox", { name: "填写方式", exact: true }).selectOption("macros");
   await page.getByLabel("每日碳水 g", { exact: true }).fill("230");
   await page.getByLabel("每日蛋白质 g", { exact: true }).fill("175");
   await page.getByLabel("每日脂肪 g", { exact: true }).fill("65");

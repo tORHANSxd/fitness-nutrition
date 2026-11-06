@@ -244,7 +244,7 @@ function parseNutritionResult(value: unknown): NutritionResult {
   let targetResolution: NutritionTargetResolution | undefined;
   if (value.targetResolution != null) {
     const resolution = record(value.targetResolution);
-    if (resolution.algorithmVersion !== "nutrition-v5.0" || resolution.policyVersion !== "nutrition-goals-v5.0" || resolution.presetVersion !== 1) throw new UnsupportedDocumentError("不支持的营养计算结果版本；原始数据已保留。", value);
+    if (!((resolution.algorithmVersion === "nutrition-v5.0" && resolution.policyVersion === "nutrition-goals-v5.0") || (resolution.algorithmVersion === "nutrition-v5.1" && resolution.policyVersion === "nutrition-goals-v5.1")) || resolution.presetVersion !== 1) throw new UnsupportedDocumentError("不支持的营养计算结果版本；原始数据已保留。", value);
     const expenditure = record(resolution.expenditure);
     for (const key of ["rmrKcal", "tdeeKcal"] as const) if (expenditure[key] !== null && (typeof expenditure[key] !== "number" || !Number.isFinite(expenditure[key]) || expenditure[key] <= 0)) throw new Error("营养消耗快照无效。");
     if (resolution.status !== "valid" || typeof resolution.inputFingerprint !== "string" || !Array.isArray(resolution.trace)

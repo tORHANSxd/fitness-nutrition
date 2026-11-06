@@ -11,7 +11,8 @@ import { syntheticGoalProtocol, syntheticPolicy } from "../fixtures/nutritionGoa
 import { loadPlanProtocols } from "@/lib/protocolStorage";
 import { configureMealLayout, mealLayoutDraft } from "@/lib/mealLayout";
 import { materializeDayTemplate } from "@/lib/templates";
-import type { SavedPlan } from "@/lib/types";
+import type { DailyEnergyAdjustment, SavedPlan } from "@/lib/types";
+import { adjustDailyEnergy } from "@/lib/nutritionStrategy";
 import { planDocumentVersion } from "@/lib/planProtocol";
 import { parsePlannerDraftRow, parseSavedPlanRow } from "@/lib/storageDocuments";
 
@@ -32,15 +33,19 @@ beforeEach(() => {
   vi.mocked(loadPlannerDraft).mockResolvedValue({ profile, meals: meals.map((m, i) => i ? m : { ...m, name: "草稿餐", schedule: { start: "12:00", end: "12:30", endDayOffset: 0 } }), updatedAt: "", revision: 4, schemaVersion: 2 });
 });
 
-it("当天缺口保存日期计划和实际；刷新恢复，切换日期不会继承", async () => {
+it.each<DailyEnergyAdjustment>([
+  { tdeeKcal: 2650, deficitKcal: 800 },
+  { targetKcal: 2200, macroInputs: { version: 1, weightKg: 90, bodyFatPct: 20, protein: { kind: "ffm", coefficient: 2.5 }, fat: { kind: "body_weight", coefficient: .6 }, carbs: { kind: "residual" } } },
+])("当天目标保存日期计划和实际；刷新恢复，切换日期不会继承", async adjustment => {
   const goal = syntheticGoalProtocol({ date: profile.planDate });
   vi.mocked(loadPlanProtocols).mockResolvedValue([goal]);
   const props = { ...args, openDateRequest: { date: profile.planDate, plan: null, nonce: 1 } };
   const { result, rerender, unmount } = renderHook((p: UsePlannerArgs) => usePlanner(p), { initialProps: props as UsePlannerArgs });
   await waitFor(() => expect(result.current.profile.protocolSnapshot?.id).toBe(goal.id));
   const beforeMeals = structuredClone(result.current.meals);
-  await act(async () => { expect(await result.current.applyDailyEnergyAdjustment?.({ tdeeKcal: 2650, deficitKcal: 800 })).toBe(true); });
-  expect(result.current.result.dailyTarget.kcal).toBe(1850);
+  await act(async () => { expect(await result.current.applyDailyEnergyAdjustment?.(adjustment)).toBe(true); });
+  const expected = adjustDailyEnergy(goal.dailyTarget, adjustment);
+  expect(result.current.result.dailyTarget).toEqual(expected);
   expect(result.current.meals).toEqual(beforeMeals);
   expect(vi.mocked(completeDailyRecord).mock.calls[0][9]).toBe(false);
   const saved: SavedPlan = { ...savedPlan, profile: result.current.profile, meals: result.current.meals, result: result.current.result, schemaVersion: 3 };
@@ -50,8 +55,8 @@ it("当天缺口保存日期计划和实际；刷新恢复，切换日期不会�
   expect(result.current.result.dailyTarget).toEqual(goal.dailyTarget);
   unmount();
   const refreshed = renderHook(() => usePlanner({ ...args, openDateRequest: { date: profile.planDate, plan: saved, nonce: 3 } }));
-  await waitFor(() => expect(refreshed.result.current.result.dailyTarget.kcal).toBe(1850));
-  expect(refreshed.result.current.profile.dailyEnergyAdjustment?.deficitKcal).toBe(800);
+  await waitFor(() => expect(refreshed.result.current.result.dailyTarget).toEqual(expected));
+  expect(refreshed.result.current.profile.dailyEnergyAdjustment).toEqual(adjustment);
 });
 
 it("刷新优先同日草稿，保留未手动保存的餐次时间", async () => {

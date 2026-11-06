@@ -7,6 +7,7 @@ import type { PlannerController } from "@/components/usePlanner";
 import { buildDailyActual } from "@/lib/heatmap";
 import { actualTotals, emptyActualV3, normalizeActualV3 } from "@/lib/actualIntake";
 import { MealEventsEditor } from "@/components/MealEventsEditor";
+import { FoodQualityDetails } from "@/components/FoodQualityDetails";
 import { canonicalEnergy, displayEnergy, type EnergyUnit } from "@/lib/preferences";
 import { completeDailyRecord, loadDailyCheckin, saveDailyCheckin } from "@/lib/storage";
 import type { DailyCheckin, DailyCheckinActualV3, ExerciseEnergyEntry } from "@/lib/types";
@@ -222,6 +223,7 @@ export function DailyCheckinPanel({
 
       {liveActual.version === 3 && <MealEventsEditor key={`${date}:${loading}`} controller={controller} actual={liveActual} date={date} timeZone={timeZone} hourCycle={hourCycle} energyUnit={energyUnit} disabled={loading || saving || loadError || Boolean(checkin?.completed) || isFuture} onSave={saveActual} />}
       <p className="border-b border-line px-4 py-3 text-sm">实际摄入：{checkin ? Math.round(displayEnergy(actualTotals(checkin.actual).kcal, energyUnit)) : "尚未记录"} {checkin ? (energyUnit === "kj" ? "kJ" : "kcal") : ""}{checkin?.completed ? " · 已确认完整" : ""}</p>
+      {checkin && <div className="p-4"><FoodQualityDetails label="已记录实际" portions={checkin.actual.version === 3 ? checkin.actual.mealEvents.flatMap(event => event.actualFoodEntries.map(entry => ({ food: entry.foodSnapshot, grams: entry.grams, energyBasis: entry.energyBasis }))) : []} partial={checkin.actual.version === 2 || !!checkin.actual.legacyActual || checkin.actual.mealEvents.some(event => event.containsCalories && !event.actualFoodEntries.length)} /></div>}
 
       <div className="grid min-w-0">
         <details className="min-w-0 border-b border-line p-4 sm:p-5"><summary className="mb-3 cursor-pointer text-sm text-muted">记录运动消耗（可选）</summary>

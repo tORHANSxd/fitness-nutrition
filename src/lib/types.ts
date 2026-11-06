@@ -1,4 +1,5 @@
 import type { NutritionSnapshotV1, NutritionTargetResolution } from "@/lib/nutritionGoals/types";
+import type { DailyMacroInputs } from "@/lib/nutritionGoals/flexibleMacros";
 
 export const foodCategories = ["主食", "蔬菜", "水果", "肉类", "豆类", "乳制品", "补剂", "坚果", "其他", "食物配料"] as const;
 
@@ -43,8 +44,10 @@ export interface CarbTaperStep {
   deltaKcal: number;
 }
 
+export type DailyEnergyAdjustment = ({ tdeeKcal: number; deficitKcal: number; targetKcal?: never } | { targetKcal: number; tdeeKcal?: never; deficitKcal?: never }) & { macroInputs?: DailyMacroInputs };
+
 export interface UserProfile {
-  dailyEnergyAdjustment?: { tdeeKcal: number; deficitKcal: number };
+  dailyEnergyAdjustment?: DailyEnergyAdjustment;
   targetMode?: "legacy" | "calibrated";
   allocationMode?: "ratio" | "explicitMacros";
   protocolSnapshot?: PlanProtocol;

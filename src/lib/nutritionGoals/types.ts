@@ -9,15 +9,15 @@ export type TdeeMethod = { kind: "pal_total"; multiplier: number | null; include
   | { kind: "not_used" };
 export type EnergyMethod = { kind: "preset_percent" } | { kind: "percent"; deltaRatio: number }
   | { kind: "delta_kcal"; deltaKcal: number } | { kind: "fixed_kcal"; kcal: number | null } | { kind: "from_macros" };
-export type ProteinMethod = { kind: "body_weight"; coefficient: number | null }
-  | { kind: "ffm"; coefficient: number; contextConfirmed: boolean }
-  | { kind: "reference_weight"; weightKg: number; coefficient: number; sourceLabel: string }
-  | { kind: "fixed_grams"; grams: number };
-export type FatMethod = { kind: "body_weight"; coefficient: number | null; minimumEnergyShare: number }
-  | { kind: "energy_share"; share: number } | { kind: "fixed_grams"; grams: number };
+export type MacroMethod = { kind: "body_weight"; coefficient: number | null; minimumEnergyShare?: number }
+  | { kind: "ffm"; coefficient: number | null; contextConfirmed?: boolean }
+  | { kind: "fixed_grams"; grams: number } | { kind: "residual" };
+export type ProteinMethod = MacroMethod | { kind: "reference_weight"; weightKg: number; coefficient: number; sourceLabel: string };
+export type FatMethod = MacroMethod | { kind: "energy_share"; share: number };
+export interface MacroMethods { protein: ProteinMethod; fat: FatMethod; carbs: MacroMethod }
 export interface NutritionPolicyV1 {
   schemaVersion: 1;
-  policyVersion: "nutrition-goals-v5.0";
+  policyVersion: "nutrition-goals-v5.0" | "nutrition-goals-v5.1";
   presetId: GoalPresetId;
   originPreset?: Exclude<GoalPresetId, "custom">;
   presetVersion: 1;
@@ -28,7 +28,7 @@ export interface NutritionPolicyV1 {
   energy: EnergyMethod;
   protein: ProteinMethod;
   fat: FatMethod;
-  carbs: { kind: "residual" } | { kind: "fixed_grams"; grams: number };
+  carbs: MacroMethod;
   rounding: { autoEnergyStepKcal: number; autoProteinStepG: number; autoFatStepG: number };
   refreshMode: "preview_then_confirm";
 }
@@ -67,7 +67,7 @@ export interface NutritionTargetResolution {
   trace: CalculationTrace[];
   assumptions: string[];
   issues: NutritionIssue[];
-  algorithmVersion: "nutrition-v5.0";
+  algorithmVersion: "nutrition-v5.0" | "nutrition-v5.1";
   policyVersion: string;
   presetVersion: number;
   inputFingerprint: string;

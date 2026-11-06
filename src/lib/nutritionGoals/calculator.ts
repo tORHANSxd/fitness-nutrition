@@ -1,6 +1,7 @@
 import { Temporal } from "@js-temporal/polyfill";
 import { goalPresetVersions, nutritionRuleVersions } from "./presets";
 import type { CalculationBodySnapshot, NutritionPolicyV1, NutritionTargetResolution, NutritionIssue } from "./types";
+import { resolveFlexibleMacros } from "./flexibleMacros";
 
 // This implementation belongs to presetVersion 1; future versions need their own supported branch.
 const goalPresets = goalPresetVersions[1];
@@ -38,10 +39,11 @@ export function nutritionInputFingerprint(value: unknown): string {
 
 /** Pure v5 engine: no clock, storage, React, legacy calorie deficit or mutable profile access. */
 export function calculateNutritionTarget(policy: NutritionPolicyV1, body: CalculationBodySnapshot): NutritionTargetResolution {
+  const flexible = policy?.policyVersion === "nutrition-goals-v5.1";
   const result: NutritionTargetResolution = {
     status: "valid", resolvedTarget: null, candidateTarget: null,
     expenditure: { rmrKcal: null, tdeeKcal: null, source: policy?.tdee?.kind ?? "not_used" },
-    rawValues: {}, trace: [], assumptions: [], issues: [], algorithmVersion: "nutrition-v5.0",
+    rawValues: {}, trace: [], assumptions: [], issues: [], algorithmVersion: flexible ? "nutrition-v5.1" : "nutrition-v5.0",
     policyVersion: policy?.policyVersion, presetVersion: policy?.presetVersion, inputFingerprint: "",
   };
   const issue = (code: string, severity: NutritionIssue["severity"], field: string, message: string, action = "核对并修改对应输入。") => {
@@ -87,6 +89,7 @@ export function calculateNutritionTarget(policy: NutritionPolicyV1, body: Calcul
     };
     scan(policy, "policy"); scan(body, "body");
     const methods = { rmr: ["mifflin_st_jeor", "cunningham_1980", "measured", "not_used"], tdee: ["pal_total", "non_exercise_plus_planned", "manual", "not_used"], energy: ["preset_percent", "percent", "delta_kcal", "fixed_kcal", "from_macros"], protein: ["body_weight", "ffm", "reference_weight", "fixed_grams"], fat: ["body_weight", "energy_share", "fixed_grams"], carbs: ["residual", "fixed_grams"] };
+    if (flexible) { methods.protein.push("residual"); methods.fat.push("ffm", "residual"); methods.carbs.push("body_weight", "ffm"); }
     for (const key of Object.keys(methods) as Array<keyof typeof methods>) {
       if (!policy[key]) stop("needs_input", "METHOD_REQUIRED", `policy.${key}`, "请明确选择计算方法。");
       if (!methods[key].includes(policy[key].kind)) stop("infeasible", "INVALID_METHOD", `policy.${key}`, "不支持的计算方法，不能静默忽略或回退。");
@@ -98,8 +101,9 @@ export function calculateNutritionTarget(policy: NutritionPolicyV1, body: Calcul
       const value = (body as unknown as Record<string, unknown>)[field];
       if (value != null && !allowed.includes(value as string)) stop("infeasible", "INVALID_SOURCE", `body.${field}`, "输入来源或背景选项无效，请重新选择。");
     }
-    if (policy.schemaVersion !== 1 || policy.policyVersion !== "nutrition-goals-v5.0" || policy.presetVersion !== 1 || policy.refreshMode !== "preview_then_confirm"
+    if (policy.schemaVersion !== 1 || !["nutrition-goals-v5.0", "nutrition-goals-v5.1"].includes(policy.policyVersion) || policy.presetVersion !== 1 || policy.refreshMode !== "preview_then_confirm"
       || ![...Object.keys(goalPresets), "custom"].includes(policy.presetId)) stop("infeasible", "UNSUPPORTED_VERSION", "policy", "不支持此策略版本；请保留原始数据，勿覆盖保存。");
+    if (flexible && policy.presetId !== "custom") stop("infeasible", "PRESET_OVERRIDE_REQUIRES_CUSTOM", "policy.presetId", "精确倍数与灵活宏量规则使用自定义策略；场景默认保留原规则。");
     if (typeof policy.presetDeltaRatio !== "number" || !Number.isFinite(policy.presetDeltaRatio)) stop("infeasible", "INVALID_NUMBER", "policy.presetDeltaRatio", "预设偏移须保存为明确数字，0有效。");
     if (policy.originPreset != null && (!(policy.originPreset in goalPresets) || policy.presetId !== "custom")) stop("infeasible", "INVALID_PRESET_ORIGIN", "policy.originPreset", "只有自定义策略可以保留有效的起始场景。");
     if (policy.presetId === "custom" && policy.energy.kind === "preset_percent") stop("infeasible", "CUSTOM_ENERGY_METHOD_REQUIRED", "policy.energy", "自定义需要明确百分比、热量差、固定能量或宏量优先策略。");
@@ -162,7 +166,7 @@ export function calculateNutritionTarget(policy: NutritionPolicyV1, body: Calcul
     const e = policy.energy, p = policy.protein, f = policy.fat, c = policy.carbs, t = policy.tdee, r = policy.rmr;
     if (!e || !p || !f || !c || !t || !r) stop("needs_input", "METHOD_REQUIRED", "policy", "请明确选择能量、蛋白、脂肪、碳水和消耗来源。");
     const isManualEnergy = e.kind === "fixed_kcal" || e.kind === "from_macros";
-    if (e.kind === "from_macros" ? p.kind !== "fixed_grams" || f.kind !== "fixed_grams" || c.kind !== "fixed_grams" : c.kind !== "residual") stop("infeasible", "OVERDETERMINED_TARGET", "policy.energy", "选择能量优先（E/P/F可控，C派生）或宏量优先（P/F/C固定，E派生）。");
+    if (e.kind === "from_macros" ? p.kind !== "fixed_grams" || f.kind !== "fixed_grams" || c.kind !== "fixed_grams" : !flexible && c.kind !== "residual") stop("infeasible", "OVERDETERMINED_TARGET", "policy.energy", "选择能量优先（E/P/F可控，C派生）或宏量优先（P/F/C固定，E派生）。");
     const tRecord = t as unknown as Record<string, unknown>;
     const pRecord = policy as unknown as Record<string, unknown>;
     if (t.kind === "pal_total" && (t.includesExercise !== true || tRecord.exerciseKcal != null || tRecord.netExercise != null || pRecord.exerciseKcal != null)) stop("infeasible", "DOUBLE_COUNTED_EXERCISE", "policy.tdee", "总活动系数已含训练，不能再添加运动消耗。");
@@ -214,21 +218,35 @@ export function calculateNutritionTarget(policy: NutritionPolicyV1, body: Calcul
       const tdee = result.expenditure.tdeeKcal!;
       const delta = e.kind === "preset_percent" ? policy.presetDeltaRatio : e.kind === "percent" ? e.deltaRatio : e.kind === "delta_kcal" ? e.deltaKcal / tdee : undefined;
       if (typeof delta !== "number" || !Number.isFinite(delta)) stop("infeasible", "INVALID_NUMBER", "policy.energy", "请选择有效能量策略；0偏移有效。");
-      result.rawValues.rawEnergyKcal = tdee * (1 + delta!);
-      energy = roundToStep(required(result.rawValues.rawEnergyKcal, "energy", 0, true), energyStep);
+      result.rawValues.rawEnergyKcal = flexible && e.kind === "delta_kcal" ? tdee + e.deltaKcal : tdee * (1 + delta!);
+      energy = flexible ? required(result.rawValues.rawEnergyKcal, "energy", 0, true) : roundToStep(required(result.rawValues.rawEnergyKcal, "energy", 0, true), energyStep);
       if (delta! < -nutritionRules.maxDeficitShare || delta! > nutritionRules.maxSurplusShare) issue("ENERGY_DELTA_REVIEW", "review", "policy.energy", "缺口超过25%或盈余超过15%（产品复核阈值），请复核。");
     }
     required(energy!, "energy", 0, true);
     result.rawValues.rawEnergyKcal ??= energy!;
     if (result.expenditure.tdeeKcal != null) { result.rawValues.energyDeltaKcal = energy! - result.expenditure.tdeeKcal; result.rawValues.energyDeltaRatio = energy! / result.expenditure.tdeeKcal - 1; }
-    trace("energy", e.kind.toUpperCase(), ["tdee", "policy.energy"], result.rawValues.rawEnergyKcal, energy!, "kcal", isManualEnergy ? "手动值或宏量派生，保留精度，不叠加旧校准" : `先按所选偏移计算，再取最近${energyStep}kcal，正半入`);
+    trace("energy", e.kind.toUpperCase(), ["tdee", "policy.energy"], result.rawValues.rawEnergyKcal, energy!, "kcal", isManualEnergy ? "手动值或宏量派生，保留精度，不叠加旧校准" : flexible ? "按所选热量差或百分比精确计算，不自动取整" : `先按所选偏移计算，再取最近${energyStep}kcal，正半入`);
+    let protein!: number, fat!: number, carbs!: number;
+    if (flexible) {
+      const macroBody = {
+        weightKg: [p, f, c].some(method => method.kind === "body_weight") ? weight() : body.weightKg,
+        ffmKg: [p, f, c].some(method => method.kind === "ffm") ? ffm() : undefined,
+      };
+      try { ({ protein, fat, carbs } = resolveFlexibleMacros(energy!, policy, macroBody)); }
+      catch (error) { stop("infeasible", "INVALID_MACRO_BUDGET", "policy", error instanceof Error ? error.message : "营养素配置无效。"); }
+      result.rawValues.rawProteinG = protein!; result.rawValues.rawFatG = fat!; result.rawValues.fatFloorApplied = false;
+      for (const key of ["protein", "fat", "carbs"] as const) {
+        const method = policy[key], amount = { protein: protein!, fat: fat!, carbs: carbs! }[key];
+        trace(key, method.kind === "residual" ? "RESIDUAL_449" : method.kind.toUpperCase(), ["energy", "body.weightKg", "ffm", `policy.${key}`], amount, amount, "g", method.kind === "residual" ? `剩余热量 ÷ ${key === "fat" ? 9 : 4}；不取整` : "按指定克数、体重倍数或份额精确计算，不取整、不补底");
+      }
+    } else {
     let rawProtein: number;
     if (p.kind === "fixed_grams") rawProtein = required(p.grams, "protein.grams");
     else if (p.kind === "body_weight") rawProtein = weight() * required(p.coefficient, "protein.coefficient", 0, true);
     else if (p.kind === "ffm") { if (p.contextConfirmed !== true) stop("needs_input", "FFM_CONTEXT_REQUIRED", "protein.contextConfirmed", "请确认较瘦、抗阻训练且限制能量的背景。"); rawProtein = ffm() * required(p.coefficient, "protein.coefficient", 0, true); }
     else if (p.kind === "reference_weight") { textRequired(p.sourceLabel, "protein.sourceLabel"); rawProtein = required(p.weightKg, "protein.weightKg", 0, true) * required(p.coefficient, "protein.coefficient", 0, true); }
     else stop("infeasible", "INVALID_METHOD", "policy.protein", "蛋白方法无效。");
-    const protein = p.kind === "fixed_grams" ? rawProtein! : roundToStep(rawProtein!, proteinStep);
+    protein = p.kind === "fixed_grams" ? rawProtein! : roundToStep(rawProtein!, proteinStep);
     result.rawValues.rawProteinG = rawProtein!;
     trace("protein", p.kind.toUpperCase(), ["body.weightKg", "ffm", "policy.protein"], rawProtein!, protein, "g", p.kind === "fixed_grams" ? "手动锁定，不自动取整" : `所选体重口径 × 系数，再取最近${proteinStep}g`);
     let rawFat: number, selectedFat: number;
@@ -247,12 +265,13 @@ export function calculateNutritionTarget(policy: NutritionPolicyV1, body: Calcul
       result.rawValues.fatFloorApplied = selectedFat > rawFat;
       trace("fat_floor", "PRODUCT_FAT_20_PERCENT", ["energy", "policy.fat"], rawFat, selectedFat, "g", `max(体重×系数, 0.20×E/9)；20%是产品配餐规则，不是医学最低需要量`);
     } else stop("infeasible", "INVALID_METHOD", "policy.fat", "脂肪方法无效。");
-    const fat = f.kind === "fixed_grams" ? selectedFat! : ceilToStep(selectedFat!, fatStep);
+    fat = f.kind === "fixed_grams" ? selectedFat! : ceilToStep(selectedFat!, fatStep);
     result.rawValues.rawFatG = rawFat!;
     trace("fat", f.kind.toUpperCase(), ["energy", "body.weightKg", "policy.fat"], rawFat!, fat, "g", f.kind === "fixed_grams" ? "手动锁定，不补到20%，不取整" : `所选脂肪向上取整到${fatStep}g；实际供能比例按最终结果计算`);
-    const carbs = e.kind === "from_macros" && c.kind === "fixed_grams" ? required(c.grams, "carbs.grams") : (energy! - 4 * protein - 9 * fat) / 4;
+    carbs = e.kind === "from_macros" && c.kind === "fixed_grams" ? required(c.grams, "carbs.grams") : (energy! - 4 * protein - 9 * fat) / 4;
     if (carbs < 0) stop("infeasible", "MACROS_EXCEED_ENERGY", "policy.energy", `蛋白和脂肪超过总能量 ${4 * protein + 9 * fat - energy!} kcal。请调整E/P/F，不会抬高E或将碳水截零。`);
     trace("carbs", e.kind === "from_macros" ? "FIXED_GRAMS" : "RESIDUAL_449", ["energy", "protein", "fat"], carbs, carbs, "g", e.kind === "from_macros" ? "宏量优先的手动碳水" : "(E − 4P − 9F) / 4；内部不再取整");
+    }
     if (Math.abs(energy! - (4 * protein + 9 * fat + 4 * carbs)) > 1e-6) stop("infeasible", "ENERGY_MISMATCH", "policy", "宏量与能量不一致。");
     const target = { kcal: energy!, protein, fat, carbs };
     result.candidateTarget = target;

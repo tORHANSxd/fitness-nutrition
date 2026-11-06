@@ -29,6 +29,8 @@ npx supabase db push --linked
 
 新增结构应兼容当前线上客户端；需要新结构的客户端随后发布。禁止对生产运行 `db reset --linked`、使用 `--include-seed` 或篡改迁移历史伪造回滚。恢复步骤见 [数据库回滚说明](database/rollback.md)。
 
+灵活营养素目标需要先应用 `20261106013925_flexible_macro_targets.sql`，再发布客户端。该迁移扩展目标快照与当天覆盖校验，兼容旧 `nutrition-goals-v5.0` 协议，不重写已保存计划或食品。
+
 ## 数据审计与回填
 
 管理员终端通过服务端环境变量 `SUPABASE_URL` 和 `SUPABASE_SERVICE_ROLE_KEY` 连接目标项目。服务端密钥不得进入 `NEXT_PUBLIC_*`、浏览器或 Git。

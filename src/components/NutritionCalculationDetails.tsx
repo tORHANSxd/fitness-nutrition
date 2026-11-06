@@ -7,6 +7,8 @@ import type {
   NutritionTargetResolution,
 } from "@/lib/nutritionGoals/types";
 
+const macroMethodLabels = { fixed_grams: "固定克数", body_weight: "全体重倍数", ffm: "去脂体重倍数", residual: "剩余热量", reference_weight: "参考体重", energy_share: "能量份额" };
+
 export function NutritionCalculationDetails({
   result,
   policy,
@@ -62,7 +64,7 @@ export function NutritionCalculationDetails({
           <div>
             <dt className="text-xs text-muted">
               蛋白 ·{" "}
-              {policy.protein.kind === "fixed_grams" ? "手动设置" : "自动"}
+              {macroMethodLabels[policy.protein.kind]}
             </dt>
             <dd data-testid="candidate-protein">
               {Number(target.protein.toFixed(1))} g
@@ -70,7 +72,7 @@ export function NutritionCalculationDetails({
           </div>
           <div>
             <dt className="text-xs text-muted">
-              脂肪 · {policy.fat.kind === "fixed_grams" ? "手动设置" : "自动"}
+              脂肪 · {macroMethodLabels[policy.fat.kind]}
             </dt>
             <dd data-testid="candidate-fat">
               {Number(target.fat.toFixed(1))} g
@@ -79,7 +81,7 @@ export function NutritionCalculationDetails({
           <div>
             <dt className="text-xs text-muted">
               碳水 ·{" "}
-              {policy.carbs.kind === "residual" ? "剩余能量" : "手动设置"}
+              {macroMethodLabels[policy.carbs.kind]}
             </dt>
             <dd data-testid="candidate-carbs">
               {Number(target.carbs.toFixed(1))} g
@@ -100,7 +102,7 @@ export function NutritionCalculationDetails({
         <summary className="cursor-pointer text-sm">计算明细与参考来源</summary>
       {result.rawValues.energyDeltaKcal != null && (
         <p className="text-sm">
-          取整后的实际能量偏移：
+          {policy.policyVersion === "nutrition-goals-v5.1" ? "实际能量偏移：" : "取整后的实际能量偏移："}
           {result.rawValues.energyDeltaKcal >= 0 ? "+" : "−"}
           {energy(Math.abs(result.rawValues.energyDeltaKcal))}（
           {Number((result.rawValues.energyDeltaRatio! * 100).toFixed(2))}%）。

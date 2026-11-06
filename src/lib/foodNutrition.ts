@@ -56,6 +56,31 @@ export function foodMetadataFromRow(row: Record<string, unknown>): FoodNutrition
 
 export const isFixedDose = (food: Pick<FoodItem, "category" | "portionPolicy">) => food.portionPolicy === "fixed_dose";
 
+export interface FoodQualityPortion {
+  food: (NutrientFood & Pick<FoodItem, "category">) | null;
+  /** Already converted to edible grams; do not apply the edible percentage again. */
+  grams: number;
+  energyBasis?: "label" | "macros";
+}
+
+export function summarizeFoodQuality(portions: FoodQualityPortion[]) {
+  const proteinByCategory: Partial<Record<FoodItem["category"], number>> = {};
+  let protein = 0, fiberGrams = 0, unknownFiberItems = 0, unknownCarbBasisItems = 0, sourceEnergyItems = 0, macroEnergyItems = 0, missingFoods = 0;
+  for (const { food, grams, energyBasis } of portions) {
+    if (grams <= 0) continue;
+    if (!food) { missingFoods++; unknownFiberItems++; unknownCarbBasisItems++; continue; }
+    const factor = grams / 100, amount = food.proteinPer100g * factor;
+    protein += amount;
+    proteinByCategory[food.category] = (proteinByCategory[food.category] ?? 0) + amount;
+    if (food.fiberPer100g == null) unknownFiberItems++;
+    else fiberGrams += food.fiberPer100g * factor;
+    if (!food.carbohydrateBasis || food.carbohydrateBasis === "unknown") unknownCarbBasisItems++;
+    if ((energyBasis ?? food.effectiveEnergyBasis) === "label") sourceEnergyItems++;
+    else macroEnergyItems++;
+  }
+  return { protein, proteinByCategory, fiberGrams, unknownFiberItems, unknownCarbBasisItems, sourceEnergyItems, macroEnergyItems, missingFoods };
+}
+
 export function fiberSummary(meals: MealPlan[], resolve: (entry: MealPlan["entries"][number]) => FoodItem | null) {
   let knownGrams = 0, unknownItems = 0;
   for (const entry of meals.flatMap(meal => meal.entries)) {

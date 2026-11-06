@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { NumericDraftProvider, NumericInput, NumericDraftNotice, useNumericDraftForm } from "@/components/NumericInput";
 import { NutritionCalculationDetails } from "@/components/NutritionCalculationDetails";
+import { MacroMethodFields } from "@/components/MacroMethodFields";
 import type { PlannerController } from "@/components/usePlanner";
 import { canonicalEnergy, canonicalLength, canonicalWeight, displayEnergy, displayLength, displayWeight, type AppPreferences } from "@/lib/preferences";
 import { calculateNutritionTarget, nutritionInputFingerprint } from "@/lib/nutritionGoals/calculator";
@@ -33,7 +34,7 @@ export function NutritionGoalPanel({ controller, user, preferences, protocols, r
   const saved = active?.nutrition;
   const [editing, setEditing] = useState(!saved);
   const [policy, setPolicy] = useState<NutritionPolicyV1>(() => saved ? structuredClone(saved.policy) : createNutritionPolicy("cut_recomp"));
-  const [manual, setManual] = useState(saved?.policy.energy.kind === "from_macros" || (saved?.policy.energy.kind === "fixed_kcal" && saved.policy.protein.kind === "fixed_grams" && saved.policy.fat.kind === "fixed_grams"));
+  const [manual, setManual] = useState(saved?.policy.energy.kind === "from_macros" || saved?.policy.energy.kind === "fixed_kcal" || (saved?.policy.energy.kind === "delta_kcal" && saved.policy.tdee.kind === "manual"));
   const [body, setBody] = useState<CalculationBodySnapshot>(() => saved ? { ...structuredClone(saved.body), calculationDate: todayKey(preferences.timeZone) } : {
     calculationDate: todayKey(preferences.timeZone), timeZone: preferences.timeZone,
     weightKg: controller.profile.weightKg > 0 ? controller.profile.weightKg : null, weightSource: "manual",
@@ -66,7 +67,7 @@ export function NutritionGoalPanel({ controller, user, preferences, protocols, r
   const result = useMemo(() => calculateNutritionTarget(policy, resolvedBody), [policy, resolvedBody]);
   const previewCurrent = preview?.nutrition?.result.inputFingerprint === result.inputFingerprint && previewMealsKey === nutritionInputFingerprint(controller.meals);
   const energy = (v: number) => `${Math.round(displayEnergy(v, preferences.energyUnit))} ${preferences.energyUnit === "kj" ? "kJ" : "kcal"}`;
-  const editPolicy = (patch: Partial<NutritionPolicyV1>, custom = true) => { setPolicy(current => ({ ...current, ...(custom ? { presetId: "custom", originPreset: current.presetId === "custom" ? current.originPreset : current.presetId, ...(current.energy.kind === "preset_percent" ? { energy: { kind: "percent", deltaRatio: current.presetDeltaRatio } } : {}) } as const : {}), ...patch })); setPreview(null); };
+  const editPolicy = (patch: Partial<NutritionPolicyV1>, custom = true) => { setPolicy(current => ({ ...current, ...(custom ? { policyVersion: "nutrition-goals-v5.1", presetId: "custom", originPreset: current.presetId === "custom" ? current.originPreset : current.presetId, ...(current.energy.kind === "preset_percent" ? { energy: { kind: "percent", deltaRatio: current.presetDeltaRatio } } : {}) } as const : {}), ...patch })); setPreview(null); };
   const editBody = (patch: Partial<CalculationBodySnapshot>) => { setBody(current => ({ ...current, ...patch })); setPreview(null); };
   const setPreset = (id: GoalPresetId, keep: boolean) => {
     const next = createNutritionPolicy(id);
@@ -76,7 +77,7 @@ export function NutritionGoalPanel({ controller, user, preferences, protocols, r
       if (policy.energy.kind === "fixed_kcal" || policy.energy.kind === "from_macros") { next.energy = policy.energy; next.carbs = policy.carbs; }
       if (policy.protein.kind === "fixed_grams") next.protein = policy.protein;
       if (policy.fat.kind === "fixed_grams") next.fat = policy.fat;
-      next.originPreset = id === "custom" ? policy.originPreset : id; next.presetId = "custom";
+      next.originPreset = id === "custom" ? policy.originPreset : id; next.presetId = "custom"; next.policyVersion = policy.policyVersion;
       if (next.energy.kind === "preset_percent") next.energy = { kind: "percent", deltaRatio: next.presetDeltaRatio };
     }
     setPolicy(next); setPendingPreset(null); setPreview(null);
@@ -113,13 +114,13 @@ export function NutritionGoalPanel({ controller, user, preferences, protocols, r
   const p = policy.protein, f = policy.fat, e = policy.energy, t = policy.tdee, r = policy.rmr;
   const usesTdee = e.kind !== "fixed_kcal" && e.kind !== "from_macros";
   const usesRmr = usesTdee && t.kind !== "manual";
-  const needsFfm = (usesRmr && r.kind === "cunningham_1980") || p.kind === "ffm";
+  const needsFfm = (usesRmr && r.kind === "cunningham_1980") || [p, f, policy.carbs].some(method => method.kind === "ffm");
   const needsDemographics = usesRmr && r.kind === "mifflin_st_jeor";
-  const needsWeight = needsDemographics || p.kind === "body_weight" || f.kind === "body_weight" || needsFfm;
+  const needsWeight = needsDemographics || [p, f, policy.carbs].some(method => method.kind === "body_weight") || needsFfm;
   const number = (label: string, value: number | null | undefined, onChange: (n: number) => void, unit?: "energy" | "weight" | "length") => <GoalNumber label={label} value={value} onChange={onChange} preferences={preferences} unit={unit} />;
   return <NumericDraftProvider form={numeric}><section className="min-w-0 space-y-4" aria-label="自动营养目标">
     <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg">日常目标</h2><button className="btn-secondary" type="button" aria-expanded={editing} onClick={() => setEditing(v => !v)}>{editing ? "收起设置" : "调整目标"}</button></div>
-    <p className="text-sm text-muted">设置一次，之后每天自动带入。偶尔想改变某一天的热量，在“今日饮食”中选择“仅调整这一天”。</p>
+    <p className="text-sm text-muted">设置一次，之后每天自动带入。某一天需要改变热量或营养素时，在“今日饮食”中选择“仅调整这一天”。</p>
     {saved && <div className="rounded-xl bg-panel p-4"><p className="font-semibold">{energy(active.dailyTarget.kcal)} / 天</p><p className="mt-2 text-sm">蛋白质 {Number(active.dailyTarget.protein.toFixed(1))} g · 脂肪 {Number(active.dailyTarget.fat.toFixed(1))} g · 碳水 {Number(active.dailyTarget.carbs.toFixed(1))} g</p><p className="mt-2 text-xs text-muted">{active.effectiveFrom} 起使用。已保存日期保留各自的目标。</p></div>}
     {hasSavedPlan && <p className="rounded-lg border border-line p-3 text-sm" aria-label="今天的目标说明">{controller.profile.planDate} 已保存，当前为 {energy(controller.result.dailyTarget.kcal)}。修改日常目标不会覆盖这一天；当天需要变化时，请到“今日饮食”单独调整热量。</p>}
     {active?.nutritionStrategy?.mode === "weekly_cycle" && <p className="text-sm text-muted">按业务日期使用训练日 / 休息日目标；周预算 {energy(active.nutritionStrategy.weeklyTargetKcal)}，上方为日均目标。每周训练日：{active.nutritionStrategy.isoWeekdaysTraining.join("、")}。</p>}
@@ -130,9 +131,15 @@ export function NutritionGoalPanel({ controller, user, preferences, protocols, r
 
       <div className="grid grid-cols-2 gap-3" role="group" aria-label="设置目标的方式"><button type="button" aria-pressed={!manual} className={!manual ? "btn-primary" : "btn-secondary"} onClick={() => { if (!manual) return; setManual(false); setPreset("cut_recomp",false); }}>帮我计算</button><button type="button" aria-pressed={manual} className={manual ? "btn-primary" : "btn-secondary"} onClick={() => { if (manual) return; const target = result.candidateTarget ?? active?.dailyTarget ?? controller.result.dailyTarget; setManual(true); editPolicy({ rmr: {kind:"not_used"}, tdee: {kind:"not_used"}, energy: {kind:"fixed_kcal",kcal:target.kcal || null}, protein:{kind:"fixed_grams",grams:target.protein}, fat:{kind:"fixed_grams",grams:target.fat}, carbs:{kind:"residual"} }); }}>我已有目标</button></div>
       {manual && <div className="space-y-3">
-        <p className="text-sm text-muted">填写你已确定的数值，不需要重新填写身体信息。</p>
-        <label className="block text-sm">填写方式<select className="field mt-1 w-full" value={e.kind === "from_macros" ? "macros" : "energy"} onChange={event => editPolicy(event.target.value === "macros" ? { energy: { kind: "from_macros" }, carbs: { kind: "fixed_grams", grams: result.candidateTarget?.carbs ?? 0 } } : { energy: { kind: "fixed_kcal", kcal: result.candidateTarget?.kcal ?? null }, carbs: { kind: "residual" } })}><option value="energy">热量、蛋白质和脂肪（碳水自动算）</option><option value="macros">三大营养素（热量自动算）</option></select></label>
-        <div className="grid gap-3 sm:grid-cols-3">{e.kind === "fixed_kcal" && number("每日热量", e.kcal, n=>editPolicy({energy:{kind:"fixed_kcal",kcal:n}}), "energy")}{p.kind === "fixed_grams" && number("每日蛋白质 g", p.grams,n=>editPolicy({protein:{...p,grams:n}}))}{f.kind === "fixed_grams" && number("每日脂肪 g",f.grams,n=>editPolicy({fat:{...f,grams:n}}))}{policy.carbs.kind === "fixed_grams" && number("每日碳水 g",policy.carbs.grams,n=>editPolicy({carbs:{kind:"fixed_grams",grams:n}}))}</div>
+        <p className="text-sm text-muted">三项可分别填写克数或体重倍数；最多一项按剩余热量计算。按去脂体重时需提供体脂率或直接去脂体重。</p>
+        <label className="block text-sm">填写方式<select className="field mt-1 w-full" value={e.kind === "from_macros" ? "macros" : e.kind === "delta_kcal" ? "deficit" : "energy"} onChange={event => {
+          const target = result.candidateTarget ?? active?.dailyTarget ?? controller.result.dailyTarget;
+          if (event.target.value === "macros") editPolicy({ energy: { kind: "from_macros" }, protein: { kind: "fixed_grams", grams: target.protein }, fat: { kind: "fixed_grams", grams: target.fat }, carbs: { kind: "fixed_grams", grams: target.carbs } });
+          else if (event.target.value === "deficit") editPolicy({ energy: { kind: "delta_kcal", deltaKcal: 0 }, rmr: { kind: "not_used" }, tdee: t.kind === "manual" ? t : { kind: "manual", kcal: result.expenditure.tdeeKcal ?? target.kcal, source: "user_estimate" }, ...(e.kind === "from_macros" ? { carbs: { kind: "residual" } as const } : {}) });
+          else editPolicy({ energy: { kind: "fixed_kcal", kcal: target.kcal || null }, ...(e.kind === "from_macros" ? { carbs: { kind: "residual" } as const } : {}) });
+        }}><option value="energy">固定热量与营养素规则</option><option value="deficit">固定热量缺口与营养素规则</option><option value="macros">三大营养素克数（热量自动算）</option></select></label>
+        <div className="grid gap-3 sm:grid-cols-2">{e.kind === "fixed_kcal" && number("每日热量", e.kcal, n => editPolicy({ energy: { kind: "fixed_kcal", kcal: n } }), "energy")}{e.kind === "delta_kcal" && number("每日热量缺口（负为盈余）", -e.deltaKcal, n => editPolicy({ energy: { kind: "delta_kcal", deltaKcal: -n } }), "energy")}</div>
+        <div className="grid gap-3 sm:grid-cols-3">{(["protein", "fat", "carbs"] as const).map(key => <MacroMethodFields key={key} nutrient={key} value={policy[key]} grams={result.candidateTarget?.[key] ?? active?.dailyTarget[key] ?? 0} gramsLabel={{ protein: "每日蛋白质 g", fat: "每日脂肪 g", carbs: "每日碳水 g" }[key]} fixedOnly={e.kind === "from_macros"} onChange={method => editPolicy({ [key]: method })} />)}</div>
       </div>}
       {e.kind !== "from_macros" && <>
       {!manual && <label className="block text-sm">我的目标<select className="field mt-1 w-full" value={policy.presetId} onChange={event => {
@@ -145,7 +152,7 @@ export function NutritionGoalPanel({ controller, user, preferences, protocols, r
       {pendingPreset && <div role="group" aria-label="切换场景时处理手动锁定" className="flex flex-wrap gap-2 rounded border border-line p-3"><p className="w-full text-sm">切换目标时，是否保留手动数值？</p><button type="button" className="btn-secondary" onClick={() => setPreset(pendingPreset, true)}>保留手动项</button><button type="button" className="btn-secondary" onClick={() => setPreset(pendingPreset, false)}>全部采用场景默认</button></div>}
 
       <div className="grid min-w-0 gap-3 sm:grid-cols-2">
-        {needsWeight && number("计算体重", body.weightKg, n => { setMorningConfirmed(false); editBody({ weightKg: n, weightSource: "manual", weightDates: [body.calculationDate] }); }, "weight")}
+        {needsWeight && number("计算体重", body.weightKg, n => { setMorningConfirmed(false); editBody({ weightKg: n, weightSource: "manual", weightDates: [body.calculationDate], ...(manual ? { bodyFatWeightKg: n } : {}) }); }, "weight")}
         {needsDemographics && <>{number("身高", body.heightCm, n => editBody({ heightCm: n }), "length")}
         {!body.birthDate && number("当前周岁", body.ageYears, n => editBody({ ageYears: n, ageSource: "confirmed_years", birthDate: undefined }))}
         <label className="text-sm">计算所用性别<select className="field mt-1 w-full" value={body.calculationSex ?? ""} onChange={event => editBody({ calculationSex: event.target.value as "male" | "female" || null })}><option value="">请选择（不默认）</option><option value="male">男性</option><option value="female">女性</option></select></label></>}
@@ -188,24 +195,22 @@ export function NutritionGoalPanel({ controller, user, preferences, protocols, r
         <label className="block text-sm">能量控制方式<select className="field mt-1 w-full" value={e.kind} onChange={ev => {
           const kind = ev.target.value;
           if (kind === "from_macros") { setManual(true); editPolicy({ energy: { kind }, protein: { kind: "fixed_grams", grams: result.candidateTarget?.protein ?? 0 }, fat: { kind: "fixed_grams", grams: result.candidateTarget?.fat ?? 0 }, carbs: { kind: "fixed_grams", grams: result.candidateTarget?.carbs ?? 0 } }); }
-          else editPolicy({ energy: kind === "fixed_kcal" ? { kind, kcal: result.candidateTarget?.kcal ?? null } : kind === "percent" ? { kind, deltaRatio: policy.presetDeltaRatio } : kind === "delta_kcal" ? { kind, deltaKcal: 0 } : { kind: "preset_percent" }, carbs: { kind: "residual" } });
+          else editPolicy({ energy: kind === "fixed_kcal" ? { kind, kcal: result.candidateTarget?.kcal ?? null } : kind === "percent" ? { kind, deltaRatio: policy.presetDeltaRatio } : kind === "delta_kcal" ? { kind, deltaKcal: 0 } : { kind: "preset_percent" } });
         }}><option value="preset_percent" disabled={policy.presetId === "custom"}>场景已保存的百分比</option><option value="percent">自定义百分比</option><option value="delta_kcal">固定热量差</option><option value="fixed_kcal">固定每日能量（锁定E）</option><option value="from_macros">宏量优先（E派生）</option></select></label>
         {e.kind === "preset_percent" && <p>场景能量偏移 {policy.presetDeltaRatio >= 0 ? "+" : ""}{policy.presetDeltaRatio * 100}%（0有效）。</p>}
         {e.kind === "percent" && number("能量偏移百分比（负为缺口）", e.deltaRatio * 100, n => editPolicy({ energy: { kind: "percent", deltaRatio: n / 100 } }))}
         {e.kind === "delta_kcal" && number("能量差（负为缺口）", e.deltaKcal, n => editPolicy({ energy: { kind: "delta_kcal", deltaKcal: n } }), "energy")}
         {e.kind === "fixed_kcal" && number("手动每日能量", e.kcal, n => editPolicy({ energy: { kind: "fixed_kcal", kcal: n } }), "energy")}
-        <label className="block text-sm">蛋白方法<select className="field mt-1 w-full" value={p.kind} onChange={ev => editPolicy({ protein: ev.target.value === "fixed_grams" ? { kind: "fixed_grams", grams: result.candidateTarget?.protein ?? 0 } : ev.target.value === "ffm" ? { kind: "ffm", coefficient: 2.6, contextConfirmed: false } : ev.target.value === "reference_weight" ? { kind: "reference_weight", coefficient: 0, weightKg: 0, sourceLabel: "" } : { kind: "body_weight", coefficient: goalPresets[policy.originPreset ?? (policy.presetId === "custom" ? "maintain" : policy.presetId)].proteinPerKg } })}><option value="body_weight">按体重（自动）</option><option value="ffm">按去脂体重</option><option value="reference_weight">专业确认的参考体重</option><option value="fixed_grams">固定克数</option></select></label>
-        {p.kind === "fixed_grams" ? number("手动蛋白 g", p.grams, n => editPolicy({ protein: { ...p, grams: n } })) : number("蛋白系数 g/kg", p.coefficient, n => editPolicy({ protein: { ...p, coefficient: n } }))}
-        {p.kind === "ffm" && <label className="flex gap-2"><input type="checkbox" checked={p.contextConfirmed} onChange={ev => editPolicy({ protein: { ...p, contextConfirmed: ev.target.checked } })} />确认较瘦、抗阻训练且限制热量的背景；每公斤去脂体重使用 2.3–3.1 g 蛋白质</label>}
-        {p.kind === "reference_weight" && <>{number("专业参考体重", p.weightKg, n => editPolicy({ protein: { ...p, weightKg: n } }), "weight")}<label className="block">参考体重依据<input className="field mt-1 w-full" maxLength={200} value={p.sourceLabel} onChange={ev => editPolicy({ protein: { ...p, sourceLabel: ev.target.value } })} /></label></>}
-        <label className="block text-sm">脂肪方法<select className="field mt-1 w-full" value={f.kind} onChange={ev => editPolicy({ fat: ev.target.value === "fixed_grams" ? { kind: "fixed_grams", grams: result.candidateTarget?.fat ?? 0 } : ev.target.value === "energy_share" ? { kind: "energy_share", share: 0.25 } : { kind: "body_weight", coefficient: goalPresets[policy.originPreset ?? (policy.presetId === "custom" ? "maintain" : policy.presetId)].fatPerKg, minimumEnergyShare: 0.2 } })}><option value="body_weight">按体重＋20%供能检查（自动）</option><option value="energy_share">按能量百分比（自动）</option><option value="fixed_grams">固定克数</option></select></label>
-        {f.kind === "fixed_grams" ? number("手动脂肪 g", f.grams, n => editPolicy({ fat: { ...f, grams: n } })) : f.kind === "energy_share" ? number("脂肪供能百分比", f.share * 100, n => editPolicy({ fat: { ...f, share: n / 100 } })) : number("脂肪系数 g/kg", f.coefficient, n => editPolicy({ fat: { ...f, coefficient: n } }))}
-        {policy.carbs.kind === "fixed_grams" && number("手动碳水 g", policy.carbs.grams, n => editPolicy({ carbs: { kind: "fixed_grams", grams: n } }))}
-        {needsFfm && <div className="space-y-3"><label className="block">去脂体重来源<select className="field mt-1 w-full" value={body.ffmInput ?? ""} onChange={ev => editBody({ ffmInput: ev.target.value as "body_fat" | "direct" })}><option value="">请选择</option><option value="body_fat">同日体重＋体脂率</option><option value="direct">直接填写去脂体重</option></select></label>
-          {body.ffmInput === "direct" ? <>{number("去脂体重", body.ffmKg, n => editBody({ ffmKg: n }), "weight")}<label className="block">测量日期<input className="field mt-1 w-full" type="date" value={body.ffmMeasuredOn ?? ""} onChange={ev => editBody({ ffmMeasuredOn: ev.target.value })} /></label><label className="block">测量来源<input className="field mt-1 w-full" maxLength={200} value={body.ffmSourceLabel ?? ""} onChange={ev => editBody({ ffmSourceLabel: ev.target.value })} /></label></> : <>{number("体脂率 %", body.bodyFatPct, n => editBody({ bodyFatPct: n }))}{number("体脂测量同日体重", body.bodyFatWeightKg, n => editBody({ bodyFatWeightKg: n }), "weight")}<label className="block">体脂测量日期<input className="field mt-1 w-full" type="date" value={body.bodyFatMeasuredOn ?? ""} onChange={ev => editBody({ bodyFatMeasuredOn: ev.target.value })} /></label><label className="block">体脂测量方式<input className="field mt-1 w-full" maxLength={200} value={body.bodyFatSource ?? ""} onChange={ev => editBody({ bodyFatSource: ev.target.value })} /></label></>}
-        </div>}
+        <div className="grid gap-3 sm:grid-cols-3">{(["protein", "fat", "carbs"] as const).map(key => <MacroMethodFields key={key} nutrient={key} value={policy[key]} grams={result.candidateTarget?.[key] ?? 0} onChange={method => editPolicy({ [key]: method })} />)}</div>
+        <p className="text-xs text-muted">调整任一营养素规则后使用精确自定义计算；倍数不再取整，脂肪不自动补到20%。场景默认和已保存历史保持原规则。</p>
         <label className="block">出生日期（可选）<input className="field mt-1 w-full" type="date" value={body.birthDate ?? ""} onChange={ev => editBody({ birthDate: ev.target.value || undefined, ageYears: null, ageSource: "birth_date" })} /></label>
       </div></details>}
+      {needsFfm && <div className="space-y-3 rounded border border-line p-3"><label className="block text-sm">去脂体重来源<select className="field mt-1 w-full" value={body.ffmInput ?? "body_fat"} onChange={ev => editBody({ ffmInput: ev.target.value as "body_fat" | "direct" })}><option value="body_fat">同日体重＋体脂率</option><option value="direct">直接填写去脂体重</option></select></label>
+        {body.ffmInput === "direct" ? <>{number("去脂体重", body.ffmKg, n => editBody({ ffmKg: n }), "weight")}<label className="block text-sm">测量日期<input className="field mt-1 w-full" type="date" value={body.ffmMeasuredOn ?? ""} onChange={ev => editBody({ ffmMeasuredOn: ev.target.value })} /></label><label className="block text-sm">测量来源<input className="field mt-1 w-full" maxLength={200} value={body.ffmSourceLabel ?? ""} onChange={ev => editBody({ ffmSourceLabel: ev.target.value })} /></label></> : <>
+          {number("体脂率 %", body.bodyFatPct, n => editBody({ bodyFatPct: n, ffmInput: "body_fat", ...(manual ? { bodyFatWeightKg: body.weightKg, bodyFatMeasuredOn: body.calculationDate, bodyFatSource: "手动输入" } : {}) }))}
+          {manual ? <p className="text-xs text-muted">去脂体重 = 计算体重 × (1 − 体脂率)。以本次手填值保存，体脂测量存在误差。</p> : <>{number("体脂测量同日体重", body.bodyFatWeightKg, n => editBody({ bodyFatWeightKg: n }), "weight")}<label className="block text-sm">体脂测量日期<input className="field mt-1 w-full" type="date" value={body.bodyFatMeasuredOn ?? ""} onChange={ev => editBody({ bodyFatMeasuredOn: ev.target.value })} /></label><label className="block text-sm">体脂测量方式<input className="field mt-1 w-full" maxLength={200} value={body.bodyFatSource ?? ""} onChange={ev => editBody({ bodyFatSource: ev.target.value })} /></label></>}
+        </>}
+      </div>}
       </>}
       <div className="space-y-3 border-t border-line pt-4 text-sm">
         <label className="flex gap-2"><input type="checkbox" checked={body.scope.adultAttested} onChange={ev => editBody({ scope: { ...body.scope, adultAttested: ev.target.checked } })} />我已成年，适用一般成人营养计算</label>

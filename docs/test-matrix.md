@@ -45,6 +45,8 @@
 
 当天缺口由 `dailyEnergy.test.ts`、`dailyEnergyPanel.test.tsx`、`usePlanner.test.tsx` 与 `nutritionStandardMigration.test.ts` 验证：零缺口、精确热量差、宏量超预算、kJ 转换、跨日隔离、刷新、实际记录 revision 和已完成记录重开。`nutrition-standard.spec.ts` 在三个视口验证保存与恢复、食物克重保留及 axe。
 
+灵活营养素由 `flexibleMacros.test.ts` 与上述组件、数据库用例验证：全体重/去脂体重、三种剩余项、精确小数、固定摄入不伪造消耗、非法组合拒绝、版本快照与旧算法兼容。`nutrition-goals.spec.ts` 在三个视口验证日常与当天输入分别保存、刷新、跨日及取消恢复；`planTransfer.test.ts` 验证导入导出。`foodQuality.test.tsx` 核验蛋白来源、纤维未知值、冻结食品与来源能量口径。
+
 日期测试覆盖 UTC-11/UTC+8/UTC+14、纽约 DST、跨午夜、跨月年、闰日与周起始日。历史业务日期不得因切换时区而漂移。
 
 交互验收检查键盘焦点、Tab 圈闭、Escape、焦点恢复、状态播报和图表文本数据。axe 的 serious/critical 问题会使对应浏览器测试失败。补充人工检查 200%/400% 缩放、明暗主题、forced-colors、reduced-motion 及屏幕阅读器。

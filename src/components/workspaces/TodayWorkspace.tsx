@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { fiberSummary } from "@/lib/foodNutrition";
+import { edibleGrams } from "@/lib/foodWeights";
+import { FoodQualityDetails } from "@/components/FoodQualityDetails";
 import { resolveMealFood } from "@/lib/foodSnapshots";
 import { NutritionSummary } from "@/components/NutritionSummary";
 import { DailyEnergyPanel } from "@/components/DailyEnergyPanel";
@@ -279,6 +281,7 @@ export function TodayWorkspace({
                 />
                 <DailyEnergyPanel key={`${controller.profile.planDate}:${controller.result.tdee}:${controller.result.dailyTarget.kcal}:${JSON.stringify(controller.profile.dailyEnergyAdjustment)}`} controller={controller} energyUnit={preferences.energyUnit} />
                 <p className="text-xs text-muted" aria-label="计划膳食纤维">{(() => { const fiber = fiberSummary(controller.meals, entry => resolveMealFood(entry, controller.foodsById).food); return `已知纤维 ${fiber.knownGrams.toFixed(1)} g${fiber.complete ? "" : ` · ${fiber.unknownItems} 项纤维未知，当前为部分合计`}`; })()}</p>
+                <FoodQualityDetails label="当前计划" portions={controller.meals.flatMap(meal => meal.entries.map(entry => ({ food: resolveMealFood(entry, controller.foodsById).food, grams: edibleGrams(entry.grams, entry) })))} />
                 <MealSplitView
                   controller={controller}
                   foods={foods}

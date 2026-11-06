@@ -11,10 +11,10 @@ export function createNutritionSnapshot(policy: NutritionPolicyV1, body: Calcula
 export function parseNutritionSnapshot(value: unknown): NutritionSnapshotV1 {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("营养快照格式无效。");
   const snapshot = value as NutritionSnapshotV1;
-  if (snapshot.schemaVersion !== 1 || snapshot.source !== "user_confirmed" || snapshot.result?.algorithmVersion !== "nutrition-v5.0") throw new Error("不支持的营养快照版本。");
+  if (snapshot.schemaVersion !== 1 || snapshot.source !== "user_confirmed" || !["nutrition-v5.0", "nutrition-v5.1"].includes(snapshot.result?.algorithmVersion)) throw new Error("不支持的营养快照版本。");
   const computed = calculateNutritionTarget(snapshot.policy, snapshot.body);
   if (computed.status !== "valid" || snapshot.result.status !== "valid" || snapshot.result.inputFingerprint !== nutritionInputFingerprint({ policy: snapshot.policy, body: snapshot.body })
-    || snapshot.result.policyVersion !== snapshot.policy.policyVersion || snapshot.result.presetVersion !== snapshot.policy.presetVersion) throw new Error("营养策略、输入或版本校验失败。");
+    || snapshot.result.algorithmVersion !== computed.algorithmVersion || snapshot.result.policyVersion !== snapshot.policy.policyVersion || snapshot.result.presetVersion !== snapshot.policy.presetVersion) throw new Error("营养策略、输入或版本校验失败。");
   // Compare all calculation evidence, not merely the headline macros. Unknown fields remain intact.
   for (const key of ["resolvedTarget", "candidateTarget", "expenditure", "rawValues", "trace"] as const) {
     if (nutritionInputFingerprint(snapshot.result[key]) !== nutritionInputFingerprint(computed[key])) throw new Error(`营养快照 ${key} 与版本化输入不一致。`);

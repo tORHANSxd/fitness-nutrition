@@ -583,9 +583,11 @@ export function usePlanner({ foods, templates, user, timeZone, energyUnit = "kca
     try {
       const next = { ...profile, dailyEnergyAdjustment: adjustment };
       const nextResult = buildNutritionResult(next, meals, allFoods);
+      if (nextResult.targetError) throw new Error(nextResult.targetError);
       const checkin = await loadDailyCheckin(date, user);
-      if (checkin?.completed) throw new Error("该日实际记录已完成，请先在实际记录页重开，再调整当天缺口。");
+      if (checkin?.completed) throw new Error("该日实际记录已完成，请先在实际记录页重开，再调整当天目标。");
       const actual = checkin?.actual.version === 3 ? structuredClone(checkin.actual) : emptyActualV3(checkin?.actual);
+      if (actual.targetProtocolSnapshot && nutritionInputFingerprint(actual.targetProtocolSnapshot) !== nutritionInputFingerprint(profile.protocolSnapshot)) throw new Error("本日实际记录与当前计划使用不同的基础目标，请重新载入本日已保存计划后再调整。");
       if (!checkin && profile.protocolSnapshot?.nutrition) actual.targetProtocolSnapshot = structuredClone(profile.protocolSnapshot);
       if (adjustment) actual.targetEnergyAdjustment = adjustment;
       else delete actual.targetEnergyAdjustment;

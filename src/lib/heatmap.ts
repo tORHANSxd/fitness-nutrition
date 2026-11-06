@@ -188,7 +188,7 @@ export function buildHeatmapDays({
     const expenditure = completed ? actual.version === 3 ? actual.targetProtocolSnapshot?.nutrition?.result.expenditure : undefined : plan?.profile.protocolSnapshot?.nutrition?.result.expenditure;
 
     return [{
-      ...(adjustment ? { expenditure: { rmrKcal: expenditure?.rmrKcal ?? null, tdeeKcal: adjustment.tdeeKcal, source: "daily_estimate" } } : expenditure ? { expenditure } : {}),
+      ...(adjustment?.tdeeKcal != null ? { expenditure: { rmrKcal: expenditure?.rmrKcal ?? null, tdeeKcal: adjustment.tdeeKcal, source: "daily_estimate" } } : expenditure ? { expenditure } : {}),
       date,
       completed,
       actual,

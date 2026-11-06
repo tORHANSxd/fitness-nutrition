@@ -62,3 +62,34 @@ it("默认显示目标来源，临时调整收起且不写入数据", () => {
   expect(screen.getByLabelText("当天缺口")).not.toBeVisible();
   expect(c.applyDailyEnergyAdjustment).not.toHaveBeenCalled();
 });
+
+it("当天可手填身体信息和倍数，固定摄入不要求虚构维持热量", () => {
+  const c = controller();
+  c.profile.protocolSnapshot!.nutrition!.result.expenditure.tdeeKcal = null;
+  render(<DailyEnergyPanel controller={c} energyUnit="kcal" />);
+  fireEvent.click(screen.getByText("仅调整这一天"));
+  const change = (label: string, value: string) => fireEvent.change(screen.getByLabelText(label, { exact: true }), { target: { value } });
+  change("当天热量方式", "fixed"); change("当天摄入热量", "2200");
+  fireEvent.click(screen.getByLabelText("单独调整当天体重、体脂和三大营养素"));
+  change("当天计算体重", "90"); change("当天体脂率", "20");
+  change("蛋白方法", "ffm"); change("蛋白系数 g/kg", "2.5");
+  change("脂肪方法", "body_weight"); change("脂肪系数 g/kg", "0.6");
+  expect(screen.getByLabelText("当天目标预览")).toHaveTextContent("碳水 248.5 g · 蛋白质 180.0 g · 脂肪 54.0 g");
+  fireEvent.click(screen.getByRole("button", { name: "保存当天目标" }));
+  expect(c.applyDailyEnergyAdjustment).toHaveBeenLastCalledWith({ targetKcal: 2200, macroInputs: { version: 1, weightKg: 90, bodyFatPct: 20, protein: { kind: "ffm", coefficient: 2.5 }, fat: { kind: "body_weight", coefficient: .6 }, carbs: { kind: "residual" } } });
+  change("蛋白方法", "residual");
+  expect(screen.getByRole("button", { name: "保存当天目标" })).toBeDisabled();
+  expect(screen.getByRole("alert")).toHaveTextContent("最多只能选择一项");
+});
+
+it("已存当天规则载入后仍可切换剩余项或直接去脂体重", () => {
+  const c = controller();
+  c.profile.dailyEnergyAdjustment = { targetKcal: 2200, macroInputs: { version: 1, weightKg: 90, bodyFatPct: null, ffmInput: "direct", ffmKg: 72, protein: { kind: "ffm", coefficient: 2.5 }, fat: { kind: "fixed_grams", grams: 60 }, carbs: { kind: "residual" } } };
+  render(<DailyEnergyPanel controller={c} energyUnit="kcal" />);
+  fireEvent.click(screen.getByText("仅调整这一天"));
+  expect(screen.getByLabelText("当天热量方式")).toHaveValue("fixed");
+  expect(screen.getByLabelText("当天去脂体重", { exact: true })).toHaveValue("72");
+  expect(screen.getByLabelText("蛋白方法")).toHaveValue("ffm");
+  fireEvent.click(screen.getByRole("button", { name: "保存当天目标" }));
+  expect(c.applyDailyEnergyAdjustment).toHaveBeenLastCalledWith(c.profile.dailyEnergyAdjustment);
+});

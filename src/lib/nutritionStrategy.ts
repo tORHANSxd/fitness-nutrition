@@ -1,17 +1,23 @@
 import { Temporal } from "@js-temporal/polyfill";
 import type { MacroTotals, PlanProtocol, UserProfile } from "@/lib/types";
+import { dailyFfmKg, parseDailyMacroInputs, resolveFlexibleMacros } from "@/lib/nutritionGoals/flexibleMacros";
 
 export function parseDailyEnergyAdjustment(value: unknown): NonNullable<UserProfile["dailyEnergyAdjustment"]> {
   const a = value as UserProfile["dailyEnergyAdjustment"];
+  if (a?.targetKcal !== undefined) {
+    if (typeof a.targetKcal !== "number" || !Number.isFinite(a.targetKcal) || a.targetKcal <= 0 || a.targetKcal > 10000 || a.tdeeKcal !== undefined || a.deficitKcal !== undefined) throw new Error("当天固定热量须为 0–10,000 kcal 之间的正数，不能同时指定维持热量与缺口。");
+    return { targetKcal: a.targetKcal, ...(a.macroInputs !== undefined ? { macroInputs: parseDailyMacroInputs(a.macroInputs, a.targetKcal) } : {}) };
+  }
   if (!a || typeof a.tdeeKcal !== "number" || !Number.isFinite(a.tdeeKcal) || a.tdeeKcal <= 0 || a.tdeeKcal > 10000
     || typeof a.deficitKcal !== "number" || !Number.isFinite(a.deficitKcal) || a.deficitKcal < 0 || a.deficitKcal >= a.tdeeKcal) throw new Error("维持热量须为 0–10,000 kcal 之间的正数；缺口须非负且小于维持热量。");
-  return { tdeeKcal: a.tdeeKcal, deficitKcal: a.deficitKcal };
+  return { tdeeKcal: a.tdeeKcal, deficitKcal: a.deficitKcal, ...(a.macroInputs !== undefined ? { macroInputs: parseDailyMacroInputs(a.macroInputs, a.tdeeKcal - a.deficitKcal) } : {}) };
 }
 
 export function adjustDailyEnergy(base: MacroTotals, adjustment?: UserProfile["dailyEnergyAdjustment"]): MacroTotals {
   if (!adjustment) return { ...base };
-  const { tdeeKcal, deficitKcal } = parseDailyEnergyAdjustment(adjustment);
-  const kcal = tdeeKcal - deficitKcal;
+  const parsed = parseDailyEnergyAdjustment(adjustment), { macroInputs } = parsed;
+  const kcal = parsed.targetKcal ?? (parsed.tdeeKcal! - parsed.deficitKcal!);
+  if (macroInputs) return resolveFlexibleMacros(kcal, macroInputs, { weightKg: macroInputs.weightKg, ffmKg: dailyFfmKg(macroInputs) });
   const carbs = (kcal - base.protein * 4 - base.fat * 9) / 4;
   if (carbs < 0) throw new Error("蛋白质和脂肪已超过当天热量预算，请减小缺口或调整蛋白质、脂肪目标。");
   return { kcal, protein: base.protein, fat: base.fat, carbs };

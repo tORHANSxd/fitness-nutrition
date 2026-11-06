@@ -13,6 +13,8 @@ import { emptyProfile } from "@/lib/demoState";
 import { syntheticBody } from "../fixtures/nutritionGoalFixture";
 import type { FoodItem } from "@/lib/types";
 import { addDays, todayKey } from "@/lib/dateTime";
+import { flexibleBody, flexiblePolicy } from "../fixtures/flexibleNutritionFixture";
+import { adjustDailyEnergy } from "@/lib/nutritionStrategy";
 
 const db = new PGlite();
 const owner = "10000000-0000-4000-8000-000000000071", other = "10000000-0000-4000-8000-000000000072";
@@ -42,6 +44,7 @@ beforeAll(async () => {
   await db.exec(readFileSync("supabase/migrations/20260914091735_nutrition_auto_goals_v5.sql", "utf8"));
   await db.exec(readFileSync("supabase/migrations/20261015095133_nutrition_standard_v6.sql", "utf8"));
   await db.exec(readFileSync("supabase/migrations/20261103042039_daily_energy_adjustment.sql", "utf8"));
+  await db.exec(readFileSync("supabase/migrations/20261106013925_flexible_macro_targets.sql", "utf8"));
 }, 30000);
 afterAll(async () => { await db.close(); });
 
@@ -136,5 +139,62 @@ describe.sequential("饮食标准的 PostgreSQL 验收（独立引擎与合成�
     const { targetEnergyAdjustment: _adjustment, ...restoredActual } = actual;
     const restored = await asUser(owner, () => call("save_daily_actual_v3", [date, restoredActual, protocol.dailyTarget, false, reopened.revision])) as { target: unknown };
     expect(restored.target).toEqual(protocol.dailyTarget);
+  });
+
+  it("灵活目标的客户端和SQL一致，旧快照仍可验证，伪造计算证据被拒绝", async () => {
+    const policy = flexiblePolicy();
+    policy.energy = { kind: "delta_kcal", deltaKcal: -513 };
+    policy.tdee = { kind: "manual", kcal: 2650, source: "user_estimate" };
+    const snapshot = createNutritionSnapshot(policy, flexibleBody);
+    expect(await call("validate_nutrition_snapshot_v1", [nutrition])).toBe(true);
+    expect(await call("validate_nutrition_snapshot_v1", [snapshot])).toBe(true);
+    const tampered = structuredClone(snapshot); tampered.result.trace.at(-1)!.rawValue++;
+    expect(await call("validate_nutrition_snapshot_v1", [tampered])).toBe(false);
+    const wrongVersion = structuredClone(snapshot); wrongVersion.result.algorithmVersion = "nutrition-v5.0";
+    expect(await call("validate_nutrition_snapshot_v1", [wrongVersion])).toBe(false);
+    const next = createTreProtocol({ id: "20000000-0000-4000-8000-000000000078", effectiveFrom: "2030-03-01", cycleAnchorDate: "2030-03-01", timeZone: "Asia/Shanghai", previous: protocol, nutrition: snapshot });
+    expect(await asUser(owner, () => call("activate_plan_protocol_v1", [next, protocol.id]))).toEqual(next);
+  });
+
+  it("三种剩余项和全指定目标均可按日原子保存，缺失身体数据与错误预算不落库", async () => {
+    const grams = (grams: number) => ({ kind: "fixed_grams" as const, grams });
+    const methods = [
+      { protein: { kind: "ffm" as const, coefficient: 2.5 }, fat: { kind: "body_weight" as const, coefficient: .6 }, carbs: { kind: "residual" as const } },
+      { protein: { kind: "residual" as const }, fat: { kind: "ffm" as const, coefficient: .75 }, carbs: { kind: "body_weight" as const, coefficient: 3 } },
+      { protein: grams(180), fat: { kind: "residual" as const }, carbs: grams(250) },
+      { protein: grams(170), fat: grams(60), carbs: grams(245) },
+    ];
+    for (const [i, method] of methods.entries()) {
+      const date = `2030-02-${10 + i}`;
+      const adjustment = { tdeeKcal: 2650, deficitKcal: 450, macroInputs: { version: 1 as const, weightKg: 90, bodyFatPct: 20, ...method } };
+      const target = adjustDailyEnergy(protocol.dailyTarget, adjustment);
+      const computed = await call("nutrition_adjust_daily_target_v1", [protocol.dailyTarget, adjustment]) as typeof target;
+      for (const key of ["kcal", "protein", "fat", "carbs"] as const) expect(computed[key]).toBeCloseTo(target[key], 8);
+      const profile = { ...emptyProfile, planDate: date, targetMode: "calibrated" as const, allocationMode: "explicitMacros" as const, protocolSnapshot: protocol, dailyEnergyAdjustment: adjustment };
+      const meals = protocolMeals(protocol, date), result = buildNutritionResult(profile, meals, []);
+      const actual = { ...emptyActualV3(), targetProtocolSnapshot: protocol, targetEnergyAdjustment: adjustment };
+      const saved = await asUser(owner, () => call("complete_daily_record_v3", [date, profile, meals, result, 3, "nutrition-v5.0", [], actual, target, false, null])) as { actual: unknown };
+      expect(saved.actual).toMatchObject({ targetEnergyAdjustment: adjustment });
+      const malformed = { ...adjustment, macroInputs: { ...adjustment.macroInputs, protein: { kind: "ffm", coefficient: 2 }, bodyFatPct: null } };
+      await expect(asUser(owner, () => call("save_planner_draft_v3", [date, { ...profile, dailyEnergyAdjustment: malformed }, meals, 3, null, false]))).rejects.toThrow();
+      await expect(call("nutrition_adjust_daily_target_v1", [protocol.dailyTarget, { ...adjustment, macroInputs: { ...adjustment.macroInputs, protein: { kind: "residual" }, fat: { kind: "residual" } } }])).rejects.toThrow("multiple_residual");
+    }
+    await expect(asUser(null, () => call("nutrition_resolve_macros_v1", [2200, methods[0], 90, 72]))).rejects.toThrow("permission denied");
+  });
+
+  it("直接摄入热量不伪造TDEE，直接FFM往返，错误消耗与混合模式被拒绝", async () => {
+    const date = "2030-02-20";
+    const adjustment = { targetKcal: 2137, macroInputs: { version: 1 as const, weightKg: 90, bodyFatPct: null, ffmInput: "direct" as const, ffmKg: 72, protein: { kind: "ffm" as const, coefficient: 2.5 }, fat: { kind: "body_weight" as const, coefficient: .6 }, carbs: { kind: "residual" as const } } };
+    const profile = { ...emptyProfile, planDate: date, targetMode: "calibrated" as const, allocationMode: "explicitMacros" as const, protocolSnapshot: protocol, dailyEnergyAdjustment: adjustment };
+    const meals = protocolMeals(protocol, date), result = buildNutritionResult(profile, meals, []);
+    expect(result.estimatesAvailable).toBe(false);
+    expect(result.tdee).toBe(0);
+    const actual = { ...emptyActualV3(), targetProtocolSnapshot: protocol, targetEnergyAdjustment: adjustment };
+    const args = [date, profile, meals, result, 3, "nutrition-v5.0", [], actual, result.dailyTarget, false, null];
+    const saved = await asUser(owner, () => call("complete_daily_record_v3", args)) as { actual: unknown; revision: number };
+    expect(saved.actual).toMatchObject({ targetEnergyAdjustment: adjustment });
+    await expect(asUser(owner, () => call("complete_daily_record_v3", [date, profile, meals, { ...result, tdee: 2650, plannedCalorieDelta: -513 }, 3, "nutrition-v5.0", [], actual, result.dailyTarget, false, saved.revision]))).rejects.toThrow("nutrition_expenditure_mismatch");
+    await expect(call("nutrition_adjust_daily_target_v1", [protocol.dailyTarget, { ...adjustment, tdeeKcal: 2650, deficitKcal: 513 }])).rejects.toThrow("invalid_daily_energy_adjustment");
+    await expect(call("nutrition_adjust_daily_target_v1", [protocol.dailyTarget, { ...adjustment, macroInputs: { ...adjustment.macroInputs, ffmKg: 91 } }])).rejects.toThrow("invalid_ffm");
   });
 });

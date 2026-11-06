@@ -146,6 +146,38 @@ it("已有目标可直接填热量、蛋白质和脂肪，也可切换三大营�
   expect(screen.getByLabelText("每日热量", { exact: true })).toHaveValue("2020");
 });
 
+it("手动缺口支持全体重和去脂体重倍数，并保存精确输入", async () => {
+  const p = props();
+  render(<NutritionGoalPanel {...p} />);
+  fireEvent.click(screen.getByRole("button", { name: "我已有目标" }));
+  choose("填写方式", "deficit"); choose("已知的维持热量", "2650"); choose("每日热量缺口（负为盈余）", "513");
+  choose("蛋白方法", "ffm"); choose("计算体重", "90"); choose("体脂率 %", "20"); choose("蛋白系数 g/kg", "2.5");
+  choose("脂肪方法", "body_weight"); choose("脂肪系数 g/kg", "0.6");
+  fireEvent.click(screen.getByLabelText(/我已成年/));
+  expect(screen.getByTestId("candidate-energy")).toHaveTextContent("2137 kcal");
+  expect(screen.getByTestId("candidate-protein")).toHaveTextContent("180 g");
+  expect(screen.getByTestId("candidate-fat")).toHaveTextContent("54 g");
+  preview(); fireEvent.click(screen.getByRole("button", { name: "确认目标" }));
+  await waitFor(() => expect(p.onApplied).toHaveBeenCalledOnce());
+  const nutrition = (p.onApplied.mock.calls[0][0] as PlanProtocol).nutrition!;
+  expect(nutrition.policy.policyVersion).toBe("nutrition-goals-v5.1");
+  expect(nutrition.body.bodyFatWeightKg).toBe(90);
+  expect(nutrition.body.bodyFatPct).toBe(20);
+  expect(nutrition.result.resolvedTarget).toEqual({ kcal: 2137, protein: 180, fat: 54, carbs: 232.75 });
+});
+
+it("脂肪或蛋白可使用剩余预算，多项剩余时不生成预览", () => {
+  render(<NutritionGoalPanel {...props()} />);
+  fireEvent.click(screen.getByRole("button", { name: "我已有目标" }));
+  choose("每日热量", "2200"); choose("每日蛋白质 g", "180");
+  choose("脂肪方法", "residual");
+  expect(screen.getByRole("button", { name: "预览调整" })).toBeDisabled();
+  choose("碳水方法", "fixed_grams"); choose("每日碳水 g", "250");
+  expect(screen.getByTestId("candidate-fat")).toHaveTextContent("53.3 g");
+  choose("脂肪方法", "fixed_grams"); choose("每日脂肪 g", "60"); choose("蛋白方法", "residual");
+  expect(screen.getByTestId("candidate-protein")).toHaveTextContent("165 g");
+});
+
 it("日常目标与已保存日期分别显示，确认前明确不会覆盖今天", () => {
   const p = props();
   const latest = syntheticGoalProtocol();

@@ -542,7 +542,7 @@ export function calculatePlannedCalorieDelta(profile: UserProfile) {
 }
 
 export function targetTdee(profile: UserProfile): number | null {
-  if (profile.dailyEnergyAdjustment) return profile.dailyEnergyAdjustment.tdeeKcal;
+  if (profile.dailyEnergyAdjustment?.tdeeKcal != null) return profile.dailyEnergyAdjustment.tdeeKcal;
   if (profile.protocolSnapshot?.nutrition) return profile.protocolSnapshot.nutrition.result.expenditure.tdeeKcal ?? null;
   return isProfileComplete(profile) ? calculateTdee(profile) : null;
 }
